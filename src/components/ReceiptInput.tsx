@@ -75,7 +75,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       }
 
       if (geminiResult.items.length === 0) {
-        setErrorMessage("Tidak ada item yang ditemukan. Coba foto yang lebih jelas.");
+        setErrorMessage("No items found. Try a clearer photo.");
         setStatus("error");
         return;
       }
@@ -105,7 +105,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       }, 500);
     } catch (error) {
       console.error("Processing error:", error);
-      setErrorMessage("Gagal memproses gambar. Coba lagi.");
+      setErrorMessage("Failed to process image. Please try again.");
       setStatus("error");
     }
   }, [processWithGemini, onParsed]);
@@ -168,9 +168,9 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
                 <ImageIcon className="h-7 w-7 text-primary" />
               </div>
               <div>
-                <p className="font-medium text-lg">Upload Foto Struk</p>
+                <p className="font-medium text-lg">Upload Receipt Photo</p>
                 <p className="text-sm text-muted-foreground">
-                  Klik atau drag foto struk ke sini
+                  Click or drag receipt photo here
                 </p>
               </div>
             </div>
@@ -185,7 +185,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="h-4 w-4 mr-2" />
-              Pilih File
+              Choose File
             </Button>
             <Button
               type="button"
@@ -194,7 +194,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
               onClick={() => cameraInputRef.current?.click()}
             >
               <Camera className="h-4 w-4 mr-2" />
-              Ambil Foto
+              Take Photo
               <Input
                 ref={cameraInputRef}
                 type="file"
@@ -207,7 +207,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
           </div>
 
           <p className="text-xs text-center text-muted-foreground">
-            ✨ AI akan membaca struk dan mengekstrak semua item secara otomatis
+            ✨ AI will read the receipt and extract all items automatically
           </p>
         </div>
       )}
@@ -229,10 +229,10 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
                 </div>
                 <div className="text-center space-y-1">
                   <p className="font-semibold text-lg">
-                    {status === "uploading" ? "Mengunggah..." : "AI Membaca Struk..."}
+                    {status === "uploading" ? "Uploading..." : "AI Reading Receipt..."}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Gemini sedang menganalisis gambar
+                    Gemini is analyzing the image
                   </p>
                 </div>
               </div>
@@ -248,17 +248,17 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
             <div className="flex-1">
               <p className="font-semibold text-emerald-600">
-                Berhasil! {parsedResult.items.length} item ditemukan
+                Success! {parsedResult.items.length} item{parsedResult.items.length !== 1 ? 's' : ''} found
               </p>
               <p className="text-sm text-muted-foreground">
-                Item sudah ditambahkan ke daftar
+                Items have been added to the list
               </p>
             </div>
           </div>
 
           {/* Preview of parsed items */}
           <div className="rounded-xl border bg-card p-4 space-y-3">
-            <Label className="text-sm text-muted-foreground">Item yang ditemukan:</Label>
+            <Label className="text-sm text-muted-foreground">Items found:</Label>
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
               {parsedResult.items.map((item, i) => (
                 <div 
@@ -305,7 +305,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             onClick={resetUpload}
             className="w-full"
           >
-            Upload Struk Lain
+            Upload Another Receipt
           </Button>
         </div>
       )}
@@ -327,10 +327,10 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-amber-600">
-                Gagal membaca struk
+                Failed to read receipt
               </p>
               <p className="text-sm text-muted-foreground">
-                {errorMessage || "Pastikan foto jelas dan coba lagi."}
+                {errorMessage || "Make sure the photo is clear and try again."}
               </p>
             </div>
           </div>
@@ -341,13 +341,13 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
               variant="outline"
               onClick={resetUpload}
             >
-              Upload Baru
+              Upload New
             </Button>
             <Button
               type="button"
               onClick={retryProcessing}
             >
-              Coba Lagi
+              Try Again
             </Button>
           </div>
         </div>

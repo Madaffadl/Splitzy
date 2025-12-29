@@ -2,6 +2,9 @@ import {
     Receipt,
     ReceiptItem,
     PersonShare,
+    PersonShareDetail,
+    ItemBreakdown,
+    WalletStats,
     ReceiptSummary,
     SettlementTransfer,
     TripSummary,
@@ -303,3 +306,104 @@ export function getTripSummary(trip: Trip): TripSummary {
         settlements,
     };
 }
+
+/**
+ * Get detailed person share breakdown with item list (for audit/transparency view).
+ */
+export function getPersonShareDetails(
+    receipt: Receipt,
+    participantIds: string[]
+): PersonShareDetail[] {
+    const subtotals = calculatePersonSubtotals(receipt.items, participantIds);
+    const receiptSubtotal = calculateReceiptSubtotal(receipt.items);
+    const { taxAllocations, serviceAllocations } = allocateTaxService(
+        subtotals,
+        receiptSubtotal,
+        receipt.tax,
+        receipt.service
+    );
+
+    const details: PersonShareDetail[] = [];
+
+    for (const id of participantIds) {
+        const subtotal = subtotals.get(id) || 0;
+        const taxAlloc = taxAllocations.get(id) || 0;
+        const serviceAlloc = serviceAllocations.get(id) || 0;
+
+        // Build item breakdown for this person
+        const items: ItemBreakdown[] = [];
+        for (const item of receipt.items) {
+            if (item.assignedToIds.includes(id)) {
+                const shareAmount = roundTo2(item.total / item.assignedToIds.length);
+                items.push({
+                    itemId: item.id,
+                    itemName: item.name,
+                    qty: item.qty,
+                    itemTotal: item.total,
+                    shareAmount,
+                    sharedWith: item.assignedToIds.length,
+                });
+            }
+        }
+
+        details.push({
+            participantId: id,
+            subtotal,
+            taxAllocation: taxAlloc,
+            serviceAllocation: serviceAlloc,
+            total: roundTo2(subtotal + taxAlloc + serviceAlloc),
+            items,
+        });
+    }
+
+    return details;
+}
+
+/**
+ * Get wallet stats for all participants in a trip (paid vs consumed).
+ */
+export function getWalletStats(
+    trip: Trip
+): WalletStats[] {
+    const participantIds = trip.participants.map((p) => p.id);
+    const stats = new Map<string, { paid: number; consumed: number }>();
+
+    // Initialize all participants
+    for (const id of participantIds) {
+        stats.set(id, { paid: 0, consumed: 0 });
+    }
+
+    // Calculate for each receipt
+    for (const receipt of trip.receipts) {
+        const summary = getReceiptSummary(receipt, participantIds);
+
+        // Add to payer's "paid" total
+        const payerStats = stats.get(receipt.payerId);
+        if (payerStats) {
+            payerStats.paid = roundTo2(payerStats.paid + summary.grandTotal);
+        }
+
+        // Add to each person's "consumed" total based on their share
+        for (const share of summary.shares) {
+            const personStats = stats.get(share.participantId);
+            if (personStats) {
+                personStats.consumed = roundTo2(personStats.consumed + share.total);
+            }
+        }
+    }
+
+    // Convert map to array
+    const result: WalletStats[] = [];
+    for (const id of participantIds) {
+        const s = stats.get(id)!;
+        result.push({
+            participantId: id,
+            totalPaid: s.paid,
+            totalConsumed: s.consumed,
+            netBalance: roundTo2(s.paid - s.consumed),
+        });
+    }
+
+    return result;
+}
+

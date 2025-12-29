@@ -97,7 +97,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
 
       {items.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No items yet. Parse a receipt or add items manually.</p>
+          <p>No items yet. Scan receipt or add manually.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -135,7 +135,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                 </div>
                 <div className="col-span-2">
                   <Label className="text-xs text-muted-foreground">
-                    Unit $
+                    Price
                   </Label>
                   <Input
                     type="number"
@@ -182,7 +182,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs text-muted-foreground">
-                      Who had this?
+                      Who's having this?
                     </Label>
                     <Button
                       type="button"

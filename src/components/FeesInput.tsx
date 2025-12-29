@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Receipt, DollarSign, User } from "lucide-react";
+import { Receipt, User } from "lucide-react";
 
 interface FeesInputProps {
   tax: number;
@@ -41,15 +41,17 @@ export function FeesInput({
             Tax
           </Label>
           <div className="relative">
-            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
+              Rp
+            </span>
             <Input
               type="number"
               min="0"
-              step="0.01"
+              step="100"
               value={tax || ""}
               onChange={(e) => onTaxChange(parseFloat(e.target.value) || 0)}
-              className="pl-9"
-              placeholder="0.00"
+              className="pl-10"
+              placeholder="0"
             />
           </div>
         </div>
@@ -60,15 +62,17 @@ export function FeesInput({
             Service Charge
           </Label>
           <div className="relative">
-            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
+              Rp
+            </span>
             <Input
               type="number"
               min="0"
-              step="0.01"
+              step="100"
               value={service || ""}
               onChange={(e) => onServiceChange(parseFloat(e.target.value) || 0)}
-              className="pl-9"
-              placeholder="0.00"
+              className="pl-10"
+              placeholder="0"
             />
           </div>
         </div>
@@ -78,7 +82,7 @@ export function FeesInput({
       <div className="space-y-2">
         <Label className="flex items-center gap-2">
           <User className="h-4 w-4" />
-          Who Paid?
+          Who paid?
         </Label>
         {participants.length > 0 ? (
           <Select value={payerId} onValueChange={onPayerChange}>
@@ -105,3 +109,4 @@ export function FeesInput({
     </div>
   );
 }
+

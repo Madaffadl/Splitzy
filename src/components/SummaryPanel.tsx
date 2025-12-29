@@ -1,18 +1,120 @@
 "use client";
 
-import { Receipt, Participant, PersonShare, SettlementTransfer } from "@/types";
-import { getReceiptSummary, minimizeTransactions } from "@/lib/calculations";
+import { Receipt, Participant, PersonShareDetail } from "@/types";
+import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, getWalletStats } from "@/lib/calculations";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, ArrowRight, Wallet, Calculator } from "lucide-react";
+import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { useState, useMemo } from "react";
 
 interface SummaryPanelProps {
   receipt: Receipt;
   participants: Participant[];
   title?: string;
+}
+
+// Expandable person row component for audit view
+function PersonBreakdown({
+  detail,
+  name,
+  isPayer,
+}: {
+  detail: PersonShareDetail;
+  name: string;
+  isPayer: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-md border overflow-hidden">
+      {/* Main row - clickable */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{name}</span>
+          {isPayer && (
+            <Badge variant="outline" className="text-xs py-0">
+              Payer
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-primary">
+            Rp {formatCurrency(detail.total)}
+          </span>
+          {expanded ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+      </button>
+
+      {/* Expanded breakdown */}
+      {expanded && (
+        <div className="px-3 pb-3 pt-1 bg-muted/30 border-t space-y-2 animate-fade-in">
+          {/* Items list */}
+          {detail.items.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                <Eye className="h-3 w-3" /> Items Consumed
+              </p>
+              {detail.items.map((item) => (
+                <div
+                  key={item.itemId}
+                  className="flex justify-between text-xs py-1 px-2 rounded bg-background/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="truncate max-w-[120px]">{item.itemName}</span>
+                    {item.sharedWith > 1 && (
+                      <span className="text-muted-foreground">
+                        (÷{item.sharedWith})
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-medium">
+                    Rp {formatCurrency(item.shareAmount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Subtotal */}
+          <div className="flex justify-between text-xs pt-1 border-t">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>Rp {formatCurrency(detail.subtotal)}</span>
+          </div>
+
+          {/* Tax allocation */}
+          {detail.taxAllocation > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">+ Tax share</span>
+              <span>Rp {formatCurrency(detail.taxAllocation)}</span>
+            </div>
+          )}
+
+          {/* Service allocation */}
+          {detail.serviceAllocation > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">+ Service share</span>
+              <span>Rp {formatCurrency(detail.serviceAllocation)}</span>
+            </div>
+          )}
+
+          {/* Final total */}
+          <div className="flex justify-between text-sm pt-1 border-t font-medium">
+            <span>Total</span>
+            <span className="text-primary">Rp {formatCurrency(detail.total)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps) {
@@ -25,6 +127,11 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
 
   const summary = useMemo(
     () => getReceiptSummary(receipt, participantIds),
+    [receipt, participantIds]
+  );
+
+  const shareDetails = useMemo(
+    () => getPersonShareDetails(receipt, participantIds),
     [receipt, participantIds]
   );
 
@@ -81,18 +188,20 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
   }
 
   return (
-    <Card className="sticky top-4">
+    <Card className="sticky top-24 border-2 border-primary/20 shadow-premium-lg">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Summary
+            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Wallet className="h-4 w-4 text-primary" />
+            </div>
+            <span className="gradient-text font-bold">Summary</span>
           </CardTitle>
           <Button
-            variant="outline"
+            variant="accent"
             size="sm"
             onClick={handleCopy}
-            className="h-8"
+            className="h-9"
           >
             {copied ? (
               <>
@@ -134,30 +243,20 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
           </Badge>
         </div>
 
-        {/* Per Person Breakdown */}
+        {/* Per Person Breakdown with Expandable Audit */}
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">
+          <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
             Per Person
+            <span className="text-xs font-normal">(tap to expand)</span>
           </h4>
-          <div className="space-y-1">
-            {summary.shares.map((share) => (
-              <div
-                key={share.participantId}
-                className="flex items-center justify-between text-sm py-1.5 px-2 rounded-md hover:bg-muted/50"
-              >
-                <span>{getParticipantName(share.participantId)}</span>
-                <div className="flex flex-col items-end">
-                  <span className="font-medium">
-                    Rp {formatCurrency(share.total)}
-                  </span>
-                  {(share.taxAllocation > 0 || share.serviceAllocation > 0) && (
-                    <span className="text-xs text-muted-foreground">
-                      (Rp {formatCurrency(share.subtotal)} +{" "}
-                      Rp {formatCurrency(share.taxAllocation + share.serviceAllocation)})
-                    </span>
-                  )}
-                </div>
-              </div>
+          <div className="space-y-2">
+            {shareDetails.map((detail) => (
+              <PersonBreakdown
+                key={detail.participantId}
+                detail={detail}
+                name={getParticipantName(detail.participantId)}
+                isPayer={detail.participantId === receipt.payerId}
+              />
             ))}
           </div>
         </div>
@@ -235,6 +334,37 @@ export function TripSummaryPanel({
     balances.forEach((v, k) => balances.set(k, Math.round(v * 100) / 100));
 
     return { aggregateBalances: balances, totalGrandTotal: Math.round(total * 100) / 100 };
+  }, [receipts, participantIds]);
+
+  // Wallet stats (paid vs consumed)
+  const walletStats = useMemo(() => {
+    const stats = new Map<string, { paid: number; consumed: number }>();
+    
+    // Initialize
+    for (const id of participantIds) {
+      stats.set(id, { paid: 0, consumed: 0 });
+    }
+    
+    // Calculate
+    for (const receipt of receipts) {
+      const summary = getReceiptSummary(receipt, participantIds);
+      
+      // Add to payer's paid total
+      const payerStats = stats.get(receipt.payerId);
+      if (payerStats) {
+        payerStats.paid = Math.round((payerStats.paid + summary.grandTotal) * 100) / 100;
+      }
+      
+      // Add to each person's consumed total
+      for (const share of summary.shares) {
+        const personStats = stats.get(share.participantId);
+        if (personStats) {
+          personStats.consumed = Math.round((personStats.consumed + share.total) * 100) / 100;
+        }
+      }
+    }
+    
+    return stats;
   }, [receipts, participantIds]);
 
   const settlements = useMemo(
@@ -322,7 +452,58 @@ export function TripSummaryPanel({
           </div>
         </div>
 
-        {/* Balances */}
+        {/* Wallet Tracking */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground">
+            💰 Wallet Tracking
+          </h4>
+          <div className="space-y-2">
+            {participantIds.map((id) => {
+              const stat = walletStats.get(id);
+              const paid = stat?.paid || 0;
+              const consumed = stat?.consumed || 0;
+              const net = Math.round((paid - consumed) * 100) / 100;
+              
+              return (
+                <div
+                  key={id}
+                  className="p-3 rounded-lg border bg-card space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{getParticipantName(id)}</span>
+                    <span
+                      className={`text-sm font-semibold ${
+                        net > 0
+                          ? "text-emerald-600"
+                          : net < 0
+                          ? "text-red-500"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {net > 0 ? "+" : ""}Rp {formatCurrency(net)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex justify-between p-1.5 rounded bg-emerald-500/10">
+                      <span className="text-emerald-700">Paid</span>
+                      <span className="font-medium text-emerald-700">
+                        Rp {formatCurrency(paid)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between p-1.5 rounded bg-orange-500/10">
+                      <span className="text-orange-700">Consumed</span>
+                      <span className="font-medium text-orange-700">
+                        Rp {formatCurrency(consumed)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Net Balances (summarized) */}
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">
             Net Balances
