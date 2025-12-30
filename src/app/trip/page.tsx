@@ -150,15 +150,17 @@ export default function TripPage() {
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="px-6 py-4 border-b glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {viewMode === "overview" ? (
             <Link
               href="/"
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back
+              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                <ArrowLeft className="h-4 w-4" />
+              </div>
+              <span className="hidden sm:inline text-sm font-medium">Back</span>
             </Link>
           ) : (
             <button
@@ -168,24 +170,26 @@ export default function TripPage() {
               }}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Trip
+              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                <ArrowLeft className="h-4 w-4" />
+              </div>
+              <span className="hidden sm:inline text-sm font-medium">Back to Trip</span>
             </button>
           )}
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <Plane className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold">Trip Mode</span>
+            <span className="font-semibold text-sm sm:text-base">Trip Mode</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleReset}>
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Reset
+          <Button variant="ghost" size="sm" onClick={handleReset} className="px-2 sm:px-3">
+            <RotateCcw className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Reset</span>
           </Button>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 flex-grow">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
         {viewMode === "overview" && (
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Main Content */}

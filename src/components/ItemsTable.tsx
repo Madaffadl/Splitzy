@@ -107,73 +107,78 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
               className="p-4 rounded-lg border bg-card space-y-4"
             >
               {/* Item details row */}
-              <div className="grid grid-cols-12 gap-3 items-end">
-                <div className="col-span-5">
-                  <Label className="text-xs text-muted-foreground">
-                    Item #{index + 1}
-                  </Label>
-                  <Input
-                    placeholder="Item name"
-                    value={item.name}
-                    onChange={(e) =>
-                      updateItem(item.id, { name: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-xs text-muted-foreground">Qty</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={item.qty}
-                    onChange={(e) =>
-                      updateItem(item.id, {
-                        qty: Math.max(1, parseInt(e.target.value) || 1),
-                      })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-xs text-muted-foreground">
-                    Price
-                  </Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.unitPrice || ""}
-                    onChange={(e) =>
-                      updateItem(item.id, {
-                        unitPrice: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-xs text-muted-foreground">Total</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={item.total || ""}
-                    onChange={(e) =>
-                      updateItem(item.id, {
-                        total: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    className="font-semibold"
-                  />
-                </div>
-                <div className="col-span-1">
+              <div className="space-y-3">
+                {/* Item Name - Full width */}
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Label className="text-xs text-muted-foreground">
+                      Item #{index + 1}
+                    </Label>
+                    <Input
+                      placeholder="Item name"
+                      value={item.name}
+                      onChange={(e) =>
+                        updateItem(item.id, { name: e.target.value })
+                      }
+                    />
+                  </div>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     onClick={() => removeItem(item.id)}
-                    className="text-muted-foreground hover:text-destructive"
+                    className="text-muted-foreground hover:text-destructive shrink-0"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                </div>
+                
+                {/* Qty, Price, Total - 3 columns */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Qty</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={item.qty}
+                      onChange={(e) =>
+                        updateItem(item.id, {
+                          qty: Math.max(1, parseInt(e.target.value) || 1),
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Price
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.unitPrice || ""}
+                      onChange={(e) =>
+                        updateItem(item.id, {
+                          unitPrice: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Total</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.total || ""}
+                      onChange={(e) =>
+                        updateItem(item.id, {
+                          total: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="font-semibold"
+                    />
+                  </div>
                 </div>
               </div>
 

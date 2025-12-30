@@ -32,28 +32,29 @@ export default function Home() {
   return (
     <main className="min-h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="px-6 py-4 glass sticky top-0 z-50">
+      <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-50">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25 animate-glow-pulse">
-              <Calculator className="h-5 w-5 text-primary-foreground" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25 animate-glow-pulse">
+              <Calculator className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-lg tracking-tight">Splitzy</span>
-              <span className="text-[10px] text-muted-foreground font-medium -mt-0.5">Split Bills Easily</span>
+              <span className="font-bold text-base sm:text-lg tracking-tight">Splitzy</span>
+              <span className="text-[10px] text-muted-foreground font-medium -mt-0.5 hidden sm:block">Split Bills Easily</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="label-accent animate-shimmer">
+            <div className="label-accent animate-shimmer text-xs sm:text-sm">
               <Sparkles className="h-3 w-3" />
-              Free to Use
+              <span className="hidden sm:inline">Free to Use</span>
+              <span className="sm:hidden">Free</span>
             </div>
           </div>
         </div>
       </header>
 
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 py-16 gradient-bg relative overflow-hidden min-h-[85vh]">
+      <section className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-16 gradient-bg relative overflow-hidden min-h-[70vh] sm:min-h-[85vh]">
         {/* Animated Background Grid */}
         <div className="absolute inset-0 grid-pattern opacity-50" />
         
@@ -71,9 +72,9 @@ export default function Home() {
           style={{ transform: `translate(${mousePosition.x * 0.2}px, ${mousePosition.y * 0.2}px)` }}
         />
 
-        {/* Morphing Decorative Shape */}
-        <div className="absolute top-20 left-20 w-40 h-40 bg-gradient-to-br from-primary/20 to-accent/20 animate-morph opacity-40" />
-        <div className="absolute bottom-40 right-20 w-32 h-32 bg-gradient-to-br from-accent/20 to-primary/10 animate-morph opacity-30" style={{ animationDelay: '-4s' }} />
+        {/* Morphing Decorative Shape - Hidden on mobile */}
+        <div className="absolute top-20 left-20 w-40 h-40 bg-gradient-to-br from-primary/20 to-accent/20 animate-morph opacity-40 hidden sm:block" />
+        <div className="absolute bottom-40 right-20 w-32 h-32 bg-gradient-to-br from-accent/20 to-primary/10 animate-morph opacity-30 hidden sm:block" style={{ animationDelay: '-4s' }} />
         
         {/* Floating Particles */}
         <div className="particle bottom-0 left-1/4" style={{ animationDelay: '0s' }} />
@@ -82,21 +83,21 @@ export default function Home() {
         <div className="particle bottom-0 left-2/3" style={{ animationDelay: '6s' }} />
         <div className="particle bottom-0 right-1/4" style={{ animationDelay: '8s' }} />
 
-        {/* Floating Decorative Icons */}
+        {/* Floating Decorative Icons - Hidden on mobile */}
         <div 
-          className="absolute top-1/4 left-[15%] text-primary/20 animate-float-slow"
+          className="absolute top-1/4 left-[15%] text-primary/20 animate-float-slow hidden sm:block"
           style={{ transform: `translateY(${scrollY * 0.1}px)` }}
         >
           <Receipt className="h-8 w-8" />
         </div>
         <div 
-          className="absolute top-1/3 right-[15%] text-accent/25 animate-float-medium"
+          className="absolute top-1/3 right-[15%] text-accent/25 animate-float-medium hidden sm:block"
           style={{ transform: `translateY(${scrollY * -0.15}px)` }}
         >
           <Calculator className="h-10 w-10" />
         </div>
         <div 
-          className="absolute bottom-1/3 left-[10%] text-accent/20 animate-float-rotate"
+          className="absolute bottom-1/3 left-[10%] text-accent/20 animate-float-rotate hidden sm:block"
           style={{ transform: `translateY(${scrollY * 0.08}px)` }}
         >
           <Star className="h-6 w-6" />
@@ -332,33 +333,30 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="px-6 py-6 border-t bg-card">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Calculator className="h-4 w-4 text-primary" />
+      <footer className="px-4 sm:px-6 py-4 sm:py-6 border-t bg-card">
+        <div className="max-w-5xl mx-auto flex flex-col items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Calculator className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
             </div>
             <div className="flex flex-col">
-              <span className="font-semibold text-sm">Splitzy by Madaffadl</span>
-              <span className="text-xs text-muted-foreground">Never miss a split <span className="text-base">•</span> because someone always forgets.</span>
+              <span className="font-semibold text-xs sm:text-sm">Splitzy by Madaffadl</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground hidden xs:block">Never miss a split <span className="text-sm sm:text-base">•</span> because someone always forgets.</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-muted-foreground hidden sm:inline">Connect with us:</span>
-            <div className="flex items-center gap-2">
-              <a href="mailto:m.daffafadhil26@gmail.com" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200" aria-label="Email">
-                <Mail className="h-4 w-4" />
-              </a>
-              <a href="https://www.instagram.com/mdaffa_fdl?igsh=ajJ3Y3Y0Nzd3OXZn&utm_source=qr" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-pink-500 hover:bg-pink-500/10 transition-all duration-200" aria-label="Instagram">
-                <Instagram className="h-4 w-4" />
-              </a>
-              <a href="https://www.linkedin.com/in/madaffadl" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-600/10 transition-all duration-200" aria-label="LinkedIn">
-                <Linkedin className="h-4 w-4" />
-              </a>
-              <a href="https://wa.me/6285365360955" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-green-500 hover:bg-green-500/10 transition-all duration-200" aria-label="WhatsApp">
-                <Phone className="h-4 w-4" />
-              </a>
-            </div>
+          <div className="flex items-center gap-2">
+            <a href="mailto:m.daffafadhil26@gmail.com" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200" aria-label="Email">
+              <Mail className="h-4 w-4" />
+            </a>
+            <a href="https://www.instagram.com/mdaffa_fdl?igsh=ajJ3Y3Y0Nzd3OXZn&utm_source=qr" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-pink-500 hover:bg-pink-500/10 transition-all duration-200" aria-label="Instagram">
+              <Instagram className="h-4 w-4" />
+            </a>
+            <a href="https://www.linkedin.com/in/madaffadl" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-600/10 transition-all duration-200" aria-label="LinkedIn">
+              <Linkedin className="h-4 w-4" />
+            </a>
+            <a href="https://wa.me/6285365360955" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-green-500 hover:bg-green-500/10 transition-all duration-200" aria-label="WhatsApp">
+              <Phone className="h-4 w-4" />
+            </a>
           </div>
         </div>
       </footer>

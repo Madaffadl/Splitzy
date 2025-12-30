@@ -275,14 +275,18 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
               {settlements.map((s, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
+                  className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
                 >
-                  <span className="font-medium">
-                    {getParticipantName(s.from)}
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">{getParticipantName(s.to)}</span>
-                  <span className="ml-auto font-bold text-primary">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">
+                      {getParticipantName(s.from)}
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">
+                      {getParticipantName(s.to)}
+                    </span>
+                  </div>
+                  <span className="font-bold text-primary sm:ml-auto">
                     Rp {formatCurrency(s.amount)}
                   </span>
                 </div>
@@ -545,14 +549,18 @@ export function TripSummaryPanel({
               {settlements.map((s, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
+                  className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
                 >
-                  <span className="font-medium">
-                    {getParticipantName(s.from)}
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">{getParticipantName(s.to)}</span>
-                  <span className="ml-auto font-bold text-primary">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">
+                      {getParticipantName(s.from)}
+                    </span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">
+                      {getParticipantName(s.to)}
+                    </span>
+                  </div>
+                  <span className="font-bold text-primary sm:ml-auto">
                     Rp {formatCurrency(s.amount)}
                   </span>
                 </div>

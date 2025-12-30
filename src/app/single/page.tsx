@@ -113,7 +113,7 @@ export default function SinglePage() {
   return (
     <main className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="px-6 py-4 glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link
             href="/"
@@ -122,25 +122,25 @@ export default function SinglePage() {
             <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium">Back</span>
+            <span className="text-sm font-medium hidden sm:inline">Back</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/25">
-              <Calculator className="h-5 w-5 text-primary-foreground" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/25">
+              <Calculator className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold">Single Receipt</span>
-              <span className="text-[10px] text-muted-foreground">Split one bill</span>
+              <span className="font-bold text-sm sm:text-base">Single Receipt</span>
+              <span className="text-[10px] text-muted-foreground hidden sm:block">Split one bill</span>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive">
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Reset
+          <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive px-2 sm:px-3">
+            <RotateCcw className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Reset</span>
           </Button>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8 flex-grow">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
         {/* Stepper */}
         <div className="mb-10">
           <Stepper
