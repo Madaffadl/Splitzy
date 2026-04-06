@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Plane, ArrowRight, Sparkles, Calculator, Users, Zap, CheckCircle2, Star, Mail, Instagram, Linkedin, Phone } from "lucide-react";
+import { Receipt, Plane, ArrowRight, Sparkles, Calculator, Users, Zap, CheckCircle2, Star, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useEffect, useState } from "react";
 
 export default function Home() {
@@ -43,7 +44,8 @@ export default function Home() {
               <span className="text-[10px] text-muted-foreground font-medium -mt-0.5 hidden sm:block">Split Bills Easily</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <ThemeToggle />
             <div className="label-accent animate-shimmer text-xs sm:text-sm">
               <Sparkles className="h-3 w-3" />
               <span className="hidden sm:inline">Free to Use</span>
@@ -307,27 +309,111 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="px-6 py-12 gradient-bg-accent border-t relative overflow-hidden">
-        {/* Animated background elements */}
-        <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-accent/20 to-transparent animate-wave" />
+      {/* Behind the Scenes Section */}
+      <section className="px-6 py-20 relative overflow-hidden bg-background">
+        <div className="max-w-5xl mx-auto">
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 mb-4">
+              <div className="w-8 h-0.5 bg-primary rounded-full animate-wave" />
+              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Under The Hood</span>
+              <div className="w-8 h-0.5 bg-primary rounded-full animate-wave" style={{ animationDelay: '0.5s' }} />
+            </div>
+            <h2 className="text-3xl font-bold mb-4">
+              Behind the <span className="gradient-text bg-gradient-to-r from-primary to-accent">Calculation</span>
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              How we process your bills from initial input to final settlement, ensuring fair distribution and the least amount of transfers possible.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 relative">
+            {/* Connecting lines for large screens */}
+            <div className="hidden lg:block absolute top-[28px] left-[10%] w-[80%] h-0.5 bg-gradient-to-r from-primary/20 via-accent/20 to-emerald-500/20 z-0" />
+
+            {/* Step 1 */}
+            <div className="relative bg-card p-6 rounded-2xl border-2 border-transparent hover:border-primary/20 transition-all duration-500 hover-lift z-10 group">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-6 mx-auto lg:mx-0 group-hover:scale-110 group-hover:-rotate-6 transition-transform duration-300">
+                 <Calculator className="w-7 h-7 text-primary" />
+               </div>
+               <h3 className="font-bold text-lg mb-3">1. Item Allocation</h3>
+               <p className="text-sm text-muted-foreground leading-relaxed">Each item's price is calculated and divided exactly among the people who shared it.</p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="relative bg-card p-6 rounded-2xl border-2 border-transparent hover:border-accent/20 transition-all duration-500 hover-lift z-10 group">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-accent/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/5 flex items-center justify-center mb-6 mx-auto lg:mx-0 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
+                 <Receipt className="w-7 h-7 text-accent" />
+               </div>
+               <h3 className="font-bold text-lg mb-3">2. Proportional Fees</h3>
+               <p className="text-sm text-muted-foreground leading-relaxed">Taxes, service, and discounts are fairly scaled based on each person's subtotal share.</p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="relative bg-card p-6 rounded-2xl border-2 border-transparent hover:border-emerald-500/20 transition-all duration-500 hover-lift z-10 group">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-emerald-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mb-6 mx-auto lg:mx-0 group-hover:scale-110 group-hover:-rotate-6 transition-transform duration-300">
+                 <Network className="w-7 h-7 text-emerald-500" />
+               </div>
+               <h3 className="font-bold text-lg mb-3">3. Debt Graphing</h3>
+               <p className="text-sm text-muted-foreground leading-relaxed">We map out everybody's balance against the main payer to create a web of debts.</p>
+            </div>
+
+            {/* Step 4 */}
+            <div className="relative bg-card p-6 rounded-2xl border-2 border-transparent hover:border-indigo-500/20 transition-all duration-500 hover-lift z-10 group">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-indigo-500/5 flex items-center justify-center mb-6 mx-auto lg:mx-0 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
+                 <ArrowRightLeft className="w-7 h-7 text-indigo-500" />
+               </div>
+               <h3 className="font-bold text-lg mb-3">4. Smart Settlement</h3>
+               <p className="text-sm text-muted-foreground leading-relaxed">The algorithm cancels out messy transfers, minimizing the total transactions needed.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA Section */}
+      <section className="px-6 py-24 relative overflow-hidden bg-card border-t">
+        {/* Background Decorative Elements */}
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent skew-x-12 translate-x-32" />
+        <div className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-gradient-to-tr from-accent/5 to-transparent rounded-tr-full" />
         
-        <div className="max-w-4xl mx-auto relative">
-          <div className="grid grid-cols-3 gap-8 text-center">
-            <div className="group">
-              <div className="text-3xl font-extrabold text-primary mb-1 group-hover:scale-110 transition-transform duration-300">100%</div>
-              <div className="text-sm text-muted-foreground font-medium">Free to Use</div>
-            </div>
-            <div className="group">
-              <div className="text-3xl font-extrabold text-accent mb-1 group-hover:scale-110 transition-transform duration-300">
-                <Zap className="h-8 w-8 mx-auto animate-float-fast" />
-              </div>
-              <div className="text-sm text-muted-foreground font-medium">AI Powered</div>
-            </div>
-            <div className="group">
-              <div className="text-3xl font-extrabold text-primary mb-1 group-hover:scale-110 transition-transform duration-300">∞</div>
-              <div className="text-sm text-muted-foreground font-medium">Unlimited Splits</div>
-            </div>
+        <div className="max-w-4xl mx-auto text-center relative z-10">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-semibold mb-6 animate-fade-in-up">
+            <Sparkles className="w-4 h-4" />
+            <span>Ready to settle the tab?</span>
+          </div>
+          
+          <h2 className="text-4xl md:text-5xl font-bold mb-6">
+            <span className="inline-block animate-fade-in-up stagger-2">Stop doing</span>{" "}
+            <span className="inline-block animate-fade-in-up stagger-2 text-muted-foreground animate-strike-draw">math.</span><br />
+            <span className="inline-block animate-fade-in-late">Start splitting</span>{" "}
+            <span className="inline-block animate-fade-in-later gradient-text bg-gradient-to-r from-primary to-accent">fairly.</span>
+          </h2>
+          
+          <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto animate-fade-in-up stagger-3">
+            Choose your splitting mode and get back to enjoying your time with friends. <br className="hidden sm:block" /> No app installation or sign up required.
+          </p>
+          
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up stagger-4">
+            <Link
+              href="/single"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-1 transition-all flex items-center justify-center gap-2 group relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+              <Receipt className="w-5 h-5 relative z-10 group-hover:scale-110 transition-transform" />
+              <span className="relative z-10">Split Single Bill</span>
+            </Link>
+            
+            <Link
+              href="/trip"
+              className="w-full sm:w-auto px-8 py-4 rounded-xl bg-transparent border-2 border-border hover:border-accent/50 hover:bg-accent/5 text-foreground font-bold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 group"
+            >
+              <Plane className="w-5 h-5 text-accent group-hover:-rotate-12 transition-transform" />
+              Start Trip Mode
+            </Link>
           </div>
         </div>
       </section>

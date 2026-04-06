@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, Trip } from "@/types";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { generateId } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
@@ -34,6 +35,7 @@ import {
   Edit2,
   Check,
   X,
+  Users,
   Mail,
   Instagram,
   Linkedin,
@@ -182,10 +184,13 @@ export default function TripPage() {
             </div>
             <span className="font-semibold text-sm sm:text-base">Trip Mode</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleReset} className="px-2 sm:px-3">
-            <RotateCcw className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Reset</span>
-          </Button>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={handleReset} className="px-2 sm:px-3">
+              <RotateCcw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Reset</span>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -250,13 +255,25 @@ export default function TripPage() {
                 </CardHeader>
                 <CardContent>
                   {trip.participants.length < 2 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      Add at least 2 participants to start adding receipts
-                    </p>
+                    <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
+                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <Users className="h-6 w-6 text-primary opacity-80" />
+                      </div>
+                      <p className="font-semibold text-foreground mb-1">Waiting for friends</p>
+                      <p className="text-sm text-muted-foreground max-w-xs">Add at least 2 participants to start adding receipts to this trip.</p>
+                    </div>
                   ) : trip.receipts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      No receipts yet. Click &quot;Add Receipt&quot; to start.
-                    </p>
+                    <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
+                      <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
+                        <ReceiptIcon className="h-6 w-6 text-accent opacity-80" />
+                      </div>
+                      <p className="font-semibold text-foreground mb-1">No receipts yet</p>
+                      <p className="text-sm text-muted-foreground max-w-sm mb-4">You're all set! Start tracking your trip expenses.</p>
+                      <Button onClick={startNewReceipt} size="sm" variant="secondary">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add First Receipt
+                      </Button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {trip.receipts.map((receipt) => (
@@ -386,13 +403,14 @@ export default function TripPage() {
               </Card>
 
               {/* Save/Cancel Actions */}
-              <div className="flex justify-end gap-3">
+              <div className="sticky bottom-4 mx-2 md:mx-0 p-4 bg-background/80 backdrop-blur-xl border rounded-2xl shadow-premium-lg flex justify-end gap-3 z-20">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setEditingReceipt(null);
                     setViewMode("overview");
                   }}
+                  className="bg-background/50 hover:bg-muted"
                 >
                   <X className="h-4 w-4 mr-2" />
                   Cancel
@@ -403,6 +421,7 @@ export default function TripPage() {
                     !editingReceipt.receipt.payerId ||
                     editingReceipt.receipt.items.length === 0
                   }
+                  className="shadow-md shadow-primary/20"
                 >
                   <Check className="h-4 w-4 mr-2" />
                   Save Receipt

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Participant, ReceiptItem, Receipt } from "@/types";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { generateId } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Stepper, Step } from "@/components/Stepper";
 import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptInput } from "@/components/ReceiptInput";
@@ -133,10 +134,13 @@ export default function SinglePage() {
               <span className="text-[10px] text-muted-foreground hidden sm:block">Split one bill</span>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive px-2 sm:px-3">
-            <RotateCcw className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Reset</span>
-          </Button>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive px-2 sm:px-3">
+              <RotateCcw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Reset</span>
+            </Button>
+          </div>
         </div>
       </header>
 

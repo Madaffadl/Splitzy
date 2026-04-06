@@ -96,8 +96,12 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
       </div>
 
       {items.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No items yet. Scan receipt or add manually.</p>
+        <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed bg-muted/20 text-center">
+          <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+            <ShoppingCart className="h-6 w-6 text-muted-foreground opacity-50" />
+          </div>
+          <p className="font-semibold text-foreground mb-1">No items yet</p>
+          <p className="text-sm text-muted-foreground max-w-sm">Scan a receipt or add items manually to start splitting the bill.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -199,27 +203,32 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                       Select All
                     </Button>
                   </div>
-                  <div className="flex flex-wrap gap-3">
-                    {participants.map((participant) => {
-                      const isAssigned = item.assignedToIds.includes(
-                        participant.id
-                      );
-                      return (
-                        <label
-                          key={participant.id}
-                          className="flex items-center gap-2 cursor-pointer"
-                        >
-                          <Checkbox
-                            checked={isAssigned}
-                            onCheckedChange={() =>
-                              toggleAssignment(item.id, participant.id)
-                            }
-                          />
-                          <span className="text-sm">{participant.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                    <div className="flex flex-wrap gap-2">
+                      {participants.map((participant) => {
+                        const isAssigned = item.assignedToIds.includes(
+                          participant.id
+                        );
+                        return (
+                          <button
+                            type="button"
+                            key={participant.id}
+                            onClick={() => toggleAssignment(item.id, participant.id)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-all select-none shrink-0 ${
+                              isAssigned 
+                                ? 'bg-primary/15 border-primary/40 text-foreground font-medium shadow-sm' 
+                                : 'bg-background border-border hover:bg-muted/80 text-muted-foreground'
+                            }`}
+                          >
+                            <div className={`flex items-center justify-center w-3.5 h-3.5 rounded-full transition-colors ${
+                              isAssigned ? 'bg-primary' : 'border border-muted-foreground/50'
+                            }`}>
+                              {isAssigned && <div className="w-1.5 h-1.5 bg-background rounded-full" />}
+                            </div>
+                            <span>{participant.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   {item.assignedToIds.length === 0 && (
                     <p className="text-xs text-amber-600">
                       ⚠️ Item not assigned to anyone

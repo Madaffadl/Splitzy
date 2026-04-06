@@ -171,9 +171,26 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
 
   const handleCopy = async () => {
     const text = generateExportText();
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: title || receipt.title || 'Splitzy Summary',
+          text: text,
+        });
+        return; // Success, no need to show native copy toast
+      } catch (err) {
+        // Fallback to clipboard if share fails or is cancelled
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.error('Failed to copy text', e);
+    }
   };
 
   if (participantIds.length === 0 || !receipt.payerId) {
@@ -399,9 +416,26 @@ export function TripSummaryPanel({
 
   const handleCopy = async () => {
     const text = generateExportText();
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${tripName} - Splitzy Trip Summary`,
+          text: text,
+        });
+        return;
+      } catch (err) {
+        // Fallback to clipboard 
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.error('Failed to copy text', e);
+    }
   };
 
   if (receipts.length === 0) {

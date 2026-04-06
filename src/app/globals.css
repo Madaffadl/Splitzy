@@ -785,3 +785,44 @@
     0 20px 40px hsl(var(--foreground) / 0.1),
     0 10px 20px hsl(var(--foreground) / 0.05);
 }
+
+/* Custom Text Animations for the Final CTA */
+.animate-strike-draw {
+  position: relative;
+  display: inline-block;
+}
+.animate-strike-draw::after {
+  content: '';
+  position: absolute;
+  top: 55%;
+  left: -5%;
+  width: 110%;
+  height: max(3px, 0.1em);
+  background-color: hsl(var(--primary));
+  opacity: 0.8;
+  border-radius: 999px;
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: strikeDraw 0.6s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation-delay: 1.2s;
+}
+
+@keyframes strikeDraw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-fade-in-late {
+  opacity: 0;
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 1.8s;
+}
+.animate-fade-in-later {
+  opacity: 0;
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 2.1s;
+}
