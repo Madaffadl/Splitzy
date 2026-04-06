@@ -230,8 +230,8 @@ export function minimizeTransactions(
     const transfers: SettlementTransfer[] = [];
 
     // Create mutable copies
-    const debtors: Array<{ id: string; amount: number }> = [];
-    const creditors: Array<{ id: string; amount: number }> = [];
+    let debtors: Array<{ id: string; amount: number }> = [];
+    let creditors: Array<{ id: string; amount: number }> = [];
 
     for (const [id, balance] of balances) {
         if (balance < -0.01) {
@@ -241,6 +241,32 @@ export function minimizeTransactions(
         }
     }
 
+    // STEP 1: Exact Match Elimination (Optimization)
+    // Find people who owe exactly what someone else needs to receive.
+    // This prevents breaking up perfect 1-to-1 matches in the greedy loop.
+    for (let i = 0; i < debtors.length; i++) {
+        for (let j = 0; j < creditors.length; j++) {
+            if (
+                debtors[i].amount > 0.01 && 
+                creditors[j].amount > 0.01 && 
+                Math.abs(debtors[i].amount - creditors[j].amount) < 0.01
+            ) {
+                transfers.push({
+                    from: debtors[i].id,
+                    to: creditors[j].id,
+                    amount: roundTo2(debtors[i].amount),
+                });
+                debtors[i].amount = 0;
+                creditors[j].amount = 0;
+            }
+        }
+    }
+
+    // Filter out settled participants
+    debtors = debtors.filter((d) => d.amount > 0.01);
+    creditors = creditors.filter((c) => c.amount > 0.01);
+
+    // STEP 2: Greedy approach for remaining balances
     // Sort by amount descending
     debtors.sort((a, b) => b.amount - a.amount);
     creditors.sort((a, b) => b.amount - a.amount);
