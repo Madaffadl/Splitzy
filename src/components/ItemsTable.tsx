@@ -89,9 +89,10 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
             {items.length} item{items.length !== 1 ? "s" : ""}
           </span>
         </div>
-        <Button type="button" onClick={addItem} size="sm" variant="outline">
+        <Button type="button" onClick={addItem} size="sm" variant="outline" className="shrink-0">
           <Plus className="mr-2 h-4 w-4" />
-          Add Item
+          <span className="hidden sm:inline">Add Item Manually</span>
+          <span className="sm:hidden">Add Manual</span>
         </Button>
       </div>
 
@@ -230,8 +231,8 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                       })}
                     </div>
                   {item.assignedToIds.length === 0 && (
-                    <p className="text-xs text-amber-600">
-                      ⚠️ Item not assigned to anyone
+                    <p className="text-xs font-semibold text-destructive mt-1 flex items-center gap-1">
+                      <span>⚠️</span> Item must be assigned to at least one person
                     </p>
                   )}
                 </div>

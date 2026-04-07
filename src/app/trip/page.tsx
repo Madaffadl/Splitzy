@@ -372,16 +372,14 @@ export default function TripPage() {
                     />
                   </div>
 
-                  {editingReceipt.receipt.items.length > 0 && (
-                    <div className="pt-4 border-t">
-                      <h3 className="font-medium mb-4">Items & Assignments</h3>
-                      <ItemsTable
-                        items={editingReceipt.receipt.items}
-                        participants={trip.participants}
-                        onChange={(items) => updateEditingReceipt({ items })}
-                      />
-                    </div>
-                  )}
+                  <div className="pt-4 border-t">
+                    <h3 className="font-medium mb-4">Items & Assignments</h3>
+                    <ItemsTable
+                      items={editingReceipt.receipt.items}
+                      participants={trip.participants}
+                      onChange={(items) => updateEditingReceipt({ items })}
+                    />
+                  </div>
 
                   <div className="pt-4 border-t">
                     <h3 className="font-medium mb-4">Fees & Payer</h3>
@@ -419,7 +417,8 @@ export default function TripPage() {
                   onClick={saveReceipt}
                   disabled={
                     !editingReceipt.receipt.payerId ||
-                    editingReceipt.receipt.items.length === 0
+                    editingReceipt.receipt.items.length === 0 ||
+                    editingReceipt.receipt.items.reduce((sum, item) => sum + item.total, 0) === 0
                   }
                   className="shadow-md shadow-primary/20"
                 >

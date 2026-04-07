@@ -44,7 +44,7 @@ export default function Home() {
               <span className="text-[10px] text-muted-foreground font-medium -mt-0.5 hidden sm:block">Split Bills Easily</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-4 sm:gap-6">
             <ThemeToggle />
             <div className="label-accent animate-shimmer text-xs sm:text-sm">
               <Sparkles className="h-3 w-3" />
@@ -191,7 +191,7 @@ export default function Home() {
               
               <div className="relative">
                 {/* Popular badge */}
-                <div className="absolute -top-1 -right-1 px-2.5 py-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold shadow-md shadow-accent/30 animate-bounce-in">
+                <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold shadow-md shadow-accent/30 animate-bounce-in z-10">
                   POPULAR
                 </div>
                 
@@ -251,14 +251,14 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-8">
             {/* Step 1 */}
             <div 
-              className="relative text-center group"
+              className="relative text-left group"
               style={{ transform: `translateY(${Math.max(0, (scrollY - 400) * -0.03)}px)` }}
             >
               <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-bold flex items-center justify-center shadow-lg shadow-primary/30 animate-scale-in">
                 1
               </div>
               <div className="p-6 rounded-2xl bg-background border-2 border-transparent group-hover:border-primary/20 transition-all duration-500 hover-lift">
-                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 group-hover:animate-glow-pulse">
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 group-hover:animate-glow-pulse">
                   <Users className="h-7 w-7 text-primary" />
                 </div>
                 <h3 className="font-bold text-lg mb-2">Add Participants</h3>
@@ -270,14 +270,14 @@ export default function Home() {
             
             {/* Step 2 */}
             <div 
-              className="relative text-center group"
+              className="relative text-left group"
               style={{ transform: `translateY(${Math.max(0, (scrollY - 450) * -0.03)}px)` }}
             >
               <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-accent text-accent-foreground text-sm font-bold flex items-center justify-center shadow-lg shadow-accent/30 animate-scale-in stagger-2">
                 2
               </div>
               <div className="p-6 rounded-2xl bg-background border-2 border-transparent group-hover:border-accent/20 transition-all duration-500 hover-lift">
-                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/5 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 group-hover:animate-glow-pulse-accent">
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/5 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:-rotate-6 transition-all duration-500 group-hover:animate-glow-pulse-accent">
                   <Receipt className="h-7 w-7 text-accent" />
                 </div>
                 <h3 className="font-bold text-lg mb-2">Add Items</h3>
@@ -289,14 +289,14 @@ export default function Home() {
             
             {/* Step 3 */}
             <div 
-              className="relative text-center group"
+              className="relative text-left group"
               style={{ transform: `translateY(${Math.max(0, (scrollY - 500) * -0.03)}px)` }}
             >
               <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-emerald-500 text-white text-sm font-bold flex items-center justify-center shadow-lg shadow-emerald-500/30 animate-scale-in stagger-3">
                 3
               </div>
               <div className="p-6 rounded-2xl bg-background border-2 border-transparent group-hover:border-emerald-500/20 transition-all duration-500 hover-lift">
-                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
                   <CheckCircle2 className="h-7 w-7 text-emerald-500" />
                 </div>
                 <h3 className="font-bold text-lg mb-2">See Results</h3>

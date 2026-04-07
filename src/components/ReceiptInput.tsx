@@ -280,23 +280,36 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
               ))}
             </div>
             
-            {/* Tax & Service if detected */}
-            {(parsedResult.tax > 0 || parsedResult.service > 0) && (
-              <div className="pt-2 border-t space-y-1">
-                {parsedResult.service > 0 && (
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Service</span>
-                    <span>Rp {formatCurrency(parsedResult.service)}</span>
-                  </div>
-                )}
-                {parsedResult.tax > 0 && (
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Tax/PB1</span>
-                    <span>Rp {formatCurrency(parsedResult.tax)}</span>
-                  </div>
-                )}
+            {/* Receipt Summary */}
+            <div className="pt-3 border-t space-y-1.5 mt-4">
+              <div className="flex justify-between text-sm font-medium text-foreground">
+                <span>Subtotal Items</span>
+                <span>Rp {formatCurrency(parsedResult.items.reduce((sum, item) => sum + (item.total || 0), 0))}</span>
               </div>
-            )}
+              
+              {parsedResult.service > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Service</span>
+                  <span>Rp {formatCurrency(parsedResult.service)}</span>
+                </div>
+              )}
+              
+              {parsedResult.tax > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Tax/PB1</span>
+                  <span>Rp {formatCurrency(parsedResult.tax)}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-between text-base font-bold text-foreground pt-3 mt-2 border-t border-dashed">
+                <span>Total Detected</span>
+                <span>Rp {formatCurrency(
+                  parsedResult.items.reduce((sum, item) => sum + (item.total || 0), 0) + 
+                  (parsedResult.tax || 0) + 
+                  (parsedResult.service || 0)
+                )}</span>
+              </div>
+            </div>
           </div>
 
           <Button

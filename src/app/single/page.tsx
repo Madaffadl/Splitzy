@@ -218,30 +218,28 @@ export default function SinglePage() {
                 </Card>
 
                 {/* Items Table with Inline Assignment */}
-                {state.items.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                            <Calculator className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <CardTitle>Items & Assignments</CardTitle>
-                            <p className="text-sm text-muted-foreground mt-0.5">{state.items.length} items added</p>
-                          </div>
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                          <Calculator className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle>Items & Assignments</CardTitle>
+                          <p className="text-sm text-muted-foreground mt-0.5">{state.items.length} items added</p>
                         </div>
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <ItemsTable
-                        items={state.items}
-                        participants={state.participants}
-                        onChange={(items) => updateState({ items })}
-                      />
-                    </CardContent>
-                  </Card>
-                )}
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <ItemsTable
+                      items={state.items}
+                      participants={state.participants}
+                      onChange={(items) => updateState({ items })}
+                    />
+                  </CardContent>
+                </Card>
 
                 {/* Fees & Payer */}
                 <Card>

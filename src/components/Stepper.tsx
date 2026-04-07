@@ -77,6 +77,7 @@ export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
                 <div
                   className={cn(
                     "flex flex-col items-center gap-0.5 transition-colors duration-300",
+                    !isCurrent && "hidden sm:flex",
                     isCurrent && "text-foreground",
                     isCompleted && "text-primary",
                     !isCurrent && !isCompleted && "text-muted-foreground"
