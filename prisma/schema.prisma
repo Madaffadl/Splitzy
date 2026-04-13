@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  name      String?
+  avatarUrl String?  @map("avatar_url")
+  googleId  String?  @unique @map("google_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ownedTrips      Trip[]           @relation("TripOwner")
+  tripMemberships TripMember[]
+  createdReceipts Receipt[]        @relation("ReceiptCreator")
+  paidReceipts    Receipt[]        @relation("ReceiptPayer")
+  itemAssignments ItemAssignment[]
+
+  @@map("users")
+}
+
+model Trip {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  ownerId   String   @map("owner_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner    User         @relation("TripOwner", fields: [ownerId], references: [id])
+  members  TripMember[]
+  receipts Receipt[]
+
+  @@map("trips")
+}
+
+model TripMember {
+  id       String   @id @default(uuid()) @db.Uuid
+  tripId   String   @map("trip_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  role     String   @default("member")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([tripId, userId])
+  @@map("trip_members")
+}
+
+model Receipt {
+  id               String   @id @default(uuid()) @db.Uuid
+  tripId           String?  @map("trip_id") @db.Uuid
+  title            String
+  payerId          String   @map("payer_id") @db.Uuid
+  tax              Float    @default(0)
+  service          Float    @default(0)
+  date             DateTime?
+  participantsJson Json?    @map("participants_json")
+  createdById      String   @map("created_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  trip      Trip?         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  payer     User          @relation("ReceiptPayer", fields: [payerId], references: [id])
+  createdBy User          @relation("ReceiptCreator", fields: [createdById], references: [id])
+  items     ReceiptItem[]
+
+  @@map("receipts")
+}
+
+model ReceiptItem {
+  id        String @id @default(uuid()) @db.Uuid
+  receiptId String @map("receipt_id") @db.Uuid
+  name      String
+  qty       Int    @default(1)
+  unitPrice Float  @map("unit_price")
+  total     Float
+  sortOrder Int    @default(0) @map("sort_order")
+
+  receipt     Receipt          @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  assignments ItemAssignment[]
+
+  @@map("receipt_items")
+}
+
+model ItemAssignment {
+  id     String @id @default(uuid()) @db.Uuid
+  itemId String @map("item_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  item ReceiptItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id])
+
+  @@unique([itemId, userId])
+  @@map("item_assignments")
+}

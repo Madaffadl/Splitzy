@@ -3,9 +3,10 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, Trip } from "@/types";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useHybridState } from "@/hooks/useHybridState";
 import { generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AuthButton } from "@/components/AuthButton";
 import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
@@ -65,7 +66,7 @@ interface EditingReceipt {
 }
 
 export default function TripPage() {
-  const [state, setState, resetState] = useLocalStorage<TripState>(
+  const [state, setState, resetState] = useHybridState<TripState>(
     "splitbill-trips",
     DEFAULT_STATE
   );
@@ -186,6 +187,7 @@ export default function TripPage() {
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
+            <AuthButton />
             <Button variant="ghost" size="sm" onClick={handleReset} className="px-2 sm:px-3">
               <RotateCcw className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Reset</span>

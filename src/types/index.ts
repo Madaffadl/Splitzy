@@ -81,3 +81,12 @@ export interface WalletStats {
     totalConsumed: number;   // Total amount this person consumed (their share)
     netBalance: number;      // totalPaid - totalConsumed
 }
+
+// Database user profile
+export interface DbUser {
+    id: string;
+    email: string;
+    name: string | null;
+    avatarUrl: string | null;
+    createdAt: string;
+}

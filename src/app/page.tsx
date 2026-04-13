@@ -1,11 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Plane, ArrowRight, Sparkles, Calculator, Users, Zap, CheckCircle2, Star, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft } from "lucide-react";
+import { Receipt, Plane, ArrowRight, Sparkles, Calculator, Users, Zap, CheckCircle2, Star, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft, History } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useEffect, useState } from "react";
+import { AuthButton } from "@/components/AuthButton";
+import { useAuth } from "@/hooks/useAuth";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { LogIn } from "lucide-react";
+
+function LoginBanner() {
+  const { isAuthenticated, signIn } = useAuth();
+  const searchParams = useSearchParams();
+  const loginRequired = searchParams.get("login") === "required";
+  const redirectPath = searchParams.get("redirect") || "/trip";
+
+  if (!loginRequired || isAuthenticated) return null;
+
+  return (
+    <div className="bg-primary/10 border-b border-primary/20 px-4 py-3">
+      <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+        <p className="text-sm text-foreground">
+          Sign in to access Trip Mode and Receipt History.
+        </p>
+        <button
+          onClick={() => signIn(redirectPath)}
+          className="flex items-center gap-2 text-sm font-medium text-primary hover:underline whitespace-nowrap"
+        >
+          <LogIn className="h-4 w-4" />
+          Sign in with Google
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
+  const { isAuthenticated } = useAuth();
   const [scrollY, setScrollY] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
@@ -44,16 +75,26 @@ export default function Home() {
               <span className="text-[10px] text-muted-foreground font-medium -mt-0.5 hidden sm:block">Split Bills Easily</span>
             </div>
           </div>
-          <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {isAuthenticated && (
+              <Link
+                href="/history"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <History className="h-4 w-4" />
+                <span className="hidden sm:inline">History</span>
+              </Link>
+            )}
             <ThemeToggle />
-            <div className="label-accent animate-shimmer text-xs sm:text-sm">
-              <Sparkles className="h-3 w-3" />
-              <span className="hidden sm:inline">Free to Use</span>
-              <span className="sm:hidden">Free</span>
-            </div>
+            <AuthButton />
           </div>
         </div>
       </header>
+
+      {/* Login Required Banner */}
+      <Suspense fallback={null}>
+        <LoginBanner />
+      </Suspense>
 
       {/* Hero */}
       <section className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-16 gradient-bg relative overflow-hidden min-h-[70vh] sm:min-h-[85vh]">

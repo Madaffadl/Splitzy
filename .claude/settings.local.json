@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /Users/m.fadhil/Documents/GitHub/Splitzy/src/app/api/receipts/\\\\[id\\\\])",
+      "Bash(mkdir -p /Users/m.fadhil/Documents/GitHub/Splitzy/src/app/api/trips/\\\\[id\\\\]/receipts)",
+      "Bash(mkdir -p /Users/m.fadhil/Documents/GitHub/Splitzy/src/app/api/trips/\\\\[id\\\\]/members)",
+      "Bash(npx prisma:*)"
+    ]
+  }
+}

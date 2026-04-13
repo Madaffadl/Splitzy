@@ -3,9 +3,12 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt } from "@/types";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useHybridState } from "@/hooks/useHybridState";
+import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AuthButton } from "@/components/AuthButton";
+import { GuestLimitDialog } from "@/components/GuestLimitDialog";
 import { Stepper, Step } from "@/components/Stepper";
 import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptInput } from "@/components/ReceiptInput";
@@ -55,11 +58,13 @@ const DEFAULT_STATE: SingleState = {
 };
 
 export default function SinglePage() {
-  const [state, setState, resetState] = useLocalStorage<SingleState>(
+  const [state, setState, resetState] = useHybridState<SingleState>(
     "splitbill-single",
     DEFAULT_STATE
   );
   const [currentStep, setCurrentStep] = useState(0);
+  const { isLimitReached, incrementCount, splitsRemaining } = useGuestLimit();
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
 
   const receipt: Receipt = useMemo(
     () => ({
@@ -90,6 +95,14 @@ export default function SinglePage() {
 
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) {
+      // Check guest limit when moving to summary (step 2)
+      if (currentStep === 1) {
+        if (isLimitReached) {
+          setShowLimitDialog(true);
+          return;
+        }
+        incrementCount();
+      }
       setCurrentStep((s) => s + 1);
     }
   };
@@ -136,6 +149,7 @@ export default function SinglePage() {
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
+            <AuthButton />
             <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive px-2 sm:px-3">
               <RotateCcw className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Reset</span>
@@ -382,6 +396,11 @@ export default function SinglePage() {
           </div>
         </div>
       </footer>
+
+      <GuestLimitDialog
+        open={showLimitDialog}
+        onClose={() => setShowLimitDialog(false)}
+      />
     </main>
   );
 }
