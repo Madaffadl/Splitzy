@@ -3,12 +3,25 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/components/AuthProvider";
+import { ToastProvider } from "@/components/ui/toast";
+import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Splitzy - Split Tagihan dengan Teman",
-  description: "Split tagihan untuk makan bersama atau trip dengan mudah. Hitung siapa yang harus bayar berapa.",
+  title: "Splitzy — Split Bills With Friends",
+  description: "Split dining or trip expenses fairly with friends. Calculate who owes what with minimal transactions.",
+  // icons: {
+  //   icon: "/icon.svg",
+  //   shortcut: "/icon.svg",
+  //   apple: "/icon.svg",
+  // },
+};
+
+export const viewport = {
+  themeColor: "#3a4a1f",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -24,11 +37,16 @@ export default function RootLayout({
           defaultTheme="light"
           disableTransitionOnChange
         >
-          <AuthProvider>
-            <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-              {children}
-            </div>
-          </AuthProvider>
+          {/* ToastProvider wraps AuthProvider so AuthProvider can fire toasts
+              (e.g. session-expired notification) via useToast(). */}
+          <ToastProvider>
+            <AuthProvider>
+              <RegisterServiceWorker />
+              <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+                {children}
+              </div>
+            </AuthProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -8,10 +8,12 @@ import { generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { ParticipantManager } from "@/components/ParticipantManager";
+import { useToast } from "@/components/ui/toast";
 import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
 import { FeesInput } from "@/components/FeesInput";
 import { SummaryPanel, TripSummaryPanel } from "@/components/SummaryPanel";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,7 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft,
-  Calculator,
   RotateCcw,
   Plus,
   Plane,
@@ -37,11 +38,9 @@ import {
   Check,
   X,
   Users,
-  Mail,
-  Instagram,
-  Linkedin,
-  Phone,
+  Info,
 } from "lucide-react";
+import { AppFooter } from "@/components/AppFooter";
 
 interface TripState {
   trip: Trip;
@@ -73,6 +72,11 @@ export default function TripPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  // Guard rapid double-clicks on Save Receipt — without it, two clicks could
+  // append the same new receipt twice before viewMode flips to "overview".
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
 
   const trip = state.trip;
 
@@ -83,11 +87,19 @@ export default function TripPage() {
   };
 
   const handleReset = () => {
-    if (confirm("Are you sure you want to reset the entire trip?")) {
-      resetState();
-      setViewMode("overview");
-      setEditingReceipt(null);
-    }
+    setShowResetDialog(true);
+  };
+
+  const confirmReset = () => {
+    resetState();
+    setViewMode("overview");
+    setEditingReceipt(null);
+    setShowResetDialog(false);
+    toast({
+      title: "Trip reset",
+      description: "All trip data was cleared.",
+      variant: "success",
+    });
   };
 
   const startNewReceipt = () => {
@@ -112,7 +124,8 @@ export default function TripPage() {
   };
 
   const saveReceipt = () => {
-    if (!editingReceipt) return;
+    if (!editingReceipt || isSaving) return;
+    setIsSaving(true);
 
     const { receipt, isNew } = editingReceipt;
 
@@ -126,11 +139,25 @@ export default function TripPage() {
 
     setEditingReceipt(null);
     setViewMode("overview");
+    toast({
+      title: isNew ? "Receipt added" : "Receipt updated",
+      description: receipt.title,
+      variant: "success",
+    });
+    // Release on next tick — synchronous double-clicks within the same paint
+    // are coalesced.
+    setTimeout(() => setIsSaving(false), 0);
   };
 
   const deleteReceipt = (receiptId: string) => {
+    const removed = trip.receipts.find((r) => r.id === receiptId);
     updateTrip({ receipts: trip.receipts.filter((r) => r.id !== receiptId) });
     setShowDeleteDialog(null);
+    toast({
+      title: "Receipt deleted",
+      description: removed?.title,
+      variant: "success",
+    });
   };
 
   const updateEditingReceipt = (updates: Partial<Receipt>) => {
@@ -188,7 +215,13 @@ export default function TripPage() {
           <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
             <AuthButton />
-            <Button variant="ghost" size="sm" onClick={handleReset} className="px-2 sm:px-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleReset}
+              aria-label="Reset"
+              className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+            >
               <RotateCcw className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Reset</span>
             </Button>
@@ -197,6 +230,17 @@ export default function TripPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
+        {/* Local-only notice — sets the right expectation. Trip data is not yet
+            synced to the cloud, so users won't think a phone reset means safety. */}
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="text-foreground/90">
+            <span className="font-semibold text-amber-700 dark:text-amber-300">
+              Saved on this device only.
+            </span>{" "}
+            Trip data is stored in your browser. Clearing browser data or switching devices will lose this trip.
+          </p>
+        </div>
         {viewMode === "overview" && (
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Main Content */}
@@ -270,7 +314,7 @@ export default function TripPage() {
                         <ReceiptIcon className="h-6 w-6 text-accent opacity-80" />
                       </div>
                       <p className="font-semibold text-foreground mb-1">No receipts yet</p>
-                      <p className="text-sm text-muted-foreground max-w-sm mb-4">You're all set! Start tracking your trip expenses.</p>
+                      <p className="text-sm text-muted-foreground max-w-sm mb-4">You&rsquo;re all set! Start tracking your trip expenses.</p>
                       <Button onClick={startNewReceipt} size="sm" variant="secondary">
                         <Plus className="h-4 w-4 mr-2" />
                         Add First Receipt
@@ -281,25 +325,25 @@ export default function TripPage() {
                       {trip.receipts.map((receipt) => (
                         <div
                           key={receipt.id}
-                          className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                          className="flex items-center justify-between gap-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <div className="flex items-center gap-4 min-w-0 flex-1">
+                            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                               <ReceiptIcon className="h-5 w-5 text-primary" />
                             </div>
-                            <div>
-                              <p className="font-medium">{receipt.title}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium truncate">{receipt.title}</p>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <span>{receipt.items.length} items</span>
-                                <span>•</span>
-                                <span>
+                                <span className="shrink-0">{receipt.items.length} items</span>
+                                <span className="shrink-0">•</span>
+                                <span className="truncate">
                                   Paid by {getParticipantName(receipt.payerId)}
                                 </span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-4">
-                            <span className="font-semibold">
+                          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                            <span className="font-semibold whitespace-nowrap">
                               Rp {getReceiptTotal(receipt)}
                             </span>
                             <div className="flex gap-1">
@@ -307,6 +351,7 @@ export default function TripPage() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => editReceipt(receipt.id)}
+                                aria-label={`Edit ${receipt.title}`}
                               >
                                 <Edit2 className="h-4 w-4" />
                               </Button>
@@ -314,6 +359,7 @@ export default function TripPage() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => setShowDeleteDialog(receipt.id)}
+                                aria-label={`Delete ${receipt.title}`}
                                 className="text-muted-foreground hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -330,11 +376,14 @@ export default function TripPage() {
 
             {/* Trip Summary Sidebar */}
             <div>
-              <TripSummaryPanel
-                receipts={trip.receipts}
-                participants={trip.participants}
-                tripName={trip.name}
-              />
+              <ErrorBoundary label="the trip summary">
+                <TripSummaryPanel
+                  receipts={trip.receipts}
+                  participants={trip.participants}
+                  tripName={trip.name}
+                  tripId={trip.id}
+                />
+              </ErrorBoundary>
             </div>
           </div>
         )}
@@ -402,41 +451,72 @@ export default function TripPage() {
                 </CardContent>
               </Card>
 
-              {/* Save/Cancel Actions */}
-              <div className="sticky bottom-4 mx-2 md:mx-0 p-4 bg-background/80 backdrop-blur-xl border rounded-2xl shadow-premium-lg flex justify-end gap-3 z-20">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEditingReceipt(null);
-                    setViewMode("overview");
-                  }}
-                  className="bg-background/50 hover:bg-muted"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel
-                </Button>
-                <Button
-                  onClick={saveReceipt}
-                  disabled={
-                    !editingReceipt.receipt.payerId ||
-                    editingReceipt.receipt.items.length === 0 ||
-                    editingReceipt.receipt.items.reduce((sum, item) => sum + item.total, 0) === 0
-                  }
-                  className="shadow-md shadow-primary/20"
-                >
-                  <Check className="h-4 w-4 mr-2" />
-                  Save Receipt
-                </Button>
-              </div>
+              {/* Save/Cancel Actions — sticky offset respects iOS safe-area (home indicator) */}
+              {(() => {
+                const editing = editingReceipt.receipt;
+                const hasItems = editing.items.length > 0;
+                const allAssigned = editing.items.every(
+                  (item) => item.total > 0 && item.assignedToIds.length > 0
+                );
+                const hasPayer = !!editing.payerId;
+                const canSave = hasItems && allAssigned && hasPayer;
+
+                let blockMsg: string | null = null;
+                if (!hasItems) blockMsg = "Add at least one item.";
+                else if (!allAssigned) {
+                  const unassigned = editing.items.filter(
+                    (i) => i.assignedToIds.length === 0
+                  ).length;
+                  blockMsg = unassigned > 0
+                    ? `Assign ${unassigned} item${unassigned > 1 ? "s" : ""} to at least one person.`
+                    : "Every item needs a price.";
+                } else if (!hasPayer) blockMsg = "Select who paid the bill.";
+
+                return (
+                  <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] mx-2 md:mx-0 p-4 bg-background/80 backdrop-blur-xl border rounded-2xl shadow-premium-lg z-20">
+                    {blockMsg && (
+                      <p
+                        role="status"
+                        className="mb-2 text-right text-xs font-medium text-amber-600 dark:text-amber-400"
+                      >
+                        ⚠️ {blockMsg}
+                      </p>
+                    )}
+                    <div className="flex justify-end gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingReceipt(null);
+                          setViewMode("overview");
+                        }}
+                        className="bg-background/50 hover:bg-muted"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={saveReceipt}
+                        disabled={!canSave || isSaving}
+                        className="shadow-md shadow-primary/20"
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Save Receipt
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Receipt Preview */}
             <div>
-              <SummaryPanel
-                receipt={editingReceipt.receipt}
-                participants={trip.participants}
-                title={editingReceipt.receipt.title}
-              />
+              <ErrorBoundary label="the receipt preview">
+                <SummaryPanel
+                  receipt={editingReceipt.receipt}
+                  participants={trip.participants}
+                  title={editingReceipt.receipt.title}
+                />
+              </ErrorBoundary>
             </div>
           </div>
         )}
@@ -455,7 +535,7 @@ export default function TripPage() {
               undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowDeleteDialog(null)}>
               Cancel
             </Button>
@@ -469,31 +549,28 @@ export default function TripPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Minimalist Footer */}
-      <footer className="px-6 py-4 border-t bg-card/50 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
-              <Calculator className="h-3 w-3 text-primary" />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground">Splitzy by Madaffadl</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <a href="mailto:m.daffafadhil26@gmail.com" target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded-md bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200" aria-label="Email">
-              <Mail className="h-3 w-3" />
-            </a>
-            <a href="https://www.instagram.com/mdaffa_fdl?igsh=ajJ3Y3Y0Nzd3OXZn&utm_source=qr" target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded-md bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-pink-500 hover:bg-pink-500/10 transition-all duration-200" aria-label="Instagram">
-              <Instagram className="h-3 w-3" />
-            </a>
-            <a href="https://www.linkedin.com/in/madaffadl" target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded-md bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-600/10 transition-all duration-200" aria-label="LinkedIn">
-              <Linkedin className="h-3 w-3" />
-            </a>
-            <a href="https://wa.me/6285365360955" target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded-md bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-green-500 hover:bg-green-500/10 transition-all duration-200" aria-label="WhatsApp">
-              <Phone className="h-3 w-3" />
-            </a>
-          </div>
-        </div>
-      </footer>
+      {/* Reset Trip Confirmation Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset entire trip?</DialogTitle>
+            <DialogDescription>
+              This will clear all trip details, participants, and receipts. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowResetDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmReset}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Yes, reset trip
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AppFooter />
     </main>
   );
 }

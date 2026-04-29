@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Participant } from "@/types";
 import { generateId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Users, UserPlus } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
+import { useNameSuggestions } from "@/hooks/useNameSuggestions";
+import { X, Plus, Users, UserPlus, History } from "lucide-react";
 
 interface ParticipantManagerProps {
   participants: Participant[];
@@ -18,19 +20,48 @@ export function ParticipantManager({
   onChange,
 }: ParticipantManagerProps) {
   const [newName, setNewName] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const { toast } = useToast();
+  const currentNames = useMemo(
+    () => participants.map((p) => p.name),
+    [participants]
+  );
+  const { recordName, suggestionsFor } = useNameSuggestions(currentNames);
+  const suggestions = useMemo(
+    () => (showSuggestions ? suggestionsFor(newName, 6) : []),
+    [showSuggestions, newName, suggestionsFor]
+  );
 
-  const addParticipant = () => {
-    const name = newName.trim();
+  // Stable IDs for the WAI-ARIA combobox wiring. The input owns the listbox
+  // via aria-controls + aria-activedescendant; each option uses the same id
+  // so the screen reader can announce it as selected.
+  const listboxId = useId();
+  const optionId = (index: number) => `${listboxId}-option-${index}`;
+  const isOpen = suggestions.length > 0;
+  const activeOptionId = activeIndex >= 0 ? optionId(activeIndex) : undefined;
+
+  const addByName = (rawName: string) => {
+    const name = rawName.trim();
     if (!name) return;
 
-    // Prevent duplicates
     if (participants.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+      toast({
+        title: "Already added",
+        description: `"${name}" is already in the list.`,
+        variant: "error",
+      });
       return;
     }
 
     onChange([...participants, { id: generateId(), name }]);
+    recordName(name);
     setNewName("");
+    setShowSuggestions(false);
+    setActiveIndex(-1);
   };
+
+  const addParticipant = () => addByName(newName);
 
   const removeParticipant = (id: string) => {
     onChange(participants.filter((p) => p.id !== id));
@@ -39,7 +70,35 @@ export function ParticipantManager({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      addParticipant();
+      // Enter selects the highlighted suggestion if any, otherwise adds the
+      // typed text. Mirrors the platform combobox idiom users expect.
+      if (isOpen && activeIndex >= 0 && suggestions[activeIndex]) {
+        addByName(suggestions[activeIndex]);
+      } else {
+        addParticipant();
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+      return;
+    }
+    if (!isOpen) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) =>
+        i <= 0 ? suggestions.length - 1 : i - 1
+      );
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActiveIndex(suggestions.length - 1);
     }
   };
 
@@ -64,15 +123,79 @@ export function ParticipantManager({
 
       {/* Input */}
       <div className="flex gap-3">
-        <div className="relative flex-1">
+        {/* WAI-ARIA combobox pattern (1.2): the wrapper carries role=combobox
+            with the required aria-controls + aria-expanded, while the input
+            carries aria-activedescendant so the screen reader announces the
+            keyboard-highlighted option without moving DOM focus off the input. */}
+        <div
+          className="relative flex-1"
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          aria-controls={listboxId}
+        >
           <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Enter participant name..."
             value={newName}
-            onChange={(e) => setNewName(e.target.value)}
+            onChange={(e) => {
+              setNewName(e.target.value);
+              setShowSuggestions(true);
+              setActiveIndex(-1);
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => {
+              // Delay so click on a suggestion can register before the list hides.
+              window.setTimeout(() => {
+                setShowSuggestions(false);
+                setActiveIndex(-1);
+              }, 150);
+            }}
             onKeyDown={handleKeyDown}
             className="pl-10"
+            aria-autocomplete="list"
+            aria-controls={listboxId}
+            aria-activedescendant={activeOptionId}
           />
+          {isOpen && (
+            <div
+              id={listboxId}
+              role="listbox"
+              aria-label="Recent participants"
+              className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border bg-popover p-1 shadow-premium-lg"
+            >
+              <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <History className="h-3 w-3" />
+                Recent
+              </div>
+              {suggestions.map((s, index) => {
+                const isActive = index === activeIndex;
+                return (
+                  <button
+                    key={s}
+                    id={optionId(index)}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onMouseDown={(e) => {
+                      // Prevent input blur firing first and hiding the list.
+                      e.preventDefault();
+                      addByName(s);
+                    }}
+                    className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                      isActive ? "bg-muted" : "hover:bg-muted"
+                    }`}
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+                      {s.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="truncate">{s}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         <Button
           type="button"

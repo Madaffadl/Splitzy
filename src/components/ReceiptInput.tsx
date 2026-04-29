@@ -7,15 +7,16 @@ import { formatCurrency, generateId, roundTo2 } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Upload, 
-  Camera, 
-  Loader2, 
-  CheckCircle2, 
+import {
+  Upload,
+  Camera,
+  Loader2,
+  CheckCircle2,
   AlertTriangle,
   ImageIcon,
   Sparkles,
-  Zap
+  Zap,
+  ShieldCheck,
 } from "lucide-react";
 
 interface ReceiptInputProps {
@@ -209,6 +210,16 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
           <p className="text-xs text-center text-muted-foreground">
             ✨ AI will read the receipt and extract all items automatically
           </p>
+
+          {/* Privacy disclosure — be transparent that the image is sent to a third party.
+              Important for trust on a finance-related app. */}
+          <div className="flex items-start gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+            <p>
+              Your photo is sent to Google Gemini for parsing and is not stored by Splitzy.
+              Avoid uploading receipts with sensitive personal data.
+            </p>
+          </div>
         </div>
       )}
 
@@ -217,6 +228,9 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
         <div className="space-y-4">
           {imagePreview && (
             <div className="relative rounded-xl overflow-hidden border-2 border-primary/30">
+              {/* User-uploaded data URL preview — next/image isn't a fit
+                  (no width/height known, no remote optimization needed). */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imagePreview}
                 alt="Receipt"
@@ -247,7 +261,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
           <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
             <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
             <div className="flex-1">
-              <p className="font-semibold text-emerald-600">
+              <p className="font-semibold text-emerald-600 dark:text-emerald-400">
                 Success! {parsedResult.items.length} item{parsedResult.items.length !== 1 ? 's' : ''} found
               </p>
               <p className="text-sm text-muted-foreground">
@@ -328,6 +342,8 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
         <div className="space-y-4 animate-fade-in">
           {imagePreview && (
             <div className="rounded-xl overflow-hidden border">
+              {/* User-uploaded data URL preview — next/image isn't a fit. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imagePreview}
                 alt="Receipt"
@@ -339,7 +355,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
           <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
             <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-600">
+              <p className="font-semibold text-amber-600 dark:text-amber-400">
                 Failed to read receipt
               </p>
               <p className="text-sm text-muted-foreground">

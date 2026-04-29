@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Plane, ArrowRight, Sparkles, Calculator, Users, Zap, CheckCircle2, Star, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft, History } from "lucide-react";
+import { Receipt, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft, History } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,7 +21,7 @@ function LoginBanner() {
     <div className="bg-primary/10 border-b border-primary/20 px-4 py-3">
       <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
         <p className="text-sm text-foreground">
-          Sign in to access Trip Mode and Receipt History.
+          Sign in to view your Receipt History across devices.
         </p>
         <button
           onClick={() => signIn(redirectPath)}
@@ -41,23 +41,50 @@ export default function Home() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
+    let scrollFrame = 0;
+    let mouseFrame = 0;
+    let pendingScroll = 0;
+    let pendingMouse = { x: 0, y: 0 };
+
     const handleScroll = () => {
-      setScrollY(window.scrollY);
+      pendingScroll = window.scrollY;
+      if (scrollFrame) return;
+      scrollFrame = requestAnimationFrame(() => {
+        setScrollY(pendingScroll);
+        scrollFrame = 0;
+      });
     };
 
+    // Skip mouse parallax on touch devices — saves CPU and the effect doesn't apply.
+    const supportsHover =
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const handleMouseMove = (e: MouseEvent) => {
-      setMousePosition({
+      pendingMouse = {
         x: (e.clientX / window.innerWidth - 0.5) * 20,
         y: (e.clientY / window.innerHeight - 0.5) * 20,
+      };
+      if (mouseFrame) return;
+      mouseFrame = requestAnimationFrame(() => {
+        setMousePosition(pendingMouse);
+        mouseFrame = 0;
       });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    if (supportsHover && !prefersReducedMotion) {
+      window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    }
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("mousemove", handleMouseMove);
+      if (scrollFrame) cancelAnimationFrame(scrollFrame);
+      if (mouseFrame) cancelAnimationFrame(mouseFrame);
     };
   }, []);
 
@@ -97,7 +124,7 @@ export default function Home() {
       </Suspense>
 
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-16 gradient-bg relative overflow-hidden min-h-[70vh] sm:min-h-[85vh]">
+      <section className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-8 sm:py-16 gradient-bg relative overflow-hidden min-h-[70dvh] sm:min-h-[85dvh]">
         {/* Animated Background Grid */}
         <div className="absolute inset-0 grid-pattern opacity-50" />
         
@@ -115,43 +142,16 @@ export default function Home() {
           style={{ transform: `translate(${mousePosition.x * 0.2}px, ${mousePosition.y * 0.2}px)` }}
         />
 
-        {/* Morphing Decorative Shape - Hidden on mobile */}
-        <div className="absolute top-20 left-20 w-40 h-40 bg-gradient-to-br from-primary/20 to-accent/20 animate-morph opacity-40 hidden sm:block" />
-        <div className="absolute bottom-40 right-20 w-32 h-32 bg-gradient-to-br from-accent/20 to-primary/10 animate-morph opacity-30 hidden sm:block" style={{ animationDelay: '-4s' }} />
-        
-        {/* Floating Particles */}
-        <div className="particle bottom-0 left-1/4" style={{ animationDelay: '0s' }} />
-        <div className="particle bottom-0 left-1/3" style={{ animationDelay: '2s' }} />
-        <div className="particle bottom-0 left-1/2" style={{ animationDelay: '4s' }} />
-        <div className="particle bottom-0 left-2/3" style={{ animationDelay: '6s' }} />
-        <div className="particle bottom-0 right-1/4" style={{ animationDelay: '8s' }} />
-
-        {/* Floating Decorative Icons - Hidden on mobile */}
-        <div 
-          className="absolute top-1/4 left-[15%] text-primary/20 animate-float-slow hidden sm:block"
-          style={{ transform: `translateY(${scrollY * 0.1}px)` }}
-        >
-          <Receipt className="h-8 w-8" />
-        </div>
-        <div 
-          className="absolute top-1/3 right-[15%] text-accent/25 animate-float-medium hidden sm:block"
-          style={{ transform: `translateY(${scrollY * -0.15}px)` }}
+        {/* Single floating decorative icon — kept minimal so the CTA stays focal */}
+        <div
+          className="absolute top-1/3 right-[15%] text-accent/20 animate-float-medium hidden sm:block"
+          style={{ transform: `translateY(${scrollY * -0.1}px)` }}
+          aria-hidden="true"
         >
           <Calculator className="h-10 w-10" />
         </div>
-        <div 
-          className="absolute bottom-1/3 left-[10%] text-accent/20 animate-float-rotate hidden sm:block"
-          style={{ transform: `translateY(${scrollY * 0.08}px)` }}
-        >
-          <Star className="h-6 w-6" />
-        </div>
 
-        {/* Sparkle Effects */}
-        <div className="absolute top-1/2 left-1/4 w-2 h-2 rounded-full bg-accent animate-sparkle" style={{ animationDelay: '0s' }} />
-        <div className="absolute top-1/3 right-1/3 w-3 h-3 rounded-full bg-primary/50 animate-sparkle" style={{ animationDelay: '0.7s' }} />
-        <div className="absolute bottom-1/4 right-1/4 w-2 h-2 rounded-full bg-accent/70 animate-sparkle" style={{ animationDelay: '1.4s' }} />
-        <div className="absolute top-2/3 left-1/3 w-2 h-2 rounded-full bg-primary/40 animate-sparkle" style={{ animationDelay: '2.1s' }} />
-        
+
         <div 
           className="max-w-2xl mx-auto text-center space-y-8 relative z-10"
           style={{ transform: `translateY(${scrollY * -0.2}px)` }}
@@ -159,7 +159,7 @@ export default function Home() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent/15 border border-accent/30 text-sm font-semibold text-foreground shadow-sm animate-bounce-in">
             <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-            Don't be the unpaid friend
+            Don&rsquo;t be the unpaid friend
           </div>
           
           {/* Headline */}
@@ -304,7 +304,7 @@ export default function Home() {
                 </div>
                 <h3 className="font-bold text-lg mb-2">Add Participants</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Enter the names of everyone who's splitting the bill
+                  Enter the names of everyone who&rsquo;s splitting the bill
                 </p>
               </div>
             </div>
@@ -379,7 +379,7 @@ export default function Home() {
                  <Calculator className="w-7 h-7 text-primary" />
                </div>
                <h3 className="font-bold text-lg mb-3">1. Item Allocation</h3>
-               <p className="text-sm text-muted-foreground leading-relaxed">Each item's price is calculated and divided exactly among the people who shared it.</p>
+               <p className="text-sm text-muted-foreground leading-relaxed">Each item&rsquo;s price is calculated and divided exactly among the people who shared it.</p>
             </div>
 
             {/* Step 2 */}
@@ -389,7 +389,7 @@ export default function Home() {
                  <Receipt className="w-7 h-7 text-accent" />
                </div>
                <h3 className="font-bold text-lg mb-3">2. Proportional Fees</h3>
-               <p className="text-sm text-muted-foreground leading-relaxed">Taxes, service, and discounts are fairly scaled based on each person's subtotal share.</p>
+               <p className="text-sm text-muted-foreground leading-relaxed">Taxes, service, and discounts are fairly scaled based on each person&rsquo;s subtotal share.</p>
             </div>
 
             {/* Step 3 */}
@@ -399,7 +399,7 @@ export default function Home() {
                  <Network className="w-7 h-7 text-emerald-500" />
                </div>
                <h3 className="font-bold text-lg mb-3">3. Debt Graphing</h3>
-               <p className="text-sm text-muted-foreground leading-relaxed">We map out everybody's balance against the main payer to create a web of debts.</p>
+               <p className="text-sm text-muted-foreground leading-relaxed">We map out everybody&rsquo;s balance against the main payer to create a web of debts.</p>
             </div>
 
             {/* Step 4 */}
@@ -435,7 +435,7 @@ export default function Home() {
           </h2>
           
           <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto animate-fade-in-up stagger-3">
-            Choose your splitting mode and get back to enjoying your time with friends. <br className="hidden sm:block" /> No app installation or sign up required.
+            Choose your splitting mode and get back to enjoying your time with friends. <br className="hidden sm:block" /> Free to try — sign in only to save trips & history.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up stagger-4">
@@ -468,7 +468,7 @@ export default function Home() {
             </div>
             <div className="flex flex-col">
               <span className="font-semibold text-xs sm:text-sm">Splitzy by Madaffadl</span>
-              <span className="text-[10px] sm:text-xs text-muted-foreground hidden xs:block">Never miss a split <span className="text-sm sm:text-base">•</span> because someone always forgets.</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Never miss a split <span className="text-sm sm:text-base">•</span> because someone always forgets.</span>
             </div>
           </div>
           <div className="flex items-center gap-2">

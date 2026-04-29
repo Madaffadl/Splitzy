@@ -5,20 +5,30 @@ import Link from "next/link";
 import { Participant, ReceiptItem, Receipt } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
-import { generateId } from "@/lib/utils";
+import { formatCurrency, generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { GuestLimitDialog } from "@/components/GuestLimitDialog";
+import { useToast } from "@/components/ui/toast";
 import { Stepper, Step } from "@/components/Stepper";
 import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
 import { FeesInput } from "@/components/FeesInput";
 import { SummaryPanel } from "@/components/SummaryPanel";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ArrowLeft,
   ArrowRight,
@@ -27,11 +37,8 @@ import {
   Receipt as ReceiptIcon,
   PartyPopper,
   Sparkles,
-  Mail,
-  Instagram,
-  Linkedin,
-  Phone,
 } from "lucide-react";
+import { AppFooter } from "@/components/AppFooter";
 
 const STEPS: Step[] = [
   { id: "participants", title: "Participants" },
@@ -63,8 +70,13 @@ export default function SinglePage() {
     DEFAULT_STATE
   );
   const [currentStep, setCurrentStep] = useState(0);
+  // Guards rapid double-clicks on Next/Stepper. Without it, two clicks within
+  // the same render frame could fire `incrementCount()` twice and skip a step.
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const { isLimitReached, incrementCount, splitsRemaining } = useGuestLimit();
   const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const { toast } = useToast();
 
   const receipt: Receipt = useMemo(
     () => ({
@@ -82,10 +94,15 @@ export default function SinglePage() {
     switch (currentStep) {
       case 0: // Participants
         return state.participants.length >= 2;
-      case 1: // Bill Details (combined receipt, assign, fees)
+      case 1:
+        // Every item must have a positive total AND at least one assignee.
+        // Unassigned items break ledger balance (sum of balances ≠ 0) and
+        // produce phantom credits in the settlement.
         return (
           state.items.length > 0 &&
-          state.items.some((item) => item.assignedToIds.length > 0) &&
+          state.items.every(
+            (item) => item.total > 0 && item.assignedToIds.length > 0
+          ) &&
           state.payerId !== ""
         );
       default:
@@ -93,8 +110,25 @@ export default function SinglePage() {
     }
   }, [currentStep, state]);
 
+  const blockingMessage = useMemo(() => {
+    if (currentStep !== 1) return null;
+    if (state.items.length === 0) return "Add at least one item to continue.";
+    const unassigned = state.items.filter((i) => i.assignedToIds.length === 0).length;
+    if (unassigned > 0) {
+      return `Assign ${unassigned} item${unassigned > 1 ? "s" : ""} to at least one person.`;
+    }
+    const zeroTotal = state.items.filter((i) => i.total <= 0).length;
+    if (zeroTotal > 0) {
+      return `${zeroTotal} item${zeroTotal > 1 ? "s have" : " has"} no price.`;
+    }
+    if (!state.payerId) return "Select who paid the bill.";
+    return null;
+  }, [currentStep, state]);
+
   const handleNext = () => {
-    if (currentStep < STEPS.length - 1) {
+    if (isTransitioning || currentStep >= STEPS.length - 1) return;
+    setIsTransitioning(true);
+    try {
       // Check guest limit when moving to summary (step 2)
       if (currentStep === 1) {
         if (isLimitReached) {
@@ -104,24 +138,73 @@ export default function SinglePage() {
         incrementCount();
       }
       setCurrentStep((s) => s + 1);
+    } finally {
+      // Release on next tick so rapid clicks during the same paint are dropped.
+      setTimeout(() => setIsTransitioning(false), 0);
     }
   };
 
   const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep((s) => s - 1);
-    }
+    if (isTransitioning || currentStep === 0) return;
+    setIsTransitioning(true);
+    setCurrentStep((s) => s - 1);
+    setTimeout(() => setIsTransitioning(false), 0);
+  };
+
+  const handleStepClick = (target: number) => {
+    if (isTransitioning) return;
+    // Stepper only allows clicking completed/current steps, so this is always
+    // a backward jump or a no-op.
+    setIsTransitioning(true);
+    setCurrentStep(target);
+    setTimeout(() => setIsTransitioning(false), 0);
   };
 
   const handleReset = () => {
-    if (confirm("Are you sure you want to reset everything?")) {
-      resetState();
-      setCurrentStep(0);
-    }
+    setShowResetDialog(true);
+  };
+
+  const confirmReset = () => {
+    resetState();
+    setCurrentStep(0);
+    setShowResetDialog(false);
+    toast({
+      title: "Split reset",
+      description: "All participants and items were cleared.",
+      variant: "success",
+    });
   };
 
   const updateState = (updates: Partial<SingleState>) => {
     setState((prev) => ({ ...prev, ...updates }));
+  };
+
+  const loadSampleData = () => {
+    const a = generateId();
+    const b = generateId();
+    const c = generateId();
+    setState({
+      title: "Friday Dinner",
+      participants: [
+        { id: a, name: "Alex" },
+        { id: b, name: "Bella" },
+        { id: c, name: "Cara" },
+      ],
+      items: [
+        { id: generateId(), name: "Margherita Pizza", qty: 1, unitPrice: 95000, total: 95000, assignedToIds: [a, b, c] },
+        { id: generateId(), name: "Carbonara", qty: 1, unitPrice: 75000, total: 75000, assignedToIds: [a] },
+        { id: generateId(), name: "Iced Tea x3", qty: 3, unitPrice: 15000, total: 45000, assignedToIds: [a, b, c] },
+        { id: generateId(), name: "Tiramisu", qty: 1, unitPrice: 25000, total: 25000, assignedToIds: [b, c] },
+      ],
+      tax: 22000,
+      service: 18000,
+      payerId: a,
+    });
+    toast({
+      title: "Sample data loaded",
+      description: "Click Next to walk through the rest of the flow.",
+      variant: "success",
+    });
   };
 
   return (
@@ -150,7 +233,13 @@ export default function SinglePage() {
           <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
             <AuthButton />
-            <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive px-2 sm:px-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleReset}
+              aria-label="Reset"
+              className="text-muted-foreground hover:text-destructive px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+            >
               <RotateCcw className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Reset</span>
             </Button>
@@ -164,7 +253,7 @@ export default function SinglePage() {
           <Stepper
             steps={STEPS}
             currentStep={currentStep}
-            onStepClick={setCurrentStep}
+            onStepClick={handleStepClick}
           />
         </div>
 
@@ -180,16 +269,28 @@ export default function SinglePage() {
                       <Sparkles className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <CardTitle>Who's splitting the bill?</CardTitle>
+                      <CardTitle>Who&rsquo;s splitting the bill?</CardTitle>
                       <p className="text-sm text-muted-foreground mt-0.5">Add at least 2 people to continue</p>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <ParticipantManager
                     participants={state.participants}
                     onChange={(participants) => updateState({ participants })}
                   />
+                  {/* First-time helper: pre-load a small dinner scenario so users
+                      can see the whole flow end-to-end without typing. */}
+                  {state.participants.length === 0 && state.items.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={loadSampleData}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Try with sample data (3 friends, dinner for Rp 240k)
+                    </button>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -260,7 +361,7 @@ export default function SinglePage() {
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-                        <ReceiptIcon className="h-5 w-5 text-emerald-600" />
+                        <ReceiptIcon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                       </div>
                       <div>
                         <CardTitle>Fees & Payer</CardTitle>
@@ -294,33 +395,41 @@ export default function SinglePage() {
                   <div>
                     <h2 className="text-3xl font-bold gradient-text">🎉 Split Complete!</h2>
                     <p className="text-muted-foreground mt-2">
-                      Here's the complete breakdown for <span className="font-semibold text-foreground">{state.title}</span>
+                      Here&rsquo;s the complete breakdown for <span className="font-semibold text-foreground">{state.title}</span>
                     </p>
                   </div>
                 </div>
 
                 {/* Quick Stats */}
-                <div className="grid grid-cols-3 gap-4">
-                  <Card className="text-center p-4 bg-primary/5 border-primary/20">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+                  <Card className="text-center p-3 sm:p-4 bg-primary/5 border-primary/20">
                     <p className="text-2xl font-bold text-primary">{state.participants.length}</p>
                     <p className="text-xs text-muted-foreground">Participants</p>
                   </Card>
-                  <Card className="text-center p-4 bg-accent/5 border-accent/20">
+                  <Card className="text-center p-3 sm:p-4 bg-accent/5 border-accent/20">
                     <p className="text-2xl font-bold text-accent">{state.items.length}</p>
                     <p className="text-xs text-muted-foreground">Items</p>
                   </Card>
-                  <Card className="text-center p-4 bg-emerald-500/5 border-emerald-500/20">
-                    <p className="text-2xl font-bold text-emerald-600">Rp {((state.items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0)) + state.tax + state.service).toLocaleString('id-ID')}</p>
+                  <Card className="col-span-2 sm:col-span-1 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
+                    <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 break-all sm:break-normal">
+                      Rp {formatCurrency(
+                        state.items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0)
+                          + state.tax
+                          + state.service
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">Total Bill</p>
                   </Card>
                 </div>
 
                 {/* Main Summary Panel - Centered */}
-                <SummaryPanel
-                  receipt={receipt}
-                  participants={state.participants}
-                  title={state.title}
-                />
+                <ErrorBoundary label="the summary">
+                  <SummaryPanel
+                    receipt={receipt}
+                    participants={state.participants}
+                    title={state.title}
+                  />
+                </ErrorBoundary>
 
                 {/* Export Tip */}
                 <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
@@ -334,73 +443,81 @@ export default function SinglePage() {
             )}
 
             {/* Navigation */}
-            <div className="flex justify-between pt-6">
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                disabled={currentStep === 0}
-                size="lg"
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              {currentStep < STEPS.length - 1 && (
-                <Button 
-                  onClick={handleNext} 
-                  disabled={!canProceed}
-                  size="lg"
-                  variant={currentStep === 1 ? "accent" : "default"}
+            <div className="space-y-2 pt-6">
+              {blockingMessage && (
+                <p
+                  role="status"
+                  className="text-right text-xs font-medium text-amber-600 dark:text-amber-400"
                 >
-                  {currentStep === 1 ? "View Summary" : "Next"}
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
+                  ⚠️ {blockingMessage}
+                </p>
               )}
+              <div className="flex justify-between">
+                <Button
+                  variant="outline"
+                  onClick={handleBack}
+                  disabled={currentStep === 0 || isTransitioning}
+                  size="lg"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+                {currentStep < STEPS.length - 1 && (
+                  <Button
+                    onClick={handleNext}
+                    disabled={!canProceed || isTransitioning}
+                    size="lg"
+                    variant={currentStep === 1 ? "accent" : "default"}
+                  >
+                    {currentStep === 1 ? "View Summary" : "Next"}
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Sticky Summary Sidebar (Desktop) - Hidden on Summary Step */}
           {currentStep !== 2 && (
             <div className="hidden lg:block">
-              <SummaryPanel
-                receipt={receipt}
-                participants={state.participants}
-                title={state.title}
-              />
+              <ErrorBoundary label="the summary">
+                <SummaryPanel
+                  receipt={receipt}
+                  participants={state.participants}
+                  title={state.title}
+                />
+              </ErrorBoundary>
             </div>
           )}
         </div>
       </div>
 
-      {/* Minimalist Footer */}
-      <footer className="px-6 py-4 border-t bg-card/50 backdrop-blur-sm">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
-              <Calculator className="h-3 w-3 text-primary" />
-            </div>
-            <span className="text-xs font-medium text-muted-foreground">Splitzy by Madaffadl</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <a href="mailto:m.daffafadhil26@gmail.com" target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded-md bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200" aria-label="Email">
-              <Mail className="h-3 w-3" />
-            </a>
-            <a href="https://www.instagram.com/mdaffa_fdl?igsh=ajJ3Y3Y0Nzd3OXZn&utm_source=qr" target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded-md bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-pink-500 hover:bg-pink-500/10 transition-all duration-200" aria-label="Instagram">
-              <Instagram className="h-3 w-3" />
-            </a>
-            <a href="https://www.linkedin.com/in/madaffadl" target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded-md bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-600/10 transition-all duration-200" aria-label="LinkedIn">
-              <Linkedin className="h-3 w-3" />
-            </a>
-            <a href="https://wa.me/6285365360955" target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded-md bg-muted/30 flex items-center justify-center text-muted-foreground hover:text-green-500 hover:bg-green-500/10 transition-all duration-200" aria-label="WhatsApp">
-              <Phone className="h-3 w-3" />
-            </a>
-          </div>
-        </div>
-      </footer>
+      <AppFooter />
 
       <GuestLimitDialog
         open={showLimitDialog}
         onClose={() => setShowLimitDialog(false)}
       />
+
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset everything?</DialogTitle>
+            <DialogDescription>
+              This will clear all participants, items, fees, and the payer for this split. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowResetDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmReset}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Yes, reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

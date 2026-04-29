@@ -22,7 +22,7 @@ const badgeVariants = cva(
         success:
           "border-transparent bg-emerald-500 text-white shadow-sm hover:bg-emerald-600",
         "success-outline":
-          "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
+          "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
       },
     },
     defaultVariants: {

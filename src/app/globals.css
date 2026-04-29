@@ -28,7 +28,7 @@
 
     /* Muted */
     --muted: 45 15% 93%;
-    --muted-foreground: 75 10% 45%;
+    --muted-foreground: 75 12% 35%;
 
     /* Destructive */
     --destructive: 0 84.2% 60.2%;
@@ -63,7 +63,7 @@
 
     /* Muted */
     --muted: 75 15% 18%;
-    --muted-foreground: 45 10% 60%;
+    --muted-foreground: 45 12% 70%;
 
     /* Destructive */
     --destructive: 0 62.8% 30.6%;
@@ -84,6 +84,20 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
+  }
+}
+
+/* Respect user's reduced-motion preference (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

@@ -2,12 +2,16 @@
 
 import { Receipt, Participant, PersonShareDetail } from "@/types";
 import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, getWalletStats } from "@/lib/calculations";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Download } from "lucide-react";
 import { useState, useMemo } from "react";
+import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
+import { encodeShare, buildShareUrl } from "@/lib/share";
+import { buildReceiptCsv, downloadCsv, csvFilename } from "@/lib/csv-export";
+import { useToast } from "@/components/ui/toast";
 
 interface SummaryPanelProps {
   receipt: Receipt;
@@ -119,6 +123,7 @@ function PersonBreakdown({
 
 export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps) {
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
@@ -140,8 +145,16 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
     [summary.balances]
   );
 
-  const getParticipantName = (id: string) =>
-    participants.find((p) => p.id === id)?.name || "Unknown";
+  const { isPaid, togglePaid } = usePaidSettlements(`receipt:${receipt.id}`);
+
+  // Memoized name lookup — settlements + per-person breakdown can call this
+  // many times; the previous .find() was O(n) per call, this is O(1).
+  const participantNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of participants) map.set(p.id, p.name);
+    return map;
+  }, [participants]);
+  const getParticipantName = (id: string) => participantNames.get(id) || "Unknown";
 
   const generateExportText = () => {
     let text = `💰 ${title || receipt.title || "Bill Split"}\n`;
@@ -193,6 +206,61 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
     }
   };
 
+  const handleDownloadCsv = () => {
+    try {
+      const csv = buildReceiptCsv(receipt, participants, title);
+      const name = csvFilename(title || receipt.title || "split");
+      downloadCsv(name, csv);
+      toast({
+        title: "CSV downloaded",
+        description: name,
+        variant: "success",
+      });
+    } catch (err) {
+      toast({
+        title: "Couldn't export CSV",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "error",
+      });
+    }
+  };
+
+  const handleShareLink = async () => {
+    try {
+      const encoded = encodeShare({
+        title: title || receipt.title || "Bill Split",
+        receipt,
+        participants,
+      });
+      const url = buildShareUrl(window.location.origin, encoded);
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: title || receipt.title || "Splitzy Summary",
+            url,
+          });
+          return;
+        } catch {
+          // User cancelled or share failed → fall through to clipboard.
+        }
+      }
+
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: "Link copied",
+        description: "Anyone with the link can view this split (read-only).",
+        variant: "success",
+      });
+    } catch (err) {
+      toast({
+        title: "Couldn't create share link",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "error",
+      });
+    }
+  };
+
   if (participantIds.length === 0 || !receipt.payerId) {
     return (
       <Card className="border-dashed">
@@ -214,24 +282,47 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
             </div>
             <span className="gradient-text font-bold">Summary</span>
           </CardTitle>
-          <Button
-            variant="accent"
-            size="sm"
-            onClick={handleCopy}
-            className="h-9"
-          >
-            {copied ? (
-              <>
-                <Check className="mr-1 h-3 w-3" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="mr-1 h-3 w-3" />
-                Export
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadCsv}
+              className="h-9 px-2 sm:px-3"
+              aria-label="Download as CSV"
+              title="Download as CSV"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden md:inline ml-1.5">CSV</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShareLink}
+              className="h-9 px-2 sm:px-3"
+              aria-label="Share this split via link"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              <span className="hidden md:inline ml-1.5">Share</span>
+            </Button>
+            <Button
+              variant="accent"
+              size="sm"
+              onClick={handleCopy}
+              className="h-9"
+            >
+              {copied ? (
+                <>
+                  <Check className="mr-1 h-3 w-3" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="mr-1 h-3 w-3" />
+                  Export
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -284,30 +375,54 @@ export function SummaryPanel({ receipt, participants, title }: SummaryPanelProps
             Settlements
           </h4>
           {settlements.length === 0 ? (
-            <div className="text-sm text-center py-2 text-emerald-600 bg-emerald-500/10 rounded-md">
+            <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
               ✓ All settled!
             </div>
           ) : (
             <div className="space-y-2">
-              {settlements.map((s, i) => (
-                <div
-                  key={i}
-                  className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">
-                      {getParticipantName(s.from)}
+              {settlements.map((s) => {
+                const key = settlementKey(s);
+                const paid = isPaid(key);
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={() => togglePaid(key)}
+                    aria-pressed={paid}
+                    aria-label={`${paid ? "Mark unpaid" : "Mark paid"}: ${getParticipantName(s.from)} pays ${getParticipantName(s.to)} Rp ${formatCurrency(s.amount)}`}
+                    className={cn(
+                      "group w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
+                      paid
+                        ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                        : "bg-muted/50 hover:bg-muted"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span
+                        className={cn(
+                          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                          paid
+                            ? "border-emerald-500 bg-emerald-500 text-white"
+                            : "border-muted-foreground/40 group-hover:border-primary"
+                        )}
+                        aria-hidden="true"
+                      >
+                        {paid && <Check className="h-3 w-3" />}
+                      </span>
+                      <span className={cn("font-medium truncate max-w-[80px] sm:max-w-none", paid && "line-through text-muted-foreground")}>
+                        {getParticipantName(s.from)}
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className={cn("font-medium truncate max-w-[80px] sm:max-w-none", paid && "line-through text-muted-foreground")}>
+                        {getParticipantName(s.to)}
+                      </span>
+                    </div>
+                    <span className={cn("font-bold sm:ml-auto", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                      Rp {formatCurrency(s.amount)}
                     </span>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">
-                      {getParticipantName(s.to)}
-                    </span>
-                  </div>
-                  <span className="font-bold text-primary sm:ml-auto">
-                    Rp {formatCurrency(s.amount)}
-                  </span>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -321,12 +436,14 @@ interface TripSummaryPanelProps {
   receipts: Receipt[];
   participants: Participant[];
   tripName: string;
+  tripId?: string;
 }
 
 export function TripSummaryPanel({
   receipts,
   participants,
   tripName,
+  tripId,
 }: TripSummaryPanelProps) {
   const [copied, setCopied] = useState(false);
 
@@ -393,8 +510,16 @@ export function TripSummaryPanel({
     [aggregateBalances]
   );
 
-  const getParticipantName = (id: string) =>
-    participants.find((p) => p.id === id)?.name || "Unknown";
+  const { isPaid, togglePaid } = usePaidSettlements(`trip:${tripId ?? tripName}`);
+
+  // Memoized name lookup — settlements + per-person breakdown can call this
+  // many times; the previous .find() was O(n) per call, this is O(1).
+  const participantNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of participants) map.set(p.id, p.name);
+    return map;
+  }, [participants]);
+  const getParticipantName = (id: string) => participantNames.get(id) || "Unknown";
 
   const generateExportText = () => {
     let text = `🌴 ${tripName} - Trip Summary\n`;
@@ -512,7 +637,7 @@ export function TripSummaryPanel({
                     <span
                       className={`text-sm font-semibold ${
                         net > 0
-                          ? "text-emerald-600"
+                          ? "text-emerald-600 dark:text-emerald-400"
                           : net < 0
                           ? "text-red-500"
                           : "text-muted-foreground"
@@ -523,14 +648,14 @@ export function TripSummaryPanel({
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex justify-between p-1.5 rounded bg-emerald-500/10">
-                      <span className="text-emerald-700">Paid</span>
-                      <span className="font-medium text-emerald-700">
+                      <span className="text-emerald-700 dark:text-emerald-300">Paid</span>
+                      <span className="font-medium text-emerald-700 dark:text-emerald-300">
                         Rp {formatCurrency(paid)}
                       </span>
                     </div>
                     <div className="flex justify-between p-1.5 rounded bg-orange-500/10">
-                      <span className="text-orange-700">Consumed</span>
-                      <span className="font-medium text-orange-700">
+                      <span className="text-orange-700 dark:text-orange-300">Consumed</span>
+                      <span className="font-medium text-orange-700 dark:text-orange-300">
                         Rp {formatCurrency(consumed)}
                       </span>
                     </div>
@@ -556,7 +681,7 @@ export function TripSummaryPanel({
                 <span
                   className={`font-medium ${
                     balance > 0
-                      ? "text-emerald-600"
+                      ? "text-emerald-600 dark:text-emerald-400"
                       : balance < 0
                       ? "text-red-500"
                       : ""
@@ -575,30 +700,54 @@ export function TripSummaryPanel({
             Final Settlements
           </h4>
           {settlements.length === 0 ? (
-            <div className="text-sm text-center py-2 text-emerald-600 bg-emerald-500/10 rounded-md">
+            <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
               ✓ Everyone is settled!
             </div>
           ) : (
             <div className="space-y-2">
-              {settlements.map((s, i) => (
-                <div
-                  key={i}
-                  className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">
-                      {getParticipantName(s.from)}
+              {settlements.map((s) => {
+                const key = settlementKey(s);
+                const paid = isPaid(key);
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={() => togglePaid(key)}
+                    aria-pressed={paid}
+                    aria-label={`${paid ? "Mark unpaid" : "Mark paid"}: ${getParticipantName(s.from)} pays ${getParticipantName(s.to)} Rp ${formatCurrency(s.amount)}`}
+                    className={cn(
+                      "group w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
+                      paid
+                        ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                        : "bg-muted/50 hover:bg-muted"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span
+                        className={cn(
+                          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+                          paid
+                            ? "border-emerald-500 bg-emerald-500 text-white"
+                            : "border-muted-foreground/40 group-hover:border-primary"
+                        )}
+                        aria-hidden="true"
+                      >
+                        {paid && <Check className="h-3 w-3" />}
+                      </span>
+                      <span className={cn("font-medium truncate max-w-[80px] sm:max-w-none", paid && "line-through text-muted-foreground")}>
+                        {getParticipantName(s.from)}
+                      </span>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className={cn("font-medium truncate max-w-[80px] sm:max-w-none", paid && "line-through text-muted-foreground")}>
+                        {getParticipantName(s.to)}
+                      </span>
+                    </div>
+                    <span className={cn("font-bold sm:ml-auto", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                      Rp {formatCurrency(s.amount)}
                     </span>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">
-                      {getParticipantName(s.to)}
-                    </span>
-                  </div>
-                  <span className="font-bold text-primary sm:ml-auto">
-                    Rp {formatCurrency(s.amount)}
-                  </span>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

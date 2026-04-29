@@ -52,7 +52,7 @@ export default function Error({
           </h1>
           
           <p className="text-muted-foreground text-lg px-4 leading-relaxed">
-            We apologize, but it seems an unexpected error occurred while processing your request. Don't worry, your data is safe!
+            We apologize, but it seems an unexpected error occurred while processing your request. Don&rsquo;t worry, your data is safe!
           </p>
         </div>
 

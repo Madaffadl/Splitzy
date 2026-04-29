@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ReceiptHistoryCard } from "@/components/ReceiptHistoryCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Receipt, Loader2 } from "lucide-react";
+import { Search, Receipt, Loader2, X } from "lucide-react";
 
 interface ReceiptItem {
   id: string;
@@ -20,10 +20,18 @@ interface ReceiptItem {
 export function ReceiptHistoryList() {
   const [receipts, setReceipts] = useState<ReceiptItem[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Debounce search keystrokes to avoid hammering /api/receipts on every char.
+  useEffect(() => {
+    if (search === debouncedSearch) return;
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search, debouncedSearch]);
 
   const fetchReceipts = useCallback(
     async (pageNum: number, searchQuery: string, append: boolean = false) => {
@@ -54,8 +62,8 @@ export function ReceiptHistoryList() {
 
   useEffect(() => {
     setPage(1);
-    fetchReceipts(1, search);
-  }, [search, fetchReceipts]);
+    fetchReceipts(1, debouncedSearch);
+  }, [debouncedSearch, fetchReceipts]);
 
   const loadMore = () => {
     const nextPage = page + 1;
@@ -67,13 +75,25 @@ export function ReceiptHistoryList() {
     <div className="space-y-4">
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         <Input
-          placeholder="Search receipts..."
+          type="search"
+          placeholder="Search by receipt or trip name..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-10"
+          className="pl-10 pr-10"
+          aria-label="Search receipts"
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch("")}
+            aria-label="Clear search"
+            className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Results count */}

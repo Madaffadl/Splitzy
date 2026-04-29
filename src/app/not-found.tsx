@@ -44,7 +44,7 @@ export default function NotFound() {
           </h1>
           
           <p className="text-muted-foreground text-lg px-4 leading-relaxed">
-            The page you're trying to reach doesn't exist or has been moved. Let's get you back to settling those tabs!
+            The page you&rsquo;re trying to reach doesn&rsquo;t exist or has been moved. Let&rsquo;s get you back to settling those tabs!
           </p>
         </div>
 

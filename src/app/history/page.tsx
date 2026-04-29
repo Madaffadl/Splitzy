@@ -1,12 +1,34 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { ReceiptHistoryList } from "@/components/ReceiptHistoryList";
-import { ArrowLeft, History } from "lucide-react";
+import { ArrowLeft, History, Loader2 } from "lucide-react";
 
 export default function HistoryPage() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Wait for auth resolution before redirecting; guests get sent to landing
+    // with the login banner (and a redirect param so they come back here after).
+    if (!isLoading && !isAuthenticated) {
+      router.replace("/?login=required&redirect=/history");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  if (isLoading || !isAuthenticated) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-background flex flex-col">
       {/* Header */}

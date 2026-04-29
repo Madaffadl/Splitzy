@@ -16,32 +16,41 @@ interface StepperProps {
 }
 
 export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
+  // Bar is inset by half circle width (h-12 / 2 = 24px = `left-6 right-6`)
+  // so it spans exactly between the centers of the first and last circles.
+  const fillPercent =
+    steps.length <= 1 ? 100 : (currentStep / (steps.length - 1)) * 100;
+
   return (
-    <div className="w-full">
-      {/* Progress Bar Background */}
-      <div className="relative mb-4">
-        <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 bg-muted rounded-full" />
-        <div 
-          className="absolute top-1/2 left-0 h-1 -translate-y-1/2 bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-500"
-          style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
+    <nav aria-label="Progress" className="w-full">
+      <div className="relative">
+        {/* Progress bar — sits behind circles, passes through their centers (top: 24px = h-12 / 2) */}
+        <div
+          className="pointer-events-none absolute left-6 right-6 top-6 h-1 -translate-y-1/2 rounded-full bg-muted z-0"
+          aria-hidden="true"
         />
-      </div>
+        <div
+          className="pointer-events-none absolute left-6 top-6 h-1 -translate-y-1/2 rounded-full bg-gradient-to-r from-primary to-accent transition-[width] duration-500 z-0"
+          style={{ width: `calc((100% - 3rem) * ${fillPercent / 100})` }}
+          aria-hidden="true"
+        />
 
-      {/* Steps */}
-      <div className="flex items-center justify-between">
-        {steps.map((step, index) => {
-          const isCompleted = index < currentStep;
-          const isCurrent = index === currentStep;
-          const isClickable = onStepClick && index <= currentStep;
+        {/* Steps */}
+        <div className="relative z-10 flex items-start justify-between">
+          {steps.map((step, index) => {
+            const isCompleted = index < currentStep;
+            const isCurrent = index === currentStep;
+            const isClickable = onStepClick && index <= currentStep;
 
-          return (
-            <div key={step.id} className="flex flex-col items-center relative">
+            return (
               <button
+                key={step.id}
                 type="button"
                 onClick={() => isClickable && onStepClick(index)}
                 disabled={!isClickable}
+                aria-current={isCurrent ? "step" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-2 transition-all duration-300",
+                  "flex flex-col items-center gap-2 transition-transform duration-300",
                   isClickable && "cursor-pointer hover:scale-105",
                   !isClickable && "cursor-default"
                 )}
@@ -49,7 +58,7 @@ export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
                 {/* Step Circle */}
                 <div
                   className={cn(
-                    "relative flex h-12 w-12 items-center justify-center rounded-full border-2 text-sm font-bold transition-all duration-300",
+                    "relative flex h-12 w-12 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors duration-300",
                     isCompleted &&
                       "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30",
                     isCurrent &&
@@ -66,42 +75,29 @@ export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
                   ) : (
                     <span>{index + 1}</span>
                   )}
-                  
-                  {/* Active indicator ring */}
-                  {isCurrent && (
-                    <div className="absolute -inset-1 rounded-full border-2 border-accent/30 animate-ping" />
-                  )}
                 </div>
 
-                {/* Step Label */}
-                <div
+                {/* Step Label — fixed size to avoid layout shift on step change */}
+                <span
                   className={cn(
-                    "flex flex-col items-center gap-0.5 transition-colors duration-300",
-                    !isCurrent && "hidden sm:flex",
+                    "max-w-[88px] text-center text-xs font-semibold transition-colors duration-300",
+                    !isCurrent && "hidden sm:inline-block",
                     isCurrent && "text-foreground",
                     isCompleted && "text-primary",
                     !isCurrent && !isCompleted && "text-muted-foreground"
                   )}
                 >
-                  <span
-                    className={cn(
-                      "text-xs font-semibold text-center max-w-[80px]",
-                      isCurrent && "text-sm"
-                    )}
-                  >
-                    {step.title}
+                  <span className="sr-only">
+                    Step {index + 1} of {steps.length}
+                    {isCompleted ? " (completed)" : isCurrent ? " (current)" : ""}:{" "}
                   </span>
-                  {isCurrent && (
-                    <span className="text-[10px] text-accent font-medium">
-                      Current
-                    </span>
-                  )}
-                </div>
+                  {step.title}
+                </span>
               </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </nav>
   );
 }

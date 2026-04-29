@@ -31,7 +31,7 @@ export default function MaintenancePage() {
 
           <div className="space-y-4">
             <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-              We'll be <span className="gradient-text bg-gradient-to-r from-primary to-accent">right back.</span>
+              We&rsquo;ll be <span className="gradient-text bg-gradient-to-r from-primary to-accent">right back.</span>
             </h1>
             <p className="text-lg text-muted-foreground leading-relaxed">
               Splitzy is currently undergoing scheduled maintenance to improve your experience. 

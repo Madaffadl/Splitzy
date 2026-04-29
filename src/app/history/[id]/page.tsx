@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { SummaryPanel } from "@/components/SummaryPanel";
@@ -14,11 +15,21 @@ import type { ReceiptDetail } from "@/lib/data/types";
 
 export default function HistoryDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const [detail, setDetail] = useState<ReceiptDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace(`/?login=required&redirect=/history/${id}`);
+    }
+  }, [authLoading, isAuthenticated, id, router]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+
     async function fetchDetail() {
       try {
         const res = await fetch(`/api/receipts/${id}`);
@@ -37,7 +48,7 @@ export default function HistoryDetailPage() {
     }
 
     if (id) fetchDetail();
-  }, [id]);
+  }, [id, authLoading, isAuthenticated]);
 
   // Transform API data into the Receipt + Participant[] format
   // that SummaryPanel expects
