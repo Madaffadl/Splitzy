@@ -1,0 +1,65 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const RETENTION_DAYS = 30;
+
+/**
+ * POST /api/admin/cleanup — Hard-delete rows that have been soft-deleted for
+ * longer than the retention window. Designed to be called by a scheduled job
+ * (Vercel Cron, GitHub Actions, external cron, etc.).
+ *
+ * Auth model:
+ *   * Requires `Authorization: Bearer <CLEANUP_TOKEN>` matching the env var.
+ *   * Falls back to Vercel's built-in `x-vercel-cron: 1` header when the
+ *     request comes from Vercel Cron (Vercel signs cron requests).
+ *   * Both checks fail-closed: missing env var → 503 (intentional misconfig
+ *     guard so the endpoint doesn't accidentally run open).
+ *
+ * Behaviour: hard-deletes receipts first (children), then trips (parents).
+ * Cascades from FK constraints clean up receipt_items and item_assignments.
+ */
+export async function POST(request: NextRequest) {
+  const token = process.env.CLEANUP_TOKEN;
+  const isVercelCron = request.headers.get("x-vercel-cron") === "1";
+  const authHeader = request.headers.get("authorization") ?? "";
+  const provided = authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length)
+    : null;
+
+  if (!token && !isVercelCron) {
+    // Misconfigured: env var unset and not a trusted Vercel cron caller.
+    return NextResponse.json(
+      { error: "Cleanup endpoint is not configured. Set CLEANUP_TOKEN." },
+      { status: 503 }
+    );
+  }
+  if (!isVercelCron && (!token || provided !== token)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+  // Order matters: receipts (FK to trips), then trips. Both have FK Cascade
+  // on ReceiptItem & ItemAssignment so children clean up automatically.
+  const [receiptsDeleted, tripsDeleted] = await prisma.$transaction([
+    prisma.receipt.deleteMany({
+      where: { deletedAt: { lt: cutoff, not: null } },
+    }),
+    prisma.trip.deleteMany({
+      where: { deletedAt: { lt: cutoff, not: null } },
+    }),
+  ]);
+
+  return NextResponse.json({
+    cutoff: cutoff.toISOString(),
+    retentionDays: RETENTION_DAYS,
+    receiptsDeleted: receiptsDeleted.count,
+    tripsDeleted: tripsDeleted.count,
+  });
+}
+
+/** Allow GET for monitoring tools that prefer it (still requires auth). */
+export const GET = POST;

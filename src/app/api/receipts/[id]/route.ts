@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthUser, unauthorized } from "@/lib/api-auth";
+import {
+  getAuthUser,
+  unauthorized,
+  forbidden,
+  notFound,
+  assertSameOrigin,
+} from "@/lib/api-auth";
+import {
+  validateReceiptPatch,
+  validationErrorResponse,
+  ValidationError,
+} from "@/lib/validation";
+import { apiError } from "@/lib/api-response";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // GET /api/receipts/[id] - Get receipt detail
 export async function GET(
@@ -12,6 +25,51 @@ export async function GET(
 
   const { id } = await params;
 
+  // Auth-first: fetch only the columns needed for the access decision before
+  // pulling full nested data. Wasted DB work and JSON serialization for
+  // unauthorized requests is now ~0.
+  const auth = await prisma.receipt.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      tripId: true,
+      createdById: true,
+      payerId: true,
+      deletedAt: true,
+      items: {
+        select: {
+          assignments: { select: { userId: true } },
+        },
+      },
+    },
+  });
+
+  // Soft-deleted rows are treated as 404 — they no longer exist for the user.
+  if (!auth || auth.deletedAt) {
+    return notFound();
+  }
+
+  const isInvolved =
+    auth.createdById === user.id ||
+    auth.payerId === user.id ||
+    auth.items.some((item) =>
+      item.assignments.some((a) => a.userId === user.id)
+    );
+
+  if (!isInvolved) {
+    if (!auth.tripId) {
+      return forbidden();
+    }
+    const membership = await prisma.tripMember.findUnique({
+      where: { tripId_userId: { tripId: auth.tripId, userId: user.id } },
+      select: { id: true },
+    });
+    if (!membership) {
+      return forbidden();
+    }
+  }
+
+  // Authorized — now fetch full payload.
   const receipt = await prisma.receipt.findUnique({
     where: { id },
     include: {
@@ -32,28 +90,8 @@ export async function GET(
   });
 
   if (!receipt) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  // Check if user is involved
-  const isInvolved =
-    receipt.createdById === user.id ||
-    receipt.payerId === user.id ||
-    receipt.items.some((item) =>
-      item.assignments.some((a) => a.userId === user.id)
-    );
-
-  if (!isInvolved && receipt.tripId) {
-    const membership = await prisma.tripMember.findUnique({
-      where: {
-        tripId_userId: { tripId: receipt.tripId, userId: user.id },
-      },
-    });
-    if (!membership) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-  } else if (!isInvolved) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Race: deleted between auth and fetch.
+    return notFound();
   }
 
   // Build participants list from assignments + payer
@@ -88,6 +126,9 @@ export async function GET(
     createdById: receipt.createdById,
     tripId: receipt.tripId,
     tripName: receipt.trip?.name ?? null,
+    // Surface the current version so clients can echo it back in PUT requests
+    // (optimistic concurrency).
+    version: receipt.version,
     participants,
     items: receipt.items.map((item) => ({
       id: item.id,
@@ -107,66 +148,129 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrf = assertSameOrigin(request);
+  if (csrf) return csrf;
+
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+
+  const limited = enforceRateLimit(request, "receipts:update", { userId: user.id });
+  if (limited) return limited;
 
   const { id } = await params;
 
   const existing = await prisma.receipt.findUnique({
     where: { id },
-    select: { createdById: true },
+    select: { createdById: true, deletedAt: true, version: true },
   });
 
-  if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!existing || existing.deletedAt) {
+    return notFound();
   }
 
   if (existing.createdById !== user.id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return forbidden();
   }
 
-  const body = await request.json();
-  const { title, payerId, tax, service, date } = body;
+  let patch;
+  try {
+    const body = await request.json().catch(() => null);
+    patch = validateReceiptPatch(body);
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      const { body, status } = validationErrorResponse(err);
+      return NextResponse.json(body, { status });
+    }
+    return apiError("BAD_REQUEST", "Invalid request body");
+  }
 
+  // Optimistic concurrency: when the caller declares the version they observed,
+  // refuse the write if it has moved on. The atomic UPDATE...WHERE id=$1 AND
+  // version=$2 closes the read-then-write race window.
+  if (patch.expectedVersion !== undefined) {
+    const result = await prisma.receipt.updateMany({
+      where: { id, version: patch.expectedVersion, deletedAt: null },
+      data: {
+        version: { increment: 1 },
+        ...(patch.title !== undefined && { title: patch.title }),
+        ...(patch.payerId !== undefined && { payerId: patch.payerId }),
+        ...(patch.tax !== undefined && { tax: patch.tax }),
+        ...(patch.service !== undefined && { service: patch.service }),
+        ...(patch.date !== undefined && {
+          date: patch.date ? new Date(patch.date) : null,
+        }),
+      },
+    });
+    if (result.count === 0) {
+      return apiError(
+        "VERSION_CONFLICT",
+        "This receipt was modified by someone else. Reload to see the latest version, then try again.",
+        { currentVersion: existing.version }
+      );
+    }
+    return NextResponse.json({ id, version: existing.version + 1 });
+  }
+
+  // Legacy clients that don't send expectedVersion still get last-write-wins.
   const updated = await prisma.receipt.update({
     where: { id },
     data: {
-      ...(title !== undefined && { title }),
-      ...(payerId !== undefined && { payerId }),
-      ...(tax !== undefined && { tax }),
-      ...(service !== undefined && { service }),
-      ...(date !== undefined && { date: date ? new Date(date) : null }),
+      version: { increment: 1 },
+      ...(patch.title !== undefined && { title: patch.title }),
+      ...(patch.payerId !== undefined && { payerId: patch.payerId }),
+      ...(patch.tax !== undefined && { tax: patch.tax }),
+      ...(patch.service !== undefined && { service: patch.service }),
+      ...(patch.date !== undefined && {
+        date: patch.date ? new Date(patch.date) : null,
+      }),
     },
-    select: { id: true },
+    select: { id: true, version: true },
   });
 
-  return NextResponse.json({ id: updated.id });
+  return NextResponse.json({ id: updated.id, version: updated.version });
 }
 
-// DELETE /api/receipts/[id] - Delete receipt (creator only)
+// DELETE /api/receipts/[id] - Soft-delete a receipt (creator only).
+//
+// Soft delete: row stays with deletedAt = now() so we can audit and restore.
+// All list/detail queries filter on `deletedAt: null` so the row disappears
+// from the user's view. A scheduled cleanup job can hard-delete rows older
+// than N days if needed.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrf = assertSameOrigin(request);
+  if (csrf) return csrf;
+
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+
+  const limited = enforceRateLimit(request, "receipts:delete", {
+    userId: user.id,
+    limit: 30,
+  });
+  if (limited) return limited;
 
   const { id } = await params;
 
   const existing = await prisma.receipt.findUnique({
     where: { id },
-    select: { createdById: true },
+    select: { createdById: true, deletedAt: true },
   });
 
-  if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!existing || existing.deletedAt) {
+    return notFound();
   }
 
   if (existing.createdById !== user.id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return forbidden();
   }
 
-  await prisma.receipt.delete({ where: { id } });
+  await prisma.receipt.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
 
   return NextResponse.json({ success: true });
 }

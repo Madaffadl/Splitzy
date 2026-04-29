@@ -27,16 +27,25 @@ model User {
 }
 
 model Trip {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
   name      String
-  ownerId   String   @map("owner_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  ownerId   String    @map("owner_id") @db.Uuid
+  // Optimistic concurrency: bump on every update; clients send the version they
+  // observed and the WHERE clause filters by it. Mismatch → 409 Conflict.
+  version   Int       @default(1)
+  // Soft delete. Active rows have deletedAt = NULL; deleted rows are kept for
+  // audit + accidental-delete recovery. List queries must filter `deletedAt: null`.
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
 
   owner    User         @relation("TripOwner", fields: [ownerId], references: [id])
   members  TripMember[]
   receipts Receipt[]
 
+  // Pagination + ownership filtering (most common query pattern).
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([deletedAt])
   @@map("trips")
 }
 
@@ -51,27 +60,42 @@ model TripMember {
   user User @relation(fields: [userId], references: [id])
 
   @@unique([tripId, userId])
+  // Filter pattern: "all members of trip X" and "all trips user Y is in".
+  @@index([tripId])
+  @@index([userId])
   @@map("trip_members")
 }
 
 model Receipt {
-  id               String   @id @default(uuid()) @db.Uuid
-  tripId           String?  @map("trip_id") @db.Uuid
+  id               String    @id @default(uuid()) @db.Uuid
+  tripId           String?   @map("trip_id") @db.Uuid
   title            String
-  payerId          String   @map("payer_id") @db.Uuid
-  tax              Float    @default(0)
-  service          Float    @default(0)
+  payerId          String    @map("payer_id") @db.Uuid
+  tax              Float     @default(0)
+  service          Float     @default(0)
   date             DateTime?
-  participantsJson Json?    @map("participants_json")
-  createdById      String   @map("created_by") @db.Uuid
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  participantsJson Json?     @map("participants_json")
+  createdById      String    @map("created_by") @db.Uuid
+  // Optimistic concurrency — see Trip.version.
+  version          Int       @default(1)
+  // Soft delete — active rows have deletedAt = NULL.
+  deletedAt        DateTime? @map("deleted_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   trip      Trip?         @relation(fields: [tripId], references: [id], onDelete: Cascade)
   payer     User          @relation("ReceiptPayer", fields: [payerId], references: [id])
   createdBy User          @relation("ReceiptCreator", fields: [createdById], references: [id])
   items     ReceiptItem[]
 
+  // Common queries:
+  //   * "receipts I created, newest first" — list/history endpoint.
+  //   * "receipts in this trip" — trip detail endpoint.
+  //   * Soft-delete filter is added to every list query.
+  @@index([createdById, createdAt(sort: Desc)])
+  @@index([tripId])
+  @@index([payerId])
+  @@index([deletedAt])
   @@map("receipts")
 }
 
@@ -87,6 +111,8 @@ model ReceiptItem {
   receipt     Receipt          @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   assignments ItemAssignment[]
 
+  // Items are always loaded by receiptId.
+  @@index([receiptId])
   @@map("receipt_items")
 }
 
@@ -99,5 +125,8 @@ model ItemAssignment {
   user User        @relation(fields: [userId], references: [id])
 
   @@unique([itemId, userId])
+  // "all assignments for an item" + "what items did user X consume".
+  @@index([itemId])
+  @@index([userId])
   @@map("item_assignments")
 }

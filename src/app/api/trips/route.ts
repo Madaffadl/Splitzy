@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthUser, unauthorized } from "@/lib/api-auth";
+import { getAuthUser, unauthorized, assertSameOrigin } from "@/lib/api-auth";
+import {
+  validateTripCreate,
+  validationErrorResponse,
+  ValidationError,
+} from "@/lib/validation";
+import { apiError } from "@/lib/api-response";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // GET /api/trips - List trips for authenticated user
 export async function GET(request: NextRequest) {
@@ -9,14 +16,20 @@ export async function GET(request: NextRequest) {
 
   const trips = await prisma.trip.findMany({
     where: {
-      OR: [
-        { ownerId: user.id },
-        { members: { some: { userId: user.id } } },
+      AND: [
+        { deletedAt: null },
+        {
+          OR: [
+            { ownerId: user.id },
+            { members: { some: { userId: user.id } } },
+          ],
+        },
       ],
     },
     include: {
       _count: {
-        select: { receipts: true, members: true },
+        // Only count non-deleted receipts.
+        select: { receipts: { where: { deletedAt: null } }, members: true },
       },
     },
     orderBy: { updatedAt: "desc" },
@@ -35,22 +48,30 @@ export async function GET(request: NextRequest) {
 
 // POST /api/trips - Create a new trip
 export async function POST(request: NextRequest) {
+  const csrf = assertSameOrigin(request);
+  if (csrf) return csrf;
+
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
 
-  const body = await request.json();
-  const { name } = body;
+  const limited = enforceRateLimit(request, "trips:create", { userId: user.id });
+  if (limited) return limited;
 
-  if (!name) {
-    return NextResponse.json(
-      { error: "Trip name is required" },
-      { status: 400 }
-    );
+  let input: { name: string };
+  try {
+    const body = await request.json().catch(() => null);
+    input = validateTripCreate(body);
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      const { body, status } = validationErrorResponse(err);
+      return NextResponse.json(body, { status });
+    }
+    return apiError("BAD_REQUEST", "Invalid request body");
   }
 
   const trip = await prisma.trip.create({
     data: {
-      name,
+      name: input.name,
       ownerId: user.id,
       members: {
         create: {

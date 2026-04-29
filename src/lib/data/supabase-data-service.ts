@@ -107,11 +107,21 @@ export const supabaseDataService = {
   async importLocalData(data: {
     single: unknown;
     trip: unknown;
-  }): Promise<{ imported: number }> {
+    idempotencyKey?: string;
+  }): Promise<{ imported: number; replayed?: boolean }> {
+    // Idempotency key: on network retry, the server returns the cached result
+    // instead of re-importing. Caller may pass their own; default to a fresh
+    // UUID per attempt.
+    const idempotencyKey =
+      data.idempotencyKey ??
+      (typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
     const res = await fetch("/api/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, idempotencyKey }),
     });
     if (!res.ok) {
       throw new Error("Failed to import data");

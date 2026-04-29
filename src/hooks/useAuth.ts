@@ -106,6 +106,16 @@ export function useAuthProvider(): AuthContextType {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    // Clear app-specific localStorage so the next user on this device
+    // does not inherit the previous session's drafts or guest counter.
+    try {
+      window.localStorage.removeItem("splitbill-single");
+      window.localStorage.removeItem("splitbill-trips");
+      window.localStorage.removeItem("splitzy-history");
+      window.localStorage.removeItem("splitzy-guest-splits-count");
+    } catch {
+      // localStorage may be unavailable — safe to ignore
+    }
     setUser(null);
     setDbUser(null);
   }, [supabase.auth]);

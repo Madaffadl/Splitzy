@@ -1,29 +1,111 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import { enforceRateLimit } from "@/lib/rate-limit";
+import { assertSameOrigin } from "@/lib/api-auth";
+import { apiError } from "@/lib/api-response";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+// Best-effort: 10 receipt scans per minute per client IP.
+// Gemini billing scales with calls, so this caps accidental cost spikes.
+const PARSE_RATE_LIMIT = 10;
+const PARSE_RATE_WINDOW_MS = 60_000;
+
+// Cap base64 payload at ~6.7MB → roughly 5MB binary, which is well above
+// what a phone camera produces after compression. Anything larger is almost
+// certainly accidental or abusive.
+const MAX_IMAGE_BASE64_LENGTH = 7_000_000;
+const ALLOWED_MIME = /^image\/(jpeg|jpg|png|webp|heic|heif)$/i;
+
+// Robust JSON extractor: Gemini may wrap JSON in markdown fences (```json ... ```)
+// or include narrative text. We strip code fences first, then walk the string
+// to find the first balanced top-level object — quote-aware so braces inside
+// strings don't confuse the matcher.
+function extractJsonObject(text: string): Record<string, unknown> | null {
+    if (!text) return null;
+
+    // Strip ```json ... ``` or ``` ... ``` fences if present.
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = fenceMatch ? fenceMatch[1] : text;
+
+    const start = candidate.indexOf("{");
+    if (start === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let i = start; i < candidate.length; i++) {
+        const ch = candidate[i];
+        if (escape) {
+            escape = false;
+            continue;
+        }
+        if (ch === "\\" && inString) {
+            escape = true;
+            continue;
+        }
+        if (ch === '"') {
+            inString = !inString;
+            continue;
+        }
+        if (inString) continue;
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+            depth--;
+            if (depth === 0) {
+                const slice = candidate.slice(start, i + 1);
+                try {
+                    const parsed = JSON.parse(slice);
+                    return typeof parsed === "object" && parsed !== null
+                        ? (parsed as Record<string, unknown>)
+                        : null;
+                } catch {
+                    return null;
+                }
+            }
+        }
+    }
+    return null;
+}
+
 export async function POST(request: NextRequest) {
     try {
-        const { image } = await request.json();
+        const csrf = assertSameOrigin(request);
+        if (csrf) return csrf;
+
+        const limited = enforceRateLimit(request, "parse-receipt", {
+            limit: PARSE_RATE_LIMIT,
+            windowMs: PARSE_RATE_WINDOW_MS,
+        });
+        if (limited) return limited;
+
+        const body = await request.json().catch(() => null);
+        const image = typeof body?.image === "string" ? body.image : null;
 
         if (!image) {
-            return NextResponse.json(
-                { error: "No image provided" },
-                { status: 400 }
+            return apiError("BAD_REQUEST", "No image provided", { field: "image" });
+        }
+
+        if (image.length > MAX_IMAGE_BASE64_LENGTH) {
+            return apiError("PAYLOAD_TOO_LARGE", "Image too large. Please use a photo under 5MB.");
+        }
+
+        const mimeMatch = image.match(/^data:(image\/[\w+.-]+);base64,/);
+        const mimeType = mimeMatch?.[1] || "image/jpeg";
+
+        if (!ALLOWED_MIME.test(mimeType)) {
+            return apiError(
+                "UNSUPPORTED_MEDIA_TYPE",
+                "Unsupported image format. Use JPEG, PNG, WebP, or HEIC."
             );
         }
 
         if (!process.env.GEMINI_API_KEY) {
-            return NextResponse.json(
-                { error: "Gemini API key not configured" },
-                { status: 500 }
-            );
+            return apiError("INTERNAL_ERROR", "Gemini API key not configured");
         }
 
         // Extract base64 data from data URL
-        const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-        const mimeType = image.match(/^data:(image\/\w+);base64,/)?.[1] || "image/jpeg";
+        const base64Data = image.replace(/^data:image\/[\w+.-]+;base64,/, "");
 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
@@ -63,56 +145,61 @@ Extract the items now:`;
         const response = await result.response;
         const text = response.text();
 
-        // Parse the JSON response
-        // Try to extract JSON from the response (Gemini might include markdown)
-        let jsonStr = text;
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            jsonStr = jsonMatch[0];
-        }
-
-        try {
-            const parsed = JSON.parse(jsonStr);
-
-            // Validate the response structure
-            if (!parsed.items || !Array.isArray(parsed.items)) {
-                return NextResponse.json({
-                    items: [],
-                    tax: 0,
-                    service: 0,
-                    raw: text,
-                });
-            }
-
-            // Clean up and validate items
-            const cleanedItems = parsed.items
-                .filter((item: { name?: string; price?: number }) => item.name && typeof item.price === 'number' && item.price > 0)
-                .map((item: { name: string; qty?: number; price: number }) => ({
-                    name: String(item.name).trim(),
-                    qty: Math.max(1, parseInt(String(item.qty)) || 1),
-                    price: parseFloat(String(item.price)) || 0,
-                }));
-
-            return NextResponse.json({
-                items: cleanedItems,
-                tax: parseFloat(String(parsed.tax)) || 0,
-                service: parseFloat(String(parsed.service)) || 0,
-            });
-        } catch {
-            console.error("Failed to parse Gemini response:", text);
+        const parsed = extractJsonObject(text);
+        if (!parsed) {
+            console.error("Failed to extract JSON from Gemini response");
             return NextResponse.json({
                 items: [],
                 tax: 0,
                 service: 0,
                 error: "Failed to parse response",
-                raw: text,
             });
         }
+
+        if (!parsed.items || !Array.isArray(parsed.items)) {
+            return NextResponse.json({
+                items: [],
+                tax: 0,
+                service: 0,
+            });
+        }
+
+        // Bound the array — defensive against runaway model output.
+        const rawItems = parsed.items.slice(0, 200);
+
+        const cleanedItems = rawItems
+            .map((raw: unknown) => {
+                if (!raw || typeof raw !== "object") return null;
+                const item = raw as Record<string, unknown>;
+                const name = typeof item.name === "string" ? item.name.trim() : "";
+                if (!name) return null;
+
+                const priceNum = typeof item.price === "number"
+                    ? item.price
+                    : parseFloat(String(item.price));
+                if (!Number.isFinite(priceNum) || priceNum <= 0) return null;
+
+                const qtyNum = typeof item.qty === "number"
+                    ? item.qty
+                    : parseInt(String(item.qty), 10);
+                const qty = Number.isFinite(qtyNum) && qtyNum >= 1
+                    ? Math.min(1000, Math.floor(qtyNum))
+                    : 1;
+
+                return { name, qty, price: priceNum };
+            })
+            .filter((item): item is { name: string; qty: number; price: number } => item !== null);
+
+        const taxRaw = typeof parsed.tax === "number" ? parsed.tax : parseFloat(String(parsed.tax));
+        const serviceRaw = typeof parsed.service === "number" ? parsed.service : parseFloat(String(parsed.service));
+
+        return NextResponse.json({
+            items: cleanedItems,
+            tax: Number.isFinite(taxRaw) && taxRaw >= 0 ? taxRaw : 0,
+            service: Number.isFinite(serviceRaw) && serviceRaw >= 0 ? serviceRaw : 0,
+        });
     } catch (error) {
         console.error("Gemini API error:", error);
-        return NextResponse.json(
-            { error: "Failed to process image", details: String(error) },
-            { status: 500 }
-        );
+        return apiError("INTERNAL_ERROR", "Failed to process image");
     }
 }

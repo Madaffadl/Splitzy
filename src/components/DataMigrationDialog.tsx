@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,20 @@ export function DataMigrationDialog({
   const [importedCount, setImportedCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Stable per-dialog-session idempotency key. Reused across user retries so
+  // the server treats them as the same import attempt. Reset only on dialog
+  // close so a fresh open gets a fresh key.
+  const idempotencyKeyRef = useRef<string | null>(null);
+  const getIdempotencyKey = () => {
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+    return idempotencyKeyRef.current;
+  };
+
   const handleImport = async () => {
     setStatus("importing");
     try {
@@ -37,14 +51,23 @@ export function DataMigrationDialog({
       const result = await supabaseDataService.importLocalData({
         single,
         trip,
+        idempotencyKey: getIdempotencyKey(),
       });
 
+      // Only clear localStorage AFTER the server confirms data was persisted.
+      // If imported is 0, there was nothing to migrate (or server rejected) —
+      // keep the local data so the user doesn't lose work.
+      if (result.imported > 0) {
+        localDataService.clearImportedData();
+      }
       setImportedCount(result.imported);
-      localDataService.clearImportedData();
       setStatus("success");
     } catch (err) {
+      // Network/server failure — local data remains intact, user can retry.
       setErrorMessage(
-        err instanceof Error ? err.message : "Import failed"
+        err instanceof Error
+          ? `${err.message} Your local data is safe — you can try again.`
+          : "Import failed. Your local data is safe — you can try again."
       );
       setStatus("error");
     }
@@ -52,6 +75,7 @@ export function DataMigrationDialog({
 
   const handleClose = () => {
     setStatus("idle");
+    idempotencyKeyRef.current = null;
     onClose();
   };
 
