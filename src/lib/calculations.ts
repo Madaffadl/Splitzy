@@ -78,12 +78,35 @@ export function allocateTaxService(
     const taxAllocations = new Map<string, number>();
     const serviceAllocations = new Map<string, number>();
 
-    // Handle edge case: zero subtotal
+    // Handle edge case: zero subtotal — tax/service can't be proportional,
+    // so split equally across all participants. Otherwise the payer would be
+    // left with phantom credit and the ledger would not balance.
     if (receiptSubtotal === 0) {
-        for (const id of personSubtotals.keys()) {
-            taxAllocations.set(id, 0);
-            serviceAllocations.set(id, 0);
+        const ids = Array.from(personSubtotals.keys());
+        const n = ids.length;
+
+        if (n === 0) {
+            return { taxAllocations, serviceAllocations };
         }
+
+        const taxShare = roundTo2(tax / n);
+        const serviceShare = roundTo2(service / n);
+
+        for (const id of ids) {
+            taxAllocations.set(id, taxShare);
+            serviceAllocations.set(id, serviceShare);
+        }
+
+        // Push rounding remainder to the first participant so totals reconcile.
+        const taxRemainder = roundTo2(tax - taxShare * n);
+        const serviceRemainder = roundTo2(service - serviceShare * n);
+        if (taxRemainder !== 0) {
+            taxAllocations.set(ids[0], roundTo2(taxShare + taxRemainder));
+        }
+        if (serviceRemainder !== 0) {
+            serviceAllocations.set(ids[0], roundTo2(serviceShare + serviceRemainder));
+        }
+
         return { taxAllocations, serviceAllocations };
     }
 

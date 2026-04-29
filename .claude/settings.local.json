@@ -4,7 +4,10 @@
       "Bash(mkdir -p /Users/m.fadhil/Documents/GitHub/Splitzy/src/app/api/receipts/\\\\[id\\\\])",
       "Bash(mkdir -p /Users/m.fadhil/Documents/GitHub/Splitzy/src/app/api/trips/\\\\[id\\\\]/receipts)",
       "Bash(mkdir -p /Users/m.fadhil/Documents/GitHub/Splitzy/src/app/api/trips/\\\\[id\\\\]/members)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(npx eslint *)"
     ]
   }
 }

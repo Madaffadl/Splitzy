@@ -118,7 +118,10 @@ describe("allocateTaxService", () => {
         expect(totalTax).toBe(10);
     });
 
-    it("should handle zero subtotal", () => {
+    it("should split tax/service equally when receipt subtotal is zero", () => {
+        // Edge case: items with no value but real fees (e.g. cover charge only).
+        // Equal-split keeps the ledger balanced — the alternative (return 0)
+        // leaves the payer with phantom credit and breaks settlement.
         const subtotals = new Map<string, number>([
             ["a", 0],
             ["b", 0],
@@ -126,10 +129,11 @@ describe("allocateTaxService", () => {
 
         const result = allocateTaxService(subtotals, 0, 10, 5);
 
-        expect(result.taxAllocations.get("a")).toBe(0);
-        expect(result.taxAllocations.get("b")).toBe(0);
-        expect(result.serviceAllocations.get("a")).toBe(0);
-        expect(result.serviceAllocations.get("b")).toBe(0);
+        expect(result.taxAllocations.get("a")! + result.taxAllocations.get("b")!).toBe(10);
+        expect(result.serviceAllocations.get("a")! + result.serviceAllocations.get("b")!).toBe(5);
+        // Both participants share roughly equally (within rounding).
+        expect(result.taxAllocations.get("a")).toBeCloseTo(5, 2);
+        expect(result.taxAllocations.get("b")).toBeCloseTo(5, 2);
     });
 });
 
