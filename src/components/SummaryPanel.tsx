@@ -6,8 +6,8 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Download } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Download, Loader2 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { encodeShare, buildShareUrl } from "@/lib/share";
 import { buildReceiptCsv, downloadCsv, csvFilename } from "@/lib/csv-export";
@@ -437,6 +437,9 @@ interface TripSummaryPanelProps {
   participants: Participant[];
   tripName: string;
   tripId?: string;
+  // When true (the public /s/<code> view), hide the Share/Copy actions — the
+  // viewer is already looking at the shared snapshot and can't edit it.
+  readOnly?: boolean;
 }
 
 export function TripSummaryPanel({
@@ -444,8 +447,20 @@ export function TripSummaryPanel({
   participants,
   tripName,
   tripId,
+  readOnly = false,
 }: TripSummaryPanelProps) {
   const [copied, setCopied] = useState(false);
+  // Short link is created lazily on first Share/Copy and cached for the session
+  // so repeated clicks reuse the same link instead of minting a new row.
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [creatingLink, setCreatingLink] = useState(false);
+  const { toast } = useToast();
+
+  // A share link is an immutable snapshot — if the trip changes after one was
+  // created, drop the cached link so the next Share/Copy mints a fresh one.
+  useEffect(() => {
+    setShareUrl(null);
+  }, [receipts, participants, tripName]);
 
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
@@ -539,27 +554,88 @@ export function TripSummaryPanel({
     return text;
   };
 
-  const handleCopy = async () => {
-    const text = generateExportText();
-    
+  // Create the short link once, then reuse it. Returns null on failure (a toast
+  // is shown), so callers can still proceed (e.g. copy the text without a link).
+  const ensureShareUrl = async (): Promise<string | null> => {
+    if (shareUrl) return shareUrl;
+    setCreatingLink(true);
+    try {
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "trip",
+          title: tripName,
+          participants,
+          receipts,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Request failed");
+      }
+      const { code } = await res.json();
+      const url = `${window.location.origin}/s/${code}`;
+      setShareUrl(url);
+      return url;
+    } catch (err) {
+      toast({
+        title: "Couldn't create share link",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "error",
+      });
+      return null;
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+
+  const handleShareLink = async () => {
+    const url = await ensureShareUrl();
+    if (!url) return;
+
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: `${tripName} - Splitzy Trip Summary`,
-          text: text,
-        });
+        await navigator.share({ title: `${tripName} - Splitzy`, url });
         return;
-      } catch (err) {
-        // Fallback to clipboard 
+      } catch {
+        // User cancelled or share failed → fall through to clipboard.
       }
     }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: "Link copied",
+        description: "Read-only view, valid for 14 days.",
+        variant: "success",
+      });
+    } catch {
+      toast({
+        title: "Couldn't copy link",
+        description: "Please copy it manually.",
+        variant: "error",
+      });
+    }
+  };
+
+  // "Copy" copies the human-readable summary with the short link appended, so a
+  // WhatsApp message shows the split inline and links out to the full detail.
+  const handleCopy = async () => {
+    const url = await ensureShareUrl();
+    let text = generateExportText();
+    if (url) text += `\n🔗 Lihat rincian lengkap:\n${url}\n`;
 
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      console.error('Failed to copy text', e);
+    } catch {
+      toast({
+        title: "Couldn't copy",
+        description: "Please try again.",
+        variant: "error",
+      });
     }
   };
 
@@ -582,24 +658,44 @@ export function TripSummaryPanel({
             <Wallet className="h-5 w-5" />
             Trip Summary
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCopy}
-            className="h-8"
-          >
-            {copied ? (
-              <>
-                <Check className="mr-1 h-3 w-3" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="mr-1 h-3 w-3" />
-                Export
-              </>
-            )}
-          </Button>
+          {!readOnly && (
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShareLink}
+                disabled={creatingLink}
+                className="h-8 px-2 sm:px-3"
+                aria-label="Create and share a read-only link"
+              >
+                {creatingLink ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Share2 className="h-3.5 w-3.5" />
+                )}
+                <span className="hidden sm:inline ml-1.5">Share</span>
+              </Button>
+              <Button
+                variant="accent"
+                size="sm"
+                onClick={handleCopy}
+                disabled={creatingLink}
+                className="h-8"
+              >
+                {copied ? (
+                  <>
+                    <Check className="mr-1 h-3 w-3" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="mr-1 h-3 w-3" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
