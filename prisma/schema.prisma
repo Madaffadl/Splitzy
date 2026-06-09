@@ -22,6 +22,7 @@ model User {
   createdReceipts Receipt[]        @relation("ReceiptCreator")
   paidReceipts    Receipt[]        @relation("ReceiptPayer")
   itemAssignments ItemAssignment[]
+  sharedSummaries SharedSummary[]  @relation("SharedSummaryCreator")
 
   @@map("users")
 }
@@ -114,6 +115,33 @@ model ReceiptItem {
   // Items are always loaded by receiptId.
   @@index([receiptId])
   @@map("receipt_items")
+}
+
+model SharedSummary {
+  id   String @id @default(uuid()) @db.Uuid
+  // Public short code that appears in the link (/s/<code>). Random, unguessable,
+  // unique. Indexed implicitly via @unique — the read path looks up by it.
+  code String @unique
+
+  // Immutable point-in-time snapshot of the split (trip or single receipt):
+  // { v, type, title, participants, receipts }. Trip data otherwise lives only
+  // in the creator's browser — this is the one place a copy is persisted so a
+  // link can render server-side for anyone, read-only. Validated before write.
+  payload Json
+
+  // Creator, when authenticated. Null for guest-created links (trip mode works
+  // without an account). No cascade: deleting a user shouldn't break live links.
+  createdById String? @map("created_by") @db.Uuid
+
+  // Links are short-lived; the admin cleanup job hard-deletes expired rows.
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  createdBy User? @relation("SharedSummaryCreator", fields: [createdById], references: [id])
+
+  // Cleanup job sweeps by expiry.
+  @@index([expiresAt])
+  @@map("shared_summaries")
 }
 
 model ItemAssignment {

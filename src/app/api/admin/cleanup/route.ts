@@ -40,16 +40,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
 
   // Order matters: receipts (FK to trips), then trips. Both have FK Cascade
   // on ReceiptItem & ItemAssignment so children clean up automatically.
-  const [receiptsDeleted, tripsDeleted] = await prisma.$transaction([
+  // Shared links are purged the moment they expire (their own TTL governs
+  // lifetime), independent of the soft-delete retention window above.
+  const [receiptsDeleted, tripsDeleted, sharesDeleted] = await prisma.$transaction([
     prisma.receipt.deleteMany({
       where: { deletedAt: { lt: cutoff, not: null } },
     }),
     prisma.trip.deleteMany({
       where: { deletedAt: { lt: cutoff, not: null } },
+    }),
+    prisma.sharedSummary.deleteMany({
+      where: { expiresAt: { lt: now } },
     }),
   ]);
 
@@ -58,6 +64,7 @@ export async function POST(request: NextRequest) {
     retentionDays: RETENTION_DAYS,
     receiptsDeleted: receiptsDeleted.count,
     tripsDeleted: tripsDeleted.count,
+    expiredSharesDeleted: sharesDeleted.count,
   });
 }
 
