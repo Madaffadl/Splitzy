@@ -873,34 +873,6 @@ export function TripSummaryPanel({
           </div>
         </div>
 
-        {/* Net Balances (summarized) */}
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">
-            Net Balances
-          </h4>
-          <div className="space-y-1">
-            {Array.from(aggregateBalances.entries()).map(([id, balance]) => (
-              <div
-                key={id}
-                className="flex items-center justify-between text-sm py-1.5 px-2 rounded-md hover:bg-muted/50"
-              >
-                <span>{getParticipantName(id)}</span>
-                <span
-                  className={`font-medium ${
-                    balance > 0
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : balance < 0
-                      ? "text-red-500"
-                      : ""
-                  }`}
-                >
-                  {balance > 0 ? "+" : ""}Rp {formatCurrency(balance)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Final Settlements */}
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">
