@@ -122,6 +122,85 @@ function PersonBreakdown({
   );
 }
 
+// One receipt as an expandable row inside the Trip Summary card. Collapsed it
+// shows the receipt title + total; expanded it reveals each person's per-item
+// breakdown — the same PersonBreakdown used in the single-receipt view.
+function ReceiptBreakdown({
+  receipt,
+  participants,
+  index,
+}: {
+  receipt: Receipt;
+  participants: Participant[];
+  index: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const participantIds = useMemo(
+    () => participants.map((p) => p.id),
+    [participants]
+  );
+  const summary = useMemo(
+    () => getReceiptSummary(receipt, participantIds),
+    [receipt, participantIds]
+  );
+  const shareDetails = useMemo(
+    () => getPersonShareDetails(receipt, participantIds),
+    [receipt, participantIds]
+  );
+  const participantNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of participants) map.set(p.id, p.name);
+    return map;
+  }, [participants]);
+  const getParticipantName = (id: string) => participantNames.get(id) || "Unknown";
+
+  return (
+    <div className="rounded-md border overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded bg-primary/10 px-1 text-xs font-semibold text-primary">
+            {index + 1}
+          </span>
+          <span className="font-medium truncate">{receipt.title}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="font-semibold text-primary">
+            Rp {formatCurrency(summary.grandTotal)}
+          </span>
+          {expanded ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-3 pb-3 pt-2 bg-muted/30 border-t space-y-2 animate-fade-in">
+          <p className="text-xs text-muted-foreground">
+            Paid by{" "}
+            <span className="font-medium text-foreground">
+              {getParticipantName(receipt.payerId)}
+            </span>
+          </p>
+          {shareDetails.map((detail) => (
+            <PersonBreakdown
+              key={detail.participantId}
+              detail={detail}
+              name={getParticipantName(detail.participantId)}
+              isPayer={detail.participantId === receipt.payerId}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SummaryPanel({ receipt, participants, title, readOnly = false }: SummaryPanelProps) {
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session.
@@ -664,7 +743,7 @@ export function TripSummaryPanel({
   }
 
   return (
-    <Card className="sticky top-4">
+    <Card className={cn(!readOnly && "sticky top-4")}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -721,6 +800,25 @@ export function TripSummaryPanel({
           </div>
           <div className="text-right font-bold pt-2 border-t text-primary">
             Rp {formatCurrency(totalGrandTotal)}
+          </div>
+        </div>
+
+        {/* Per-receipt details — expand a receipt to see who ordered what,
+            the same breakdown as the single-receipt view. */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            Receipt Details
+            <span className="text-xs font-normal">(tap to expand)</span>
+          </h4>
+          <div className="space-y-2">
+            {receipts.map((r, i) => (
+              <ReceiptBreakdown
+                key={r.id}
+                receipt={r}
+                participants={participants}
+                index={i}
+              />
+            ))}
           </div>
         </div>
 
