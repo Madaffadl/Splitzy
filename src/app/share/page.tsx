@@ -94,6 +94,7 @@ export default function SharePage() {
               receipt={payload.receipt}
               participants={payload.participants}
               title={payload.title || payload.receipt.title}
+              readOnly
             />
           </div>
         ) : null}

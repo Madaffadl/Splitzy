@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Calculator, AlertCircle, Clock } from "lucide-react";
+import { ArrowLeft, Calculator, AlertCircle, Clock, Receipt as ReceiptIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { parseSharedSummaryPayload } from "@/lib/shared-summary";
 import { SummaryPanel, TripSummaryPanel } from "@/components/SummaryPanel";
@@ -114,15 +114,45 @@ export default async function SharedSplitPage({
             receipt={payload.receipts[0]}
             participants={payload.participants}
             title={payload.title}
-          />
-        ) : (
-          <TripSummaryPanel
-            receipts={payload.receipts}
-            participants={payload.participants}
-            tripName={payload.title}
-            tripId={code}
             readOnly
           />
+        ) : (
+          <>
+            <TripSummaryPanel
+              receipts={payload.receipts}
+              participants={payload.participants}
+              tripName={payload.title}
+              tripId={code}
+              readOnly
+            />
+
+            {/* Per-receipt breakdown so viewers can expand each person and see
+                exactly what they ordered in every receipt — same detail the
+                single-receipt view offers. */}
+            <div className="space-y-3 pt-2">
+              <h2 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                <ReceiptIcon className="h-4 w-4" />
+                Receipt details
+                <span className="text-xs font-normal">(tap a name to see items)</span>
+              </h2>
+              {payload.receipts.map((r, i) => (
+                <div key={r.id} className="space-y-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded bg-primary/10 px-1 text-xs font-semibold text-primary">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm font-medium truncate">{r.title}</span>
+                  </div>
+                  <SummaryPanel
+                    receipt={r}
+                    participants={payload.participants}
+                    title={r.title}
+                    readOnly
+                  />
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </PageShell>
