@@ -178,6 +178,14 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
           </div>
 
           {/* Camera Button for Mobile */}
+          <Input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
           <div className="grid grid-cols-2 gap-3">
             <Button
               type="button"
@@ -191,19 +199,11 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             <Button
               type="button"
               variant="outline"
-              className="h-12 relative"
+              className="h-12"
               onClick={() => cameraInputRef.current?.click()}
             >
               <Camera className="h-4 w-4 mr-2" />
               Take Photo
-              <Input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileSelect}
-                className="absolute inset-0 opacity-0"
-              />
             </Button>
           </div>
 
