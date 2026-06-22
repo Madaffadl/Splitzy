@@ -15,7 +15,6 @@ import {
   AlertTriangle,
   ImageIcon,
   Sparkles,
-  Zap,
   ShieldCheck,
 } from "lucide-react";
 
@@ -146,12 +145,6 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       {/* Upload Area */}
       {status === "idle" && (
         <div className="space-y-4">
-          {/* AI Badge */}
-          <div className="flex items-center justify-center gap-2 text-sm text-primary">
-            <Zap className="h-4 w-4" />
-            <span className="font-medium">Powered by Gemini AI</span>
-          </div>
-
           {/* Main Upload Button */}
           <div 
             className="relative border-2 border-dashed border-muted-foreground/25 rounded-xl p-8 text-center hover:border-primary/50 hover:bg-muted/30 transition-all cursor-pointer group"

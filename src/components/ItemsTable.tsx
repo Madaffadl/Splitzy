@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ReceiptItem, Participant, ItemAssignment } from "@/types";
-import { generateId, roundTo2 } from "@/lib/utils";
+import { generateId, roundTo2, formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,20 +16,50 @@ interface ItemsTableProps {
 }
 
 export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
+  // Ref map for name inputs — used to auto-focus after a new item is added
+  const nameInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // ID of the item that should receive focus on the next render
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  // ID of the most-recently added item — drives the highlight ring animation
+  const [newItemId, setNewItemId] = useState<string | null>(null);
+
+  // After the new item card renders, focus its name input and scroll it into view
+  useEffect(() => {
+    if (!pendingFocusId) return;
+    const el = nameInputRefs.current[pendingFocusId];
+    if (!el) return;
+    el.focus();
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setPendingFocusId(null);
+  }, [pendingFocusId, items]);
+
   // Draft values for qty while user is actively editing — allows clearing the field
   // before typing a new number. Committed on blur; reverts on empty/invalid.
   const [draftQtys, setDraftQtys] = useState<Record<string, string>>({});
 
+  // Draft values for price/total fields. Key: `${itemId}:price` or `${itemId}:total`.
+  // Shows formatted "95.000" when blurred, raw string while typing.
+  const [draftPrices, setDraftPrices] = useState<Record<string, string>>({});
+
+  // Strip id-ID thousands dots, then parse as number
+  const parsePrice = (s: string): number => {
+    const val = parseFloat(s.replace(/\./g, "").replace(/,/g, "."));
+    return isNaN(val) || val < 0 ? 0 : val;
+  };
+
+  const setPriceDraft = (key: string, val: string) =>
+    setDraftPrices((p) => ({ ...p, [key]: val }));
+
+  const clearPriceDraft = (key: string) =>
+    setDraftPrices((p) => { const n = { ...p }; delete n[key]; return n; });
+
   const addItem = () => {
-    const newItem: ReceiptItem = {
-      id: generateId(),
-      name: "",
-      qty: 1,
-      unitPrice: 0,
-      total: 0,
-      assignedToIds: [],
-    };
+    const id = generateId();
+    const newItem: ReceiptItem = { id, name: "", qty: 1, unitPrice: 0, total: 0, assignedToIds: [] };
     onChange([...items, newItem]);
+    setPendingFocusId(id);
+    setNewItemId(id);
+    setTimeout(() => setNewItemId(null), 1200);
   };
 
   const updateItem = (id: string, updates: Partial<ReceiptItem>) => {
@@ -61,10 +91,13 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
 
   const removeItem = (id: string) => {
     onChange(items.filter((item) => item.id !== id));
-    setDraftQtys((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
+    delete nameInputRefs.current[id];
+    setDraftQtys((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    setDraftPrices((prev) => {
+      const n = { ...prev };
+      delete n[`${id}:price`];
+      delete n[`${id}:total`];
+      return n;
     });
   };
 
@@ -213,10 +246,13 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
             const assignmentErrorId = `item-${item.id}-assignment-error`;
             const totalErrorId = `item-${item.id}-total-error`;
             const nameErrorId = `item-${item.id}-name-error`;
+            const isNew = newItemId === item.id;
             return (
               <div
                 key={item.id}
-                className="p-4 rounded-lg border bg-card space-y-4"
+                className={`p-4 rounded-lg border bg-card space-y-4 transition-shadow duration-700 ${
+                  isNew ? "ring-2 ring-primary/50 shadow-sm shadow-primary/20" : ""
+                }`}
               >
                 {/* Item details row */}
                 <div className="space-y-3">
@@ -227,6 +263,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                         Item #{index + 1}
                       </Label>
                       <Input
+                        ref={(el) => { nameInputRefs.current[item.id] = el; }}
                         placeholder="Item name"
                         value={item.name}
                         onChange={(e) =>
@@ -289,35 +326,57 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                         Price
                       </Label>
                       <Input
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="0.01"
-                        value={item.unitPrice || ""}
-                        onChange={(e) =>
-                          updateItem(item.id, {
-                            unitPrice: parseFloat(e.target.value) || 0,
-                          })
+                        type="text"
+                        inputMode="numeric"
+                        value={
+                          `${item.id}:price` in draftPrices
+                            ? draftPrices[`${item.id}:price`]
+                            : item.unitPrice
+                            ? formatCurrency(item.unitPrice)
+                            : ""
                         }
+                        onFocus={() =>
+                          setPriceDraft(`${item.id}:price`, item.unitPrice ? String(item.unitPrice) : "")
+                        }
+                        onChange={(e) => setPriceDraft(`${item.id}:price`, e.target.value)}
+                        onBlur={() => {
+                          const raw = draftPrices[`${item.id}:price`];
+                          if (raw !== undefined) {
+                            updateItem(item.id, { unitPrice: parsePrice(raw) });
+                            clearPriceDraft(`${item.id}:price`);
+                          }
+                        }}
+                        placeholder="0"
                       />
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Total</Label>
                       <Input
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="0.01"
+                        type="text"
+                        inputMode="numeric"
                         required
-                        value={item.total || ""}
-                        onChange={(e) =>
-                          updateItem(item.id, {
-                            total: parseFloat(e.target.value) || 0,
-                          })
+                        value={
+                          `${item.id}:total` in draftPrices
+                            ? draftPrices[`${item.id}:total`]
+                            : item.total
+                            ? formatCurrency(item.total)
+                            : ""
                         }
+                        onFocus={() =>
+                          setPriceDraft(`${item.id}:total`, item.total ? String(item.total) : "")
+                        }
+                        onChange={(e) => setPriceDraft(`${item.id}:total`, e.target.value)}
+                        onBlur={() => {
+                          const raw = draftPrices[`${item.id}:total`];
+                          if (raw !== undefined) {
+                            updateItem(item.id, { total: parsePrice(raw) });
+                            clearPriceDraft(`${item.id}:total`);
+                          }
+                        }}
                         aria-invalid={totalInvalid || undefined}
                         aria-describedby={totalInvalid ? totalErrorId : undefined}
                         className="font-semibold"
+                        placeholder="0"
                       />
                       {totalInvalid && (
                         <p id={totalErrorId} className="sr-only">

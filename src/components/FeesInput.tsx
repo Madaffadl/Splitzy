@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Participant } from "@/types";
+import { formatCurrency } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,6 +33,14 @@ export function FeesInput({
   onServiceChange,
   onPayerChange,
 }: FeesInputProps) {
+  const [draftTax, setDraftTax] = useState<string | null>(null);
+  const [draftService, setDraftService] = useState<string | null>(null);
+
+  const parseAmount = (s: string): number => {
+    const val = parseFloat(s.replace(/\./g, "").replace(/,/g, "."));
+    return isNaN(val) || val < 0 ? 0 : val;
+  };
+
   return (
     <div className="space-y-6">
       {/* Tax and Service */}
@@ -45,12 +55,17 @@ export function FeesInput({
               Rp
             </span>
             <Input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="100"
-              value={tax || ""}
-              onChange={(e) => onTaxChange(parseFloat(e.target.value) || 0)}
+              type="text"
+              inputMode="numeric"
+              value={draftTax !== null ? draftTax : tax ? formatCurrency(tax) : ""}
+              onFocus={() => setDraftTax(tax ? String(tax) : "")}
+              onChange={(e) => setDraftTax(e.target.value)}
+              onBlur={() => {
+                if (draftTax !== null) {
+                  onTaxChange(parseAmount(draftTax));
+                  setDraftTax(null);
+                }
+              }}
               className="pl-10"
               placeholder="0"
             />
@@ -67,12 +82,17 @@ export function FeesInput({
               Rp
             </span>
             <Input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="100"
-              value={service || ""}
-              onChange={(e) => onServiceChange(parseFloat(e.target.value) || 0)}
+              type="text"
+              inputMode="numeric"
+              value={draftService !== null ? draftService : service ? formatCurrency(service) : ""}
+              onFocus={() => setDraftService(service ? String(service) : "")}
+              onChange={(e) => setDraftService(e.target.value)}
+              onBlur={() => {
+                if (draftService !== null) {
+                  onServiceChange(parseAmount(draftService));
+                  setDraftService(null);
+                }
+              }}
               className="pl-10"
               placeholder="0"
             />

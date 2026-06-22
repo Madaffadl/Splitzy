@@ -38,13 +38,10 @@ function LoginBanner() {
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [scrollY, setScrollY] = useState(0);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     let scrollFrame = 0;
-    let mouseFrame = 0;
     let pendingScroll = 0;
-    let pendingMouse = { x: 0, y: 0 };
 
     const handleScroll = () => {
       pendingScroll = window.scrollY;
@@ -55,36 +52,11 @@ export default function Home() {
       });
     };
 
-    // Skip mouse parallax on touch devices — saves CPU and the effect doesn't apply.
-    const supportsHover =
-      typeof window !== "undefined" &&
-      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      pendingMouse = {
-        x: (e.clientX / window.innerWidth - 0.5) * 20,
-        y: (e.clientY / window.innerHeight - 0.5) * 20,
-      };
-      if (mouseFrame) return;
-      mouseFrame = requestAnimationFrame(() => {
-        setMousePosition(pendingMouse);
-        mouseFrame = 0;
-      });
-    };
-
     window.addEventListener("scroll", handleScroll, { passive: true });
-    if (supportsHover && !prefersReducedMotion) {
-      window.addEventListener("mousemove", handleMouseMove, { passive: true });
-    }
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("mousemove", handleMouseMove);
       if (scrollFrame) cancelAnimationFrame(scrollFrame);
-      if (mouseFrame) cancelAnimationFrame(mouseFrame);
     };
   }, []);
 
@@ -128,19 +100,10 @@ export default function Home() {
         {/* Animated Background Grid */}
         <div className="absolute inset-0 grid-pattern opacity-50" />
         
-        {/* Parallax Orbs */}
-        <div 
-          className="hero-orb hero-orb-primary w-[500px] h-[500px] -top-40 -left-40 animate-float-slow"
-          style={{ transform: `translate(${mousePosition.x * 0.5}px, ${mousePosition.y * 0.5}px)` }}
-        />
-        <div 
-          className="hero-orb hero-orb-accent w-[400px] h-[400px] -bottom-20 -right-20 animate-float-medium"
-          style={{ transform: `translate(${mousePosition.x * -0.3}px, ${mousePosition.y * -0.3}px)` }}
-        />
-        <div 
-          className="hero-orb hero-orb-primary w-[300px] h-[300px] top-1/3 right-1/4 animate-float-rotate opacity-30"
-          style={{ transform: `translate(${mousePosition.x * 0.2}px, ${mousePosition.y * 0.2}px)` }}
-        />
+        {/* Background Orbs */}
+        <div className="hero-orb hero-orb-primary w-[500px] h-[500px] -top-40 -left-40 animate-float-slow" />
+        <div className="hero-orb hero-orb-accent w-[400px] h-[400px] -bottom-20 -right-20 animate-float-medium" />
+        <div className="hero-orb hero-orb-primary w-[300px] h-[300px] top-1/3 right-1/4 animate-float-rotate opacity-30" />
 
         {/* Single floating decorative icon — kept minimal so the CTA stays focal */}
         <div

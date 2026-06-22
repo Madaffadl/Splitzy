@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
@@ -143,6 +143,17 @@ export default function SinglePage() {
       setTimeout(() => setIsTransitioning(false), 0);
     }
   };
+
+  // Warn browser before unload when user is mid-fill (step 1 with items)
+  useEffect(() => {
+    if (currentStep !== 1 || state.items.length === 0) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [currentStep, state.items.length]);
 
   const handleBack = () => {
     if (isTransitioning || currentStep === 0) return;
