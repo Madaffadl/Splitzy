@@ -1,12 +1,13 @@
 "use client";
 
-import { ReceiptItem, Participant } from "@/types";
+import { useState } from "react";
+import { ReceiptItem, Participant, ItemAssignment } from "@/types";
 import { generateId, roundTo2 } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, ShoppingCart } from "lucide-react";
+import { Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
 
 interface ItemsTableProps {
   items: ReceiptItem[];
@@ -15,6 +16,10 @@ interface ItemsTableProps {
 }
 
 export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
+  // Draft values for qty while user is actively editing — allows clearing the field
+  // before typing a new number. Committed on blur; reverts on empty/invalid.
+  const [draftQtys, setDraftQtys] = useState<Record<string, string>>({});
+
   const addItem = () => {
     const newItem: ReceiptItem = {
       id: generateId(),
@@ -43,6 +48,12 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
           updated.unitPrice = roundTo2(updated.total / updated.qty);
         }
 
+        // When qty changes, clear qty-based assignments to avoid stale data
+        if ("qty" in updates && item.qty !== updated.qty) {
+          updated.assignments = undefined;
+          updated.assignedToIds = [];
+        }
+
         return updated;
       })
     );
@@ -50,6 +61,11 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
 
   const removeItem = (id: string) => {
     onChange(items.filter((item) => item.id !== id));
+    setDraftQtys((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   };
 
   const toggleAssignment = (itemId: string, participantId: string) => {
@@ -76,6 +92,80 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
           ...item,
           assignedToIds: participants.map((p) => p.id),
         };
+      })
+    );
+  };
+
+  // Set a specific person's qty for a qty-based item
+  const updateAssignment = (itemId: string, participantId: string, newQty: number) => {
+    onChange(
+      items.map((item) => {
+        if (item.id !== itemId) return item;
+
+        const clampedQty = Math.max(0, newQty);
+        const existing: ItemAssignment[] = item.assignments ?? [];
+        const newAssignments: ItemAssignment[] = existing.some(
+          (a) => a.participantId === participantId
+        )
+          ? existing.map((a) =>
+              a.participantId === participantId ? { ...a, qty: clampedQty } : a
+            )
+          : [...existing, { participantId, qty: clampedQty }];
+
+        const assignedToIds = newAssignments
+          .filter((a) => a.qty > 0)
+          .map((a) => a.participantId);
+
+        return { ...item, assignments: newAssignments, assignedToIds };
+      })
+    );
+  };
+
+  // Distribute item qty as evenly as possible across all participants
+  const distributeEvenly = (itemId: string) => {
+    const item = items.find((i) => i.id === itemId);
+    if (!item || participants.length === 0) return;
+
+    const n = participants.length;
+    const base = Math.floor(item.qty / n);
+    const remainder = item.qty % n;
+
+    const newAssignments: ItemAssignment[] = participants.map((p, i) => ({
+      participantId: p.id,
+      qty: base + (i < remainder ? 1 : 0),
+    }));
+
+    const assignedToIds = newAssignments
+      .filter((a) => a.qty > 0)
+      .map((a) => a.participantId);
+
+    onChange(
+      items.map((i) =>
+        i.id === itemId ? { ...i, assignments: newAssignments, assignedToIds } : i
+      )
+    );
+  };
+
+  // Switch item to qty-per-person mode (explicit opt-in by user)
+  const enterQtyMode = (itemId: string) => {
+    onChange(
+      items.map((item) => {
+        if (item.id !== itemId) return item;
+        const newAssignments: ItemAssignment[] = participants.map((p) => ({
+          participantId: p.id,
+          qty: 0,
+        }));
+        return { ...item, assignments: newAssignments, assignedToIds: [] };
+      })
+    );
+  };
+
+  // Switch back to equal-split toggle mode, preserving who was assigned
+  const exitQtyMode = (itemId: string) => {
+    onChange(
+      items.map((item) => {
+        if (item.id !== itemId) return item;
+        return { ...item, assignments: undefined };
       })
     );
   };
@@ -113,7 +203,13 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
           {items.map((item, index) => {
             const nameInvalid = !item.name.trim();
             const totalInvalid = item.total <= 0;
-            const noAssignees = item.assignedToIds.length === 0;
+            // Qty mode is user-controlled via enterQtyMode/exitQtyMode, not auto-triggered
+            const isQtyMode = item.assignments !== undefined;
+            const totalAssigned = item.assignments?.reduce((sum, a) => sum + a.qty, 0) ?? 0;
+            const noAssignees = isQtyMode
+              ? totalAssigned === 0
+              : item.assignedToIds.length === 0;
+            const allUnitsAssigned = isQtyMode && totalAssigned === item.qty;
             const assignmentErrorId = `item-${item.id}-assignment-error`;
             const totalErrorId = `item-${item.id}-total-error`;
             const nameErrorId = `item-${item.id}-name-error`;
@@ -167,12 +263,25 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                         pattern="[0-9]*"
                         min="1"
                         required
-                        value={item.qty}
+                        value={item.id in draftQtys ? draftQtys[item.id] : item.qty}
                         onChange={(e) =>
-                          updateItem(item.id, {
-                            qty: Math.max(1, parseInt(e.target.value) || 1),
-                          })
+                          setDraftQtys((prev) => ({ ...prev, [item.id]: e.target.value }))
                         }
+                        onBlur={() => {
+                          const draft = draftQtys[item.id];
+                          if (draft !== undefined) {
+                            const parsed = parseInt(draft, 10);
+                            if (!isNaN(parsed) && parsed >= 1) {
+                              updateItem(item.id, { qty: parsed });
+                            }
+                            // empty or invalid → discard draft, display reverts to item.qty
+                            setDraftQtys((prev) => {
+                              const next = { ...prev };
+                              delete next[item.id];
+                              return next;
+                            });
+                          }
+                        }}
                       />
                     </div>
                     <div>
@@ -224,64 +333,151 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs text-muted-foreground">
-                        Who&rsquo;s having this?
+                        {isQtyMode ? "How many units per person?" : "Who’s having this?"}
                       </Label>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => assignAll(item.id)}
+                        onClick={() =>
+                          isQtyMode ? distributeEvenly(item.id) : assignAll(item.id)
+                        }
                         className="text-xs h-6"
                       >
-                        Select All
+                        {isQtyMode ? "Distribute Evenly" : "Select All"}
                       </Button>
                     </div>
-                    {/* role="group" doesn't support aria-invalid; we surface
-                        the error state via the inline alert below + per-button
-                        pressed state. The describedby points to the alert so
-                        screen readers announce the cause when focus enters. */}
-                    <div
-                      role="group"
-                      aria-label={`Assign ${item.name || `item ${index + 1}`} to`}
-                      aria-describedby={noAssignees ? assignmentErrorId : undefined}
-                      className="flex flex-wrap gap-2"
-                    >
-                      {participants.map((participant) => {
-                        const isAssigned = item.assignedToIds.includes(
-                          participant.id
-                        );
-                        return (
+
+                    {isQtyMode ? (
+                      /* Qty-based stepper mode — user explicitly opted in */
+                      <div
+                        role="group"
+                        aria-label={`Assign units of ${item.name || `item ${index + 1}`}`}
+                        aria-describedby={noAssignees ? assignmentErrorId : undefined}
+                        className="space-y-1.5"
+                      >
+                        {participants.map((participant) => {
+                          const personQty =
+                            item.assignments?.find(
+                              (a) => a.participantId === participant.id
+                            )?.qty ?? 0;
+                          const canAdd = totalAssigned < item.qty;
+                          return (
+                            <div key={participant.id} className="flex items-center gap-3">
+                              <span className="text-sm flex-1 truncate">{participant.name}</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  aria-label={`Remove one unit from ${participant.name}`}
+                                  disabled={personQty <= 0}
+                                  onClick={() =>
+                                    updateAssignment(item.id, participant.id, personQty - 1)
+                                  }
+                                  className="w-7 h-7 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </button>
+                                <span className="w-6 text-center text-sm font-semibold tabular-nums">
+                                  {personQty}
+                                </span>
+                                <button
+                                  type="button"
+                                  aria-label={`Add one unit to ${participant.name}`}
+                                  disabled={!canAdd}
+                                  onClick={() =>
+                                    updateAssignment(item.id, participant.id, personQty + 1)
+                                  }
+                                  className="w-7 h-7 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Unit counter + back-to-equal button */}
+                        <div className="flex items-center justify-between pt-1">
                           <button
                             type="button"
-                            key={participant.id}
-                            aria-pressed={isAssigned}
-                            onClick={() => toggleAssignment(item.id, participant.id)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-all select-none shrink-0 ${
-                              isAssigned
-                                ? 'bg-primary/15 border-primary/40 text-foreground font-medium shadow-sm'
-                                : 'bg-background border-border hover:bg-muted/80 text-muted-foreground'
+                            onClick={() => exitQtyMode(item.id)}
+                            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                          >
+                            ← Equal split
+                          </button>
+                          <span
+                            className={`text-xs font-medium ${
+                              allUnitsAssigned
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : totalAssigned > 0
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-muted-foreground"
                             }`}
                           >
-                            <div
-                              aria-hidden="true"
-                              className={`flex items-center justify-center w-3.5 h-3.5 rounded-full transition-colors ${
-                                isAssigned ? 'bg-primary' : 'border border-muted-foreground/50'
-                              }`}
-                            >
-                              {isAssigned && <div className="w-1.5 h-1.5 bg-background rounded-full" />}
-                            </div>
-                            <span>{participant.name}</span>
+                            {totalAssigned}/{item.qty} units{allUnitsAssigned ? " ✓" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Equal-split toggle mode (default) */
+                      <>
+                        <div
+                          role="group"
+                          aria-label={`Assign ${item.name || `item ${index + 1}`} to`}
+                          aria-describedby={noAssignees ? assignmentErrorId : undefined}
+                          className="flex flex-wrap gap-2"
+                        >
+                          {participants.map((participant) => {
+                            const isAssigned = item.assignedToIds.includes(participant.id);
+                            return (
+                              <button
+                                type="button"
+                                key={participant.id}
+                                aria-pressed={isAssigned}
+                                onClick={() => toggleAssignment(item.id, participant.id)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-all select-none shrink-0 ${
+                                  isAssigned
+                                    ? "bg-primary/15 border-primary/40 text-foreground font-medium shadow-sm"
+                                    : "bg-background border-border hover:bg-muted/80 text-muted-foreground"
+                                }`}
+                              >
+                                <div
+                                  aria-hidden="true"
+                                  className={`flex items-center justify-center w-3.5 h-3.5 rounded-full transition-colors ${
+                                    isAssigned ? "bg-primary" : "border border-muted-foreground/50"
+                                  }`}
+                                >
+                                  {isAssigned && (
+                                    <div className="w-1.5 h-1.5 bg-background rounded-full" />
+                                  )}
+                                </div>
+                                <span>{participant.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Opt-in to qty mode — only shown when item has multiple units */}
+                        {item.qty > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => enterQtyMode(item.id)}
+                            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                          >
+                            Split by quantity →
                           </button>
-                        );
-                      })}
-                    </div>
+                        )}
+                      </>
+                    )}
+
                     {noAssignees && (
                       <p
                         id={assignmentErrorId}
                         role="alert"
                         className="text-xs font-semibold text-destructive mt-1 flex items-center gap-1"
                       >
-                        <span aria-hidden="true">⚠️</span> Item must be assigned to at least one person
+                        <span aria-hidden="true">⚠️</span> Item must be assigned to at least one
+                        person
                       </p>
                     )}
                   </div>

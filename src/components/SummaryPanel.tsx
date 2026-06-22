@@ -75,11 +75,15 @@ function PersonBreakdown({
                 >
                   <div className="flex items-center gap-2">
                     <span className="truncate max-w-[120px]">{item.itemName}</span>
-                    {item.sharedWith > 1 && (
+                    {item.qty > 1 && item.personQty > 0 ? (
+                      <span className="text-muted-foreground">
+                        ({item.personQty}×)
+                      </span>
+                    ) : item.sharedWith > 1 ? (
                       <span className="text-muted-foreground">
                         (÷{item.sharedWith})
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   <span className="font-medium">
                     Rp {formatCurrency(item.shareAmount)}

@@ -5,6 +5,11 @@ export interface Participant {
     name: string;
 }
 
+export interface ItemAssignment {
+    participantId: string;
+    qty: number;
+}
+
 export interface ReceiptItem {
     id: string;
     name: string;
@@ -12,6 +17,7 @@ export interface ReceiptItem {
     unitPrice: number;
     total: number;
     assignedToIds: string[];
+    assignments?: ItemAssignment[]; // qty-per-person; used when item.qty > 1
 }
 
 export interface Receipt {
@@ -64,6 +70,7 @@ export interface ItemBreakdown {
     itemId: string;
     itemName: string;
     qty: number;
+    personQty: number;      // Units this person took (1 for equal-split items)
     itemTotal: number;
     shareAmount: number;    // What this person pays for this item
     sharedWith: number;     // How many people share this item

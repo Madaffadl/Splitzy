@@ -14,17 +14,42 @@ import { roundTo2 } from "./utils";
 
 /**
  * Calculate the share of a single item for each assigned participant.
- * Equal split among all assigned participants.
+ * Uses qty-based split when assignments are present, otherwise equal split.
  */
 export function calculateItemShares(item: ReceiptItem): Map<string, number> {
     const shares = new Map<string, number>();
 
+    // Qty-based split: divide proportionally by units each person took
+    if (item.assignments && item.assignments.length > 0) {
+        const active = item.assignments.filter((a) => a.qty > 0);
+        const totalAssignedQty = active.reduce((sum, a) => sum + a.qty, 0);
+
+        if (totalAssignedQty === 0) return shares;
+
+        let runningSum = 0;
+        for (const assignment of active) {
+            const share = roundTo2((assignment.qty / totalAssignedQty) * item.total);
+            shares.set(assignment.participantId, share);
+            runningSum = roundTo2(runningSum + share);
+        }
+
+        // Fix rounding: assign remainder to person with most units
+        const remainder = roundTo2(item.total - runningSum);
+        if (remainder !== 0) {
+            const largest = active.reduce((max, a) => (a.qty > max.qty ? a : max));
+            const current = shares.get(largest.participantId) ?? 0;
+            shares.set(largest.participantId, roundTo2(current + remainder));
+        }
+
+        return shares;
+    }
+
+    // Equal split fallback
     if (item.assignedToIds.length === 0) {
-        return shares; // Unassigned items return empty map
+        return shares;
     }
 
     const sharePerPerson = item.total / item.assignedToIds.length;
-
     for (const participantId of item.assignedToIds) {
         shares.set(participantId, roundTo2(sharePerPerson));
     }
@@ -382,14 +407,34 @@ export function getPersonShareDetails(
         // Build item breakdown for this person
         const items: ItemBreakdown[] = [];
         for (const item of receipt.items) {
-            if (item.assignedToIds.includes(id)) {
-                const shareAmount = roundTo2(item.total / item.assignedToIds.length);
+            const assignment = item.assignments?.find((a) => a.participantId === id);
+
+            if (assignment && assignment.qty > 0) {
+                // Qty-based: show how many units this person took
+                const active = item.assignments!.filter((a) => a.qty > 0);
+                const totalAssignedQty = active.reduce((sum, a) => sum + a.qty, 0);
+                const shareAmount =
+                    totalAssignedQty > 0
+                        ? roundTo2((assignment.qty / totalAssignedQty) * item.total)
+                        : 0;
                 items.push({
                     itemId: item.id,
                     itemName: item.name,
                     qty: item.qty,
+                    personQty: assignment.qty,
                     itemTotal: item.total,
                     shareAmount,
+                    sharedWith: active.length,
+                });
+            } else if (!item.assignments && item.assignedToIds.includes(id)) {
+                // Equal split
+                items.push({
+                    itemId: item.id,
+                    itemName: item.name,
+                    qty: item.qty,
+                    personQty: 1,
+                    itemTotal: item.total,
+                    shareAmount: roundTo2(item.total / item.assignedToIds.length),
                     sharedWith: item.assignedToIds.length,
                 });
             }
