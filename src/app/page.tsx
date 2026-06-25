@@ -5,7 +5,7 @@ import { Receipt, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { useAuth } from "@/hooks/useAuth";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
 
@@ -38,6 +38,23 @@ function LoginBanner() {
 export default function Home() {
   const { isAuthenticated } = useAuth();
   const [scrollY, setScrollY] = useState(0);
+  const strikeRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const el = strikeRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.classList.add("is-visible");
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let scrollFrame = 0;
@@ -224,11 +241,18 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-fade-in stagger-6">
-          <span className="text-xs text-muted-foreground font-medium">Scroll</span>
-          <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex justify-center pt-2">
-            <div className="w-1.5 h-3 bg-muted-foreground/50 rounded-full animate-float-fast" />
+        {/* Scroll Indicator — outer div owns the X-centering transform,
+            inner div owns the fadeIn animation. Keeping them on separate
+            elements prevents the keyframe `transform: translateY(...)` from
+            overwriting the `translateX(-50%)` centering. */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
+          <div className="flex flex-col items-center gap-2 animate-fade-in stagger-6">
+            <span className="text-xs text-muted-foreground font-medium">Scroll</span>
+            <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 relative">
+              <div className="absolute top-2 left-1/2 -translate-x-1/2">
+                <div className="w-1.5 h-3 bg-muted-foreground/50 rounded-full animate-float-fast" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -392,7 +416,7 @@ export default function Home() {
           
           <h2 className="text-4xl md:text-5xl font-bold mb-6">
             <span className="inline-block animate-fade-in-up stagger-2">Stop doing</span>{" "}
-            <span className="inline-block animate-fade-in-up stagger-2 text-muted-foreground animate-strike-draw">math.</span><br />
+            <span ref={strikeRef} className="inline-block animate-fade-in-up stagger-2 text-muted-foreground animate-strike-draw">math.</span><br />
             <span className="inline-block animate-fade-in-late">Start splitting</span>{" "}
             <span className="inline-block animate-fade-in-later gradient-text bg-gradient-to-r from-primary to-accent">fairly.</span>
           </h2>
