@@ -301,6 +301,10 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                         min="1"
                         required
                         value={item.id in draftQtys ? draftQtys[item.id] : item.qty}
+                        onKeyDown={(e) => {
+                          const nav = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"];
+                          if (!nav.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
+                        }}
                         onChange={(e) =>
                           setDraftQtys((prev) => ({ ...prev, [item.id]: e.target.value }))
                         }
@@ -338,7 +342,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                         onFocus={() =>
                           setPriceDraft(`${item.id}:price`, item.unitPrice ? String(item.unitPrice) : "")
                         }
-                        onChange={(e) => setPriceDraft(`${item.id}:price`, e.target.value)}
+                        onChange={(e) => setPriceDraft(`${item.id}:price`, e.target.value.replace(/[^0-9.,]/g, ""))}
                         onBlur={() => {
                           const raw = draftPrices[`${item.id}:price`];
                           if (raw !== undefined) {
@@ -365,7 +369,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                         onFocus={() =>
                           setPriceDraft(`${item.id}:total`, item.total ? String(item.total) : "")
                         }
-                        onChange={(e) => setPriceDraft(`${item.id}:total`, e.target.value)}
+                        onChange={(e) => setPriceDraft(`${item.id}:total`, e.target.value.replace(/[^0-9.,]/g, ""))}
                         onBlur={() => {
                           const raw = draftPrices[`${item.id}:total`];
                           if (raw !== undefined) {
