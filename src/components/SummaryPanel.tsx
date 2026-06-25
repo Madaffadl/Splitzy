@@ -551,6 +551,10 @@ export function TripSummaryPanel({
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [creatingLink, setCreatingLink] = useState(false);
   const { toast } = useToast();
+  // Track which wallet card is expanded (one toggle per person)
+  const [openWallet, setOpenWallet] = useState<Record<string, boolean>>({});
+  const toggleWallet = (id: string) =>
+    setOpenWallet((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // A share link is an immutable snapshot — if the trip changes after one was
   // created, drop the cached link so the next Share/Copy mints a fresh one.
@@ -614,6 +618,42 @@ export function TripSummaryPanel({
     }
     
     return stats;
+  }, [receipts, participantIds]);
+
+  // Per-person breakdown: which receipts they paid, which items they consumed
+  const walletBreakdowns = useMemo(() => {
+    type PaidEntry = { receiptTitle: string; amount: number };
+    type ConsumedItem = { name: string; amount: number };
+    type ConsumedEntry = { receiptTitle: string; amount: number; items: ConsumedItem[] };
+    type Breakdown = { paid: PaidEntry[]; consumed: ConsumedEntry[] };
+
+    const map = new Map<string, Breakdown>();
+    for (const id of participantIds) map.set(id, { paid: [], consumed: [] });
+
+    for (const receipt of receipts) {
+      const receiptSubtotal = receipt.items.reduce((s, i) => s + i.total, 0);
+      const grandTotal = Math.round((receiptSubtotal + receipt.tax + receipt.service) * 100) / 100;
+      const title = receipt.title || "Untitled";
+
+      const payerEntry = map.get(receipt.payerId);
+      if (payerEntry) payerEntry.paid.push({ receiptTitle: title, amount: grandTotal });
+
+      const details = getPersonShareDetails(receipt, participantIds);
+      for (const detail of details) {
+        if (detail.total === 0) continue;
+        const entry = map.get(detail.participantId);
+        if (!entry) continue;
+        entry.consumed.push({
+          receiptTitle: title,
+          amount: detail.total,
+          items: detail.items
+            .filter((it) => it.shareAmount > 0)
+            .map((it) => ({ name: it.itemName, amount: it.shareAmount })),
+        });
+      }
+    }
+
+    return map;
   }, [receipts, participantIds]);
 
   const settlements = useMemo(
@@ -837,40 +877,84 @@ export function TripSummaryPanel({
               const paid = stat?.paid || 0;
               const consumed = stat?.consumed || 0;
               const net = Math.round((paid - consumed) * 100) / 100;
-              
+              const breakdown = walletBreakdowns.get(id);
+              const isOpen = openWallet[id] ?? false;
+              const hasDetails = (breakdown?.paid.length || 0) + (breakdown?.consumed.length || 0) > 0;
+
               return (
-                <div
-                  key={id}
-                  className="p-3 rounded-lg border bg-card space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{getParticipantName(id)}</span>
-                    <span
-                      className={`text-sm font-semibold ${
-                        net > 0
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : net < 0
-                          ? "text-red-500"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {net > 0 ? "+" : ""}Rp {formatCurrency(net)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex justify-between p-1.5 rounded bg-emerald-500/10">
-                      <span className="text-emerald-700 dark:text-emerald-300">Paid</span>
-                      <span className="font-medium text-emerald-700 dark:text-emerald-300">
-                        Rp {formatCurrency(paid)}
-                      </span>
+                <div key={id} className="rounded-lg border bg-card overflow-hidden">
+                  {/* Header row — tappable to toggle */}
+                  <button
+                    type="button"
+                    onClick={() => hasDetails && toggleWallet(id)}
+                    className={`w-full text-left px-3 py-3 space-y-2 ${hasDetails ? "cursor-pointer" : "cursor-default"}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{getParticipantName(id)}</span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-sm font-semibold ${
+                            net > 0
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : net < 0
+                              ? "text-red-500"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {net > 0 ? "+" : ""}Rp {formatCurrency(net)}
+                        </span>
+                        {hasDetails && (
+                          isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between p-1.5 rounded bg-orange-500/10">
-                      <span className="text-orange-700 dark:text-orange-300">Consumed</span>
-                      <span className="font-medium text-orange-700 dark:text-orange-300">
-                        Rp {formatCurrency(consumed)}
-                      </span>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex flex-wrap justify-between gap-x-2 p-1.5 rounded bg-emerald-500/10">
+                        <span className="text-emerald-700 dark:text-emerald-300">Paid</span>
+                        <span className="font-medium text-emerald-700 dark:text-emerald-300 whitespace-nowrap">Rp {formatCurrency(paid)}</span>
+                      </div>
+                      <div className="flex flex-wrap justify-between gap-x-2 p-1.5 rounded bg-orange-500/10">
+                        <span className="text-orange-700 dark:text-orange-300">Consumed</span>
+                        <span className="font-medium text-orange-700 dark:text-orange-300 whitespace-nowrap">Rp {formatCurrency(consumed)}</span>
+                      </div>
                     </div>
-                  </div>
+                  </button>
+
+                  {/* Expandable detail */}
+                  {isOpen && breakdown && (
+                    <div className="border-t border-border/50 px-3 py-3 space-y-4 text-xs">
+                      {breakdown.paid.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Paid for</p>
+                          {breakdown.paid.map((entry, i) => (
+                            <div key={i} className="flex justify-between py-0.5 border-b border-border/30 last:border-0">
+                              <span className="truncate pr-2 text-muted-foreground">{entry.receiptTitle}</span>
+                              <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">Rp {formatCurrency(entry.amount)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {breakdown.consumed.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-orange-700 dark:text-orange-400">Consumed</p>
+                          {breakdown.consumed.map((entry, i) => (
+                            <div key={i}>
+                              <div className="flex justify-between font-medium text-foreground/80 mb-0.5">
+                                <span className="truncate pr-2">{entry.receiptTitle}</span>
+                                <span className="shrink-0 text-orange-600 dark:text-orange-400">Rp {formatCurrency(entry.amount)}</span>
+                              </div>
+                              {entry.items.map((item, j) => (
+                                <div key={j} className="flex justify-between pl-2 py-0.5 border-b border-border/20 last:border-0 text-muted-foreground">
+                                  <span className="truncate pr-2">{item.name}</span>
+                                  <span className="shrink-0">Rp {formatCurrency(item.amount)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
