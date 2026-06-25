@@ -39,6 +39,7 @@ export default async function proxy(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
   // 3. Protected routes — require authentication
@@ -48,10 +49,24 @@ export default async function proxy(request: NextRequest) {
   );
 
   if (isProtected && !user) {
+    // If getUser() failed due to a transient network/service error (not a real
+    // 401), let the request through rather than false-redirecting a logged-in
+    // user. The page-level auth check will catch genuinely unauthenticated
+    // requests.
+    if (authError && authError.status !== 401) {
+      return response;
+    }
+
     const redirectUrl = new URL("/", request.url);
     redirectUrl.searchParams.set("login", "required");
     redirectUrl.searchParams.set("redirect", request.nextUrl.pathname);
-    return NextResponse.redirect(redirectUrl);
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    // Propagate any refreshed session cookies so the browser gets the updated
+    // tokens even when we redirect (prevents a second redirect loop).
+    response.cookies.getAll().forEach(({ name, value, ...opts }) => {
+      redirectResponse.cookies.set(name, value, opts);
+    });
+    return redirectResponse;
   }
 
   return response;
