@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, Trip } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
@@ -77,6 +77,12 @@ export default function TripPage() {
   // append the same new receipt twice before viewMode flips to "overview".
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (viewMode === "edit-receipt") {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [viewMode]);
 
   const trip = state.trip;
 
