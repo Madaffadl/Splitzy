@@ -1,12 +1,12 @@
 "use client";
 
 import { Receipt, Participant, PersonShareDetail } from "@/types";
-import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, getWalletStats } from "@/lib/calculations";
+import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, getWalletStats, buildSettlementTrace } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2 } from "lucide-react";
+import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
@@ -663,6 +663,13 @@ export function TripSummaryPanel({
 
   const { isPaid, togglePaid } = usePaidSettlements(`trip:${tripId ?? tripName}`);
 
+  const [showTrace, setShowTrace] = useState(false);
+
+  const settlementTrace = useMemo(
+    () => buildSettlementTrace(aggregateBalances, settlements),
+    [aggregateBalances, settlements]
+  );
+
   // Memoized name lookup — settlements + per-person breakdown can call this
   // many times; the previous .find() was O(n) per call, this is O(1).
   const participantNames = useMemo(() => {
@@ -963,9 +970,92 @@ export function TripSummaryPanel({
 
         {/* Final Settlements */}
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">
-            Final Settlements
-          </h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium text-muted-foreground">
+              Final Settlements
+            </h4>
+            {settlements.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowTrace((v) => !v)}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                aria-pressed={showTrace}
+              >
+                <Info className="h-3.5 w-3.5" />
+                {showTrace ? "Hide explanation" : "How is this calculated?"}
+              </button>
+            )}
+          </div>
+
+          {/* Step-by-step settlement trace */}
+          {showTrace && settlements.length > 0 && (
+            <div className="rounded-md border bg-muted/30 p-3 space-y-3 text-xs">
+              <p className="text-muted-foreground leading-relaxed">
+                Settlements are based on each person&apos;s <strong>net balance</strong> (total paid − total consumed) across all receipts, not on who paid for whom in a specific receipt. The app finds the fewest transfers needed to settle all balances.
+              </p>
+
+              {/* Starting net balances */}
+              <div className="space-y-1">
+                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">Net balances before settlement</p>
+                {Array.from(aggregateBalances.entries())
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([id, balance]) => (
+                    <div key={id} className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{getParticipantName(id)}</span>
+                      <span className={cn(
+                        "font-mono text-right",
+                        balance > 0.01 ? "text-emerald-600 dark:text-emerald-400" :
+                        balance < -0.01 ? "text-red-500" :
+                        "text-muted-foreground"
+                      )}>
+                        {balance > 0.01
+                          ? `+Rp ${formatCurrency(balance)} (is owed)`
+                          : balance < -0.01
+                          ? `-Rp ${formatCurrency(Math.abs(balance))} (owes)`
+                          : "settled"}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Step-by-step transfer trace */}
+              <div className="space-y-2">
+                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">Step-by-step</p>
+                {settlementTrace.map((step, i) => {
+                  const fromAfter = step.balancesAfter.get(step.transfer.from) ?? 0;
+                  const toAfter = step.balancesAfter.get(step.transfer.to) ?? 0;
+                  return (
+                    <div key={i} className="rounded border border-border/50 bg-background/60 px-2.5 py-2 space-y-1">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <span className="text-red-500">{getParticipantName(step.transfer.from)}</span>
+                        <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span className="text-emerald-600 dark:text-emerald-400">{getParticipantName(step.transfer.to)}</span>
+                        <span className="ml-auto text-foreground">Rp {formatCurrency(step.transfer.amount)}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground pl-0.5">
+                        <span>
+                          {getParticipantName(step.transfer.from)}:{" "}
+                          {Math.abs(fromAfter) < 0.01
+                            ? <span className="text-emerald-600 dark:text-emerald-400">settled ✓</span>
+                            : <span>{fromAfter < -0.01 ? `-Rp ${formatCurrency(Math.abs(fromAfter))} still owes` : `+Rp ${formatCurrency(fromAfter)} remaining`}</span>
+                          }
+                        </span>
+                        <span>·</span>
+                        <span>
+                          {getParticipantName(step.transfer.to)}:{" "}
+                          {Math.abs(toAfter) < 0.01
+                            ? <span className="text-emerald-600 dark:text-emerald-400">settled ✓</span>
+                            : <span>{toAfter > 0.01 ? `+Rp ${formatCurrency(toAfter)} still owed` : `-Rp ${formatCurrency(Math.abs(toAfter))} remaining`}</span>
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {settlements.length === 0 ? (
             <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
               ✓ Everyone is settled!

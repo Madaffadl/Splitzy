@@ -348,6 +348,28 @@ export function minimizeTransactions(
 }
 
 /**
+ * Build a step-by-step trace of how each transfer resolves the net balances.
+ * Returns one entry per transfer, showing the balance state after that transfer.
+ * Useful for explaining *why* A pays B even if B never paid for A directly.
+ */
+export function buildSettlementTrace(
+    initialBalances: Map<string, number>,
+    transfers: SettlementTransfer[]
+): Array<{ transfer: SettlementTransfer; balancesAfter: Map<string, number> }> {
+    const current = new Map(
+        Array.from(initialBalances.entries()).map(([k, v]) => [k, roundTo2(v)])
+    );
+
+    return transfers.map((transfer) => {
+        // Paying reduces the payer's debt (moves toward 0 from negative)
+        current.set(transfer.from, roundTo2((current.get(transfer.from) ?? 0) + transfer.amount));
+        // Receiving reduces the creditor's credit (moves toward 0 from positive)
+        current.set(transfer.to, roundTo2((current.get(transfer.to) ?? 0) - transfer.amount));
+        return { transfer, balancesAfter: new Map(current) };
+    });
+}
+
+/**
  * Calculate trip summary with aggregated balances and minimized settlements.
  */
 export function getTripSummary(trip: Trip): TripSummary {
