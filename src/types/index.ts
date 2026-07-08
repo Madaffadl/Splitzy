@@ -126,7 +126,7 @@ export interface PersonShareDetail extends PersonShare {
     items: ItemBreakdown[];
 }
 
-// Wallet tracking for trip mode
+// Wallet tracking for multiple-receipt mode
 export interface WalletStats {
     participantId: string;
     totalPaid: number;       // Total amount this person paid (receipts they covered)

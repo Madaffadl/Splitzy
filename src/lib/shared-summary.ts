@@ -77,7 +77,7 @@ export interface SharedParticipant {
 
 export interface SharedSummaryPayload {
   v: typeof SHARE_PAYLOAD_VERSION;
-  type: "trip" | "single";
+  type: "multiple" | "single";
   title: string;
   participants: SharedParticipant[];
   // Always an array. For type "single" it holds exactly one receipt.
@@ -199,8 +199,8 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
   }
   const b = body as Record<string, unknown>;
 
-  if (b.type !== "trip" && b.type !== "single") {
-    throw new ValidationError("type", "must be 'trip' or 'single'");
+  if (b.type !== "multiple" && b.type !== "single") {
+    throw new ValidationError("type", "must be 'multiple' or 'single'");
   }
   const type = b.type;
 

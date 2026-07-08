@@ -353,7 +353,7 @@ function PersonBreakdown({
   );
 }
 
-// One receipt as an expandable row inside the Trip Summary card. Collapsed it
+// One receipt as an expandable row inside the Multiple Receipts summary. Collapsed it
 // shows the receipt title + total; expanded it reveals each person's per-item
 // breakdown — the same PersonBreakdown used in the single-receipt view.
 function ReceiptBreakdown({
@@ -847,12 +847,13 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
   );
 }
 
-// Trip summary component for multiple receipts
-interface TripSummaryPanelProps {
+// Summary component for a Multiple Receipts split (several receipts settled
+// together across the same people).
+interface MultipleReceiptSummaryPanelProps {
   receipts: Receipt[];
   participants: Participant[];
-  tripName: string;
-  tripId?: string;
+  splitName: string;
+  splitId?: string;
   // When true (the public /s/<code> view), hide the Share/Copy actions — the
   // viewer is already looking at the shared snapshot and can't edit it.
   readOnly?: boolean;
@@ -861,14 +862,14 @@ interface TripSummaryPanelProps {
   onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
 }
 
-export function TripSummaryPanel({
+export function MultipleReceiptSummaryPanel({
   receipts,
   participants,
-  tripName,
-  tripId,
+  splitName,
+  splitId,
   readOnly = false,
   onUpdatePaymentInfo,
-}: TripSummaryPanelProps) {
+}: MultipleReceiptSummaryPanelProps) {
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session
   // so repeated clicks reuse the same link instead of minting a new row.
@@ -880,11 +881,11 @@ export function TripSummaryPanel({
   const toggleWallet = (id: string) =>
     setOpenWallet((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  // A share link is an immutable snapshot — if the trip changes after one was
+  // A share link is an immutable snapshot — if the split changes after one was
   // created, drop the cached link so the next Share/Copy mints a fresh one.
   useEffect(() => {
     setShareUrl(null);
-  }, [receipts, participants, tripName]);
+  }, [receipts, participants, splitName]);
 
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
@@ -1010,7 +1011,7 @@ export function TripSummaryPanel({
     return ids;
   }, [settlements]);
 
-  const { isPaid, togglePaid } = usePaidSettlements(`trip:${tripId ?? tripName}`);
+  const { isPaid, togglePaid } = usePaidSettlements(`multiple:${splitId ?? splitName}`);
 
   const [showTrace, setShowTrace] = useState(false);
 
@@ -1048,7 +1049,7 @@ export function TripSummaryPanel({
   };
 
   const generateExportText = () => {
-    let text = `🌴 ${tripName} - Trip Summary\n`;
+    let text = `🧾 ${splitName} — Multiple Receipts\n`;
     text += `━━━━━━━━━━━━━━━\n\n`;
     text += `📋 ${receipts.length} receipt(s)\n`;
     text += `💳 Total: Rp ${formatCurrency(totalGrandTotal)}\n`;
@@ -1081,8 +1082,8 @@ export function TripSummaryPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "trip",
-          title: tripName,
+          type: "multiple",
+          title: splitName,
           participants,
           receipts,
         }),
@@ -1113,7 +1114,7 @@ export function TripSummaryPanel({
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${tripName} - Splitzy`, url });
+        await navigator.share({ title: `${splitName} - Splitzy`, url });
         return;
       } catch {
         // User cancelled or share failed → fall through to clipboard.
@@ -1162,7 +1163,7 @@ export function TripSummaryPanel({
       <Card className="border-dashed">
         <CardContent className="py-8 text-center text-muted-foreground">
           <Calculator className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>Add receipts to see trip summary</p>
+          <p>Add receipts to see the summary</p>
         </CardContent>
       </Card>
     );
@@ -1174,7 +1175,7 @@ export function TripSummaryPanel({
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            Trip Summary
+            Summary
           </CardTitle>
           {!readOnly && (
             <div className="flex items-center gap-1.5">
@@ -1217,12 +1218,12 @@ export function TripSummaryPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Trip Stats */}
+        {/* Split Stats */}
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="text-muted-foreground">Receipts</div>
           <div className="text-right font-medium">{receipts.length}</div>
           <div className="text-muted-foreground font-medium pt-2 border-t">
-            Trip Total
+            Total
           </div>
           <div className={cn("text-right pt-2 border-t", totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
             Rp {formatCurrency(totalGrandTotal)}

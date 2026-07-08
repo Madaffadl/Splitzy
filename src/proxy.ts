@@ -43,7 +43,7 @@ export default async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // 3. Protected routes — require authentication
-  const protectedPaths = ["/trip", "/history"];
+  const protectedPaths = ["/multiple", "/history"];
   const isProtected = protectedPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
   );

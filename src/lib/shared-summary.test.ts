@@ -8,7 +8,7 @@ import {
 } from "./shared-summary";
 
 const validTrip = {
-  type: "trip" as const,
+  type: "multiple" as const,
   title: "Bali Trip",
   participants: [
     { id: "p1", name: "Alex" },
@@ -39,7 +39,7 @@ describe("validateSharedSummaryInput", () => {
   it("accepts and normalizes a valid trip", () => {
     const out = validateSharedSummaryInput(validTrip);
     expect(out.v).toBe(1);
-    expect(out.type).toBe("trip");
+    expect(out.type).toBe("multiple");
     expect(out.title).toBe("Bali Trip");
     expect(out.participants).toHaveLength(2);
     expect(out.receipts[0].items[0].assignedToIds).toEqual(["p1", "p2"]);

@@ -11,7 +11,7 @@ import type { SettlementTransfer } from "@/types";
  * across devices in this iteration. A future server-side version can extend
  * this hook without changing the call sites.
  *
- * @param scope    Stable namespace (e.g. `receipt:<id>` or `trip:<id>`) so
+ * @param scope    Stable namespace (e.g. `receipt:<id>` or `multiple:<id>`) so
  *                 that paid markers don't bleed across different splits.
  */
 export function usePaidSettlements(scope: string) {

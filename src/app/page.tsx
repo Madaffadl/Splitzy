@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft, History } from "lucide-react";
+import { Receipt, Layers, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft, History } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,7 +13,7 @@ function LoginBanner() {
   const { isAuthenticated, signIn } = useAuth();
   const searchParams = useSearchParams();
   const loginRequired = searchParams.get("login") === "required";
-  const redirectPath = searchParams.get("redirect") || "/trip";
+  const redirectPath = searchParams.get("redirect") || "/multiple";
 
   if (!loginRequired || isAuthenticated) return null;
 
@@ -196,9 +196,9 @@ export default function Home() {
               </div>
             </Link>
 
-            {/* Trip Mode Card */}
+            {/* Multiple Receipt Card */}
             <Link
-              href="/trip"
+              href="/multiple"
               className="group relative overflow-hidden rounded-2xl border-2 border-transparent bg-card p-6 text-left transition-all duration-500 hover:shadow-premium-lg hover:border-accent/30 hover-lift animate-fade-in-right stagger-4"
             >
               {/* Animated Background Gradient */}
@@ -218,20 +218,20 @@ export default function Home() {
                 
                 {/* Icon */}
                 <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/20 to-accent/5 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-accent/20 transition-all duration-500 group-hover:animate-glow-pulse-accent">
-                  <Plane className="h-7 w-7 text-accent group-hover:scale-110 group-hover:-rotate-12 transition-all duration-300" />
+                  <Layers className="h-7 w-7 text-accent group-hover:scale-110 transition-all duration-300" />
                 </div>
-                
+
                 {/* Content */}
                 <h2 className="text-xl font-bold mb-2 group-hover:text-accent transition-colors duration-300">
-                  Trip Mode
+                  Multiple Receipts
                 </h2>
                 <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-                  Track multiple receipts with different payers during your trip.
+                  Track several receipts with different payers and settle up together.
                 </p>
-                
+
                 {/* CTA */}
                 <div className="flex items-center gap-2 text-sm font-semibold text-accent">
-                  <span>Start Trip</span>
+                  <span>Start Splitting</span>
                   <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center group-hover:bg-accent group-hover:text-accent-foreground transition-all duration-300">
                     <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
@@ -422,7 +422,7 @@ export default function Home() {
           </h2>
           
           <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto animate-fade-in-up stagger-3">
-            Choose your splitting mode and get back to enjoying your time with friends. <br className="hidden sm:block" /> Free to try — sign in only to save trips & history.
+            Choose your splitting mode and get back to enjoying your time with friends. <br className="hidden sm:block" /> Free to try — sign in only to save your splits & history.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up stagger-4">
@@ -436,11 +436,11 @@ export default function Home() {
             </Link>
             
             <Link
-              href="/trip"
+              href="/multiple"
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-transparent border-2 border-border hover:border-accent/50 hover:bg-accent/5 text-foreground font-bold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 group"
             >
-              <Plane className="w-5 h-5 text-accent group-hover:-rotate-12 transition-transform" />
-              Start Trip Mode
+              <Layers className="w-5 h-5 text-accent transition-transform group-hover:scale-110" />
+              Split Multiple Receipts
             </Link>
           </div>
         </div>

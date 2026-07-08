@@ -13,13 +13,12 @@ import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
 import { FeesInput } from "@/components/FeesInput";
 import { DiscountsInput } from "@/components/DiscountsInput";
-import { SummaryPanel, TripSummaryPanel } from "@/components/SummaryPanel";
+import { SummaryPanel, MultipleReceiptSummaryPanel } from "@/components/SummaryPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +31,7 @@ import {
   ArrowLeft,
   RotateCcw,
   Plus,
-  Plane,
+  Layers,
   Receipt as ReceiptIcon,
   Trash2,
   Edit2,
@@ -43,19 +42,22 @@ import {
 } from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
 
-interface TripState {
-  trip: Trip;
+// A "split" here is one named group of receipts shared by the same people and
+// settled together. It reuses the Trip domain shape (id/name/participants/
+// receipts) internally.
+interface MultipleState {
+  split: Trip;
 }
 
-const DEFAULT_TRIP: Trip = {
+const DEFAULT_SPLIT: Trip = {
   id: generateId(),
-  name: "My Trip",
+  name: "My Split",
   participants: [],
   receipts: [],
 };
 
-const DEFAULT_STATE: TripState = {
-  trip: DEFAULT_TRIP,
+const DEFAULT_STATE: MultipleState = {
+  split: DEFAULT_SPLIT,
 };
 
 type ViewMode = "overview" | "edit-receipt";
@@ -65,9 +67,9 @@ interface EditingReceipt {
   isNew: boolean;
 }
 
-export default function TripPage() {
-  const [state, setState, resetState] = useHybridState<TripState>(
-    "splitbill-trips",
+export default function MultipleReceiptPage() {
+  const [state, setState, resetState] = useHybridState<MultipleState>(
+    "splitbill-multiple",
     DEFAULT_STATE
   );
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
@@ -85,11 +87,11 @@ export default function TripPage() {
     }
   }, [viewMode]);
 
-  const trip = state.trip;
+  const split = state.split;
 
-  const updateTrip = (updates: Partial<Trip>) => {
+  const updateSplit = (updates: Partial<Trip>) => {
     setState((prev) => ({
-      trip: { ...prev.trip, ...updates },
+      split: { ...prev.split, ...updates },
     }));
   };
 
@@ -103,8 +105,8 @@ export default function TripPage() {
     setEditingReceipt(null);
     setShowResetDialog(false);
     toast({
-      title: "Trip reset",
-      description: "All trip data was cleared.",
+      title: "Split reset",
+      description: "All receipts and participants were cleared.",
       variant: "success",
     });
   };
@@ -112,8 +114,8 @@ export default function TripPage() {
   const startNewReceipt = () => {
     const newReceipt: Receipt = {
       id: generateId(),
-      title: `Receipt ${trip.receipts.length + 1}`,
-      payerId: trip.participants[0]?.id || "",
+      title: `Receipt ${split.receipts.length + 1}`,
+      payerId: split.participants[0]?.id || "",
       items: [],
       tax: 0,
       service: 0,
@@ -123,7 +125,7 @@ export default function TripPage() {
   };
 
   const editReceipt = (receiptId: string) => {
-    const receipt = trip.receipts.find((r) => r.id === receiptId);
+    const receipt = split.receipts.find((r) => r.id === receiptId);
     if (receipt) {
       setEditingReceipt({ receipt: { ...receipt }, isNew: false });
       setViewMode("edit-receipt");
@@ -137,10 +139,10 @@ export default function TripPage() {
     const { receipt, isNew } = editingReceipt;
 
     if (isNew) {
-      updateTrip({ receipts: [...trip.receipts, receipt] });
+      updateSplit({ receipts: [...split.receipts, receipt] });
     } else {
-      updateTrip({
-        receipts: trip.receipts.map((r) => (r.id === receipt.id ? receipt : r)),
+      updateSplit({
+        receipts: split.receipts.map((r) => (r.id === receipt.id ? receipt : r)),
       });
     }
 
@@ -157,8 +159,8 @@ export default function TripPage() {
   };
 
   const deleteReceipt = (receiptId: string) => {
-    const removed = trip.receipts.find((r) => r.id === receiptId);
-    updateTrip({ receipts: trip.receipts.filter((r) => r.id !== receiptId) });
+    const removed = split.receipts.find((r) => r.id === receiptId);
+    updateSplit({ receipts: split.receipts.filter((r) => r.id !== receiptId) });
     setShowDeleteDialog(null);
     toast({
       title: "Receipt deleted",
@@ -176,16 +178,16 @@ export default function TripPage() {
   };
 
   const getParticipantName = (id: string) =>
-    trip.participants.find((p) => p.id === id)?.name || "Unknown";
+    split.participants.find((p) => p.id === id)?.name || "Unknown";
 
-  // Attach/update/clear a trip participant's bank details from the summary.
+  // Attach/update/clear a participant's bank details from the summary.
   // Passing `undefined` clears it (JSON serialization drops the empty key).
   const updateParticipantPaymentInfo = (
     participantId: string,
     info: PaymentInfo | undefined
   ) => {
-    updateTrip({
-      participants: trip.participants.map((p) =>
+    updateSplit({
+      participants: split.participants.map((p) =>
         p.id === participantId ? { ...p, paymentInfo: info } : p
       ),
     });
@@ -223,14 +225,14 @@ export default function TripPage() {
               <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Back to Trip</span>
+              <span className="hidden sm:inline text-sm font-medium">Back to Split</span>
             </button>
           )}
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <Plane className="h-4 w-4 text-primary-foreground" />
+              <Layers className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-sm sm:text-base">Trip Mode</span>
+            <span className="font-semibold text-sm sm:text-base">Multiple Receipts</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
@@ -250,7 +252,7 @@ export default function TripPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
-        {/* Local-only notice — sets the right expectation. Trip data is not yet
+        {/* Local-only notice — sets the right expectation. This split is not yet
             synced to the cloud, so users won't think a phone reset means safety. */}
         <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -258,28 +260,28 @@ export default function TripPage() {
             <span className="font-semibold text-amber-700 dark:text-amber-300">
               Saved on this device only.
             </span>{" "}
-            Trip data is stored in your browser. Clearing browser data or switching devices will lose this trip.
+            This split is stored in your browser. Clearing browser data or switching devices will lose it.
           </p>
         </div>
         {viewMode === "overview" && (
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Main Content */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Trip Name */}
+              {/* Split Name */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Plane className="h-5 w-5" />
-                    Trip Details
+                    <Layers className="h-5 w-5" />
+                    Split Details
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Trip Name</Label>
+                    <Label>Split name</Label>
                     <Input
-                      value={trip.name}
-                      onChange={(e) => updateTrip({ name: e.target.value })}
-                      placeholder="e.g., Beach Vacation 2024"
+                      value={split.name}
+                      onChange={(e) => updateSplit({ name: e.target.value })}
+                      placeholder="e.g., Weekend Getaway"
                     />
                   </div>
                 </CardContent>
@@ -290,13 +292,13 @@ export default function TripPage() {
                 <CardHeader>
                   <CardTitle>Participants</CardTitle>
                   <CardDescription>
-                    Add everyone who&apos;s part of this trip
+                    Add everyone splitting these receipts
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ParticipantManager
-                    participants={trip.participants}
-                    onChange={(participants) => updateTrip({ participants })}
+                    participants={split.participants}
+                    onChange={(participants) => updateSplit({ participants })}
                   />
                 </CardContent>
               </Card>
@@ -307,34 +309,34 @@ export default function TripPage() {
                   <div>
                     <CardTitle>Receipts</CardTitle>
                     <CardDescription>
-                      {trip.receipts.length} receipt
-                      {trip.receipts.length !== 1 ? "s" : ""} added
+                      {split.receipts.length} receipt
+                      {split.receipts.length !== 1 ? "s" : ""} added
                     </CardDescription>
                   </div>
                   <Button
                     onClick={startNewReceipt}
-                    disabled={trip.participants.length < 2}
+                    disabled={split.participants.length < 2}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Receipt
                   </Button>
                 </CardHeader>
                 <CardContent>
-                  {trip.participants.length < 2 ? (
+                  {split.participants.length < 2 ? (
                     <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                         <Users className="h-6 w-6 text-primary opacity-80" />
                       </div>
                       <p className="font-semibold text-foreground mb-1">Waiting for friends</p>
-                      <p className="text-sm text-muted-foreground max-w-xs">Add at least 2 participants to start adding receipts to this trip.</p>
+                      <p className="text-sm text-muted-foreground max-w-xs">Add at least 2 participants to start adding receipts to this split.</p>
                     </div>
-                  ) : trip.receipts.length === 0 ? (
+                  ) : split.receipts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
                       <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
                         <ReceiptIcon className="h-6 w-6 text-accent opacity-80" />
                       </div>
                       <p className="font-semibold text-foreground mb-1">No receipts yet</p>
-                      <p className="text-sm text-muted-foreground max-w-sm mb-4">You&rsquo;re all set! Start tracking your trip expenses.</p>
+                      <p className="text-sm text-muted-foreground max-w-sm mb-4">You&rsquo;re all set! Start tracking your shared expenses.</p>
                       <Button onClick={startNewReceipt} size="sm" variant="secondary">
                         <Plus className="h-4 w-4 mr-2" />
                         Add First Receipt
@@ -342,7 +344,7 @@ export default function TripPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {trip.receipts.map((receipt) => (
+                      {split.receipts.map((receipt) => (
                         <div
                           key={receipt.id}
                           className="flex items-center justify-between gap-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
@@ -394,14 +396,14 @@ export default function TripPage() {
               </Card>
             </div>
 
-            {/* Trip Summary Sidebar */}
+            {/* Summary Sidebar */}
             <div>
-              <ErrorBoundary label="the trip summary">
-                <TripSummaryPanel
-                  receipts={trip.receipts}
-                  participants={trip.participants}
-                  tripName={trip.name}
-                  tripId={trip.id}
+              <ErrorBoundary label="the summary">
+                <MultipleReceiptSummaryPanel
+                  receipts={split.receipts}
+                  participants={split.participants}
+                  splitName={split.name}
+                  splitId={split.id}
                   onUpdatePaymentInfo={updateParticipantPaymentInfo}
                 />
               </ErrorBoundary>
@@ -448,7 +450,7 @@ export default function TripPage() {
                     <h3 className="font-medium mb-4">Items & Assignments</h3>
                     <ItemsTable
                       items={editingReceipt.receipt.items}
-                      participants={trip.participants}
+                      participants={split.participants}
                       onChange={(items) => updateEditingReceipt({ items })}
                     />
                   </div>
@@ -459,7 +461,7 @@ export default function TripPage() {
                       tax={editingReceipt.receipt.tax}
                       service={editingReceipt.receipt.service}
                       payerId={editingReceipt.receipt.payerId}
-                      participants={trip.participants}
+                      participants={split.participants}
                       onTaxChange={(tax) => updateEditingReceipt({ tax })}
                       onServiceChange={(service) =>
                         updateEditingReceipt({ service })
@@ -474,7 +476,7 @@ export default function TripPage() {
                     <DiscountsInput
                       discounts={editingReceipt.receipt.discounts ?? []}
                       items={editingReceipt.receipt.items}
-                      participants={trip.participants}
+                      participants={split.participants}
                       onChange={(discounts) => updateEditingReceipt({ discounts })}
                     />
                   </div>
@@ -543,7 +545,7 @@ export default function TripPage() {
               <ErrorBoundary label="the receipt preview">
                 <SummaryPanel
                   receipt={editingReceipt.receipt}
-                  participants={trip.participants}
+                  participants={split.participants}
                   title={editingReceipt.receipt.title}
                   onUpdatePaymentInfo={updateParticipantPaymentInfo}
                 />
@@ -580,13 +582,13 @@ export default function TripPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Reset Trip Confirmation Dialog */}
+      {/* Reset Confirmation Dialog */}
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset entire trip?</DialogTitle>
+            <DialogTitle>Reset everything?</DialogTitle>
             <DialogDescription>
-              This will clear all trip details, participants, and receipts. This action cannot be undone.
+              This will clear the split name, participants, and all receipts. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -595,7 +597,7 @@ export default function TripPage() {
             </Button>
             <Button variant="destructive" onClick={confirmReset}>
               <RotateCcw className="h-4 w-4 mr-2" />
-              Yes, reset trip
+              Yes, reset
             </Button>
           </DialogFooter>
         </DialogContent>

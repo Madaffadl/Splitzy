@@ -32,7 +32,7 @@ export function GuestLimitDialog({ open, onClose }: GuestLimitDialogProps) {
           </DialogTitle>
           <DialogDescription className="text-center">
             You&apos;ve used all 3 free splits. Sign in with Google to get
-            unlimited splits, trip management, and receipt history.
+            unlimited splits and receipt history.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">

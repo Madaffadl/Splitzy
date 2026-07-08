@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Calculator, AlertCircle, Clock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { parseSharedSummaryPayload } from "@/lib/shared-summary";
-import { SummaryPanel, TripSummaryPanel } from "@/components/SummaryPanel";
+import { SummaryPanel, MultipleReceiptSummaryPanel } from "@/components/SummaryPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AppFooter } from "@/components/AppFooter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -120,11 +120,11 @@ export default async function SharedSplitPage({
             readOnly
           />
         ) : (
-          <TripSummaryPanel
+          <MultipleReceiptSummaryPanel
             receipts={payload.receipts}
             participants={payload.participants}
-            tripName={payload.title}
-            tripId={code}
+            splitName={payload.title}
+            splitId={code}
             readOnly
           />
         )}
