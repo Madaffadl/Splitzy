@@ -1297,7 +1297,7 @@ export function TripSummaryPanel({
                               : "text-muted-foreground"
                           }`}
                         >
-                          {net > 0 ? "+" : ""}Rp {formatCurrency(net)}
+                          {net > 0 ? "+" : net < 0 ? "-" : ""}Rp {formatCurrency(Math.abs(net))}
                         </span>
                         {hasDetails && (
                           isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />

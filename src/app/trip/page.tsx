@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, Trip, PaymentInfo } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
-import { generateId } from "@/lib/utils";
+import { formatCurrency, generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { ParticipantManager } from "@/components/ParticipantManager";
@@ -191,10 +191,10 @@ export default function TripPage() {
     });
   };
 
-  // Calculate receipt total for display
+  // Calculate receipt total for display (printed bill face value).
   const getReceiptTotal = (receipt: Receipt) => {
     const subtotal = receipt.items.reduce((sum, item) => sum + item.total, 0);
-    return (subtotal + receipt.tax + receipt.service).toFixed(2);
+    return formatCurrency(subtotal + receipt.tax + receipt.service);
   };
 
   return (

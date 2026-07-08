@@ -62,7 +62,7 @@ export function ReceiptHistoryCard({
             </div>
             <div className="text-right shrink-0 flex items-center gap-2">
               <span className="font-bold text-sm">
-                {formatCurrency(totalAmount)}
+                Rp {formatCurrency(totalAmount)}
               </span>
               <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
             </div>
