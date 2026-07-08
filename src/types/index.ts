@@ -33,6 +33,26 @@ export interface ReceiptItem {
     assignments?: ItemAssignment[]; // qty-per-person; used when item.qty > 1
 }
 
+// A manual discount not printed on the receipt (voucher, promo, coupon) that
+// behaves like money at payment time. Modeled at three scopes so the *benefit*
+// lands on the right people:
+//   - "receipt": whole-bill discount, shared by everyone (proportional to total)
+//   - "item": discount on one item, shared by that item's consumers
+//   - "participant": a personal voucher, benefits only its owner
+// `value` is Rupiah when type is "amount", or a percent (0-100) when "percent".
+// `targetId` is the item id (scope "item") or participant id (scope "participant").
+export type DiscountType = "amount" | "percent";
+export type DiscountScope = "receipt" | "item" | "participant";
+
+export interface Discount {
+    id: string;
+    scope: DiscountScope;
+    type: DiscountType;
+    value: number;
+    label?: string;
+    targetId?: string;
+}
+
 export interface Receipt {
     id: string;
     title: string;
@@ -41,6 +61,7 @@ export interface Receipt {
     items: ReceiptItem[];
     tax: number;
     service: number;
+    discounts?: Discount[];
 }
 
 export interface Trip {
@@ -56,6 +77,10 @@ export interface PersonShare {
     subtotal: number;
     taxAllocation: number;
     serviceAllocation: number;
+    // Discount credited to this person (their share of receipt/item discounts
+    // plus any personal voucher), capped so `total` never goes below 0.
+    discount: number;
+    // Effective amount this person owes: subtotal + tax + service − discount.
     total: number;
 }
 
@@ -67,7 +92,13 @@ export interface SettlementTransfer {
 
 export interface ReceiptSummary {
     receiptSubtotal: number;
+    // Printed bill face value: subtotal + tax + service (before manual discounts).
     grandTotal: number;
+    // Sum of discount credits actually applied across all participants.
+    totalDiscount: number;
+    // Actual cash handed to the merchant: grandTotal − totalDiscount. Equals the
+    // sum of every person's effective share, and is what the payer really paid.
+    amountPaid: number;
     shares: PersonShare[];
     balances: Map<string, number>;
 }
@@ -89,7 +120,8 @@ export interface ItemBreakdown {
     sharedWith: number;     // How many people share this item
 }
 
-// Extended person share with item breakdown
+// Extended person share with item breakdown. Inherits `discount` from
+// PersonShare; `total` is the effective (post-discount) amount owed.
 export interface PersonShareDetail extends PersonShare {
     items: ItemBreakdown[];
 }

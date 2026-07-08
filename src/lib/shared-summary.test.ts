@@ -134,6 +134,52 @@ describe("validateSharedSummaryInput", () => {
     });
     expect(out.participants[0].paymentInfo).toBeUndefined();
   });
+
+  it("carries valid discounts through the snapshot", () => {
+    const out = validateSharedSummaryInput({
+      ...validTrip,
+      receipts: [
+        {
+          ...validTrip.receipts[0],
+          discounts: [
+            { id: "x1", scope: "participant", type: "amount", value: 50000, targetId: "p1", label: "Voucher" },
+            { id: "x2", scope: "item", type: "percent", value: 20, targetId: "i1" },
+            { id: "x3", scope: "receipt", type: "amount", value: 10000 },
+          ],
+        },
+      ],
+    });
+    expect(out.receipts[0].discounts).toHaveLength(3);
+    expect(out.receipts[0].discounts![0]).toMatchObject({ scope: "participant", targetId: "p1" });
+  });
+
+  it("rejects a discount targeting an unknown item/participant", () => {
+    expect(() =>
+      validateSharedSummaryInput({
+        ...validTrip,
+        receipts: [
+          {
+            ...validTrip.receipts[0],
+            discounts: [{ id: "x", scope: "participant", type: "amount", value: 1000, targetId: "ghost" }],
+          },
+        ],
+      })
+    ).toThrow(/unknown participant/i);
+  });
+
+  it("rejects a percent discount above 100", () => {
+    expect(() =>
+      validateSharedSummaryInput({
+        ...validTrip,
+        receipts: [
+          {
+            ...validTrip.receipts[0],
+            discounts: [{ id: "x", scope: "receipt", type: "percent", value: 150 }],
+          },
+        ],
+      })
+    ).toThrow(/percent/i);
+  });
 });
 
 describe("parseSharedSummaryPayload", () => {

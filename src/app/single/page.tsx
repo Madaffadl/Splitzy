@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Participant, ReceiptItem, Receipt, PaymentInfo } from "@/types";
+import { Participant, ReceiptItem, Receipt, PaymentInfo, Discount } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId } from "@/lib/utils";
@@ -15,6 +15,7 @@ import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
 import { FeesInput } from "@/components/FeesInput";
+import { DiscountsInput } from "@/components/DiscountsInput";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ interface SingleState {
   tax: number;
   service: number;
   payerId: string;
+  discounts: Discount[];
 }
 
 const DEFAULT_STATE: SingleState = {
@@ -62,6 +64,7 @@ const DEFAULT_STATE: SingleState = {
   tax: 0,
   service: 0,
   payerId: "",
+  discounts: [],
 };
 
 export default function SinglePage() {
@@ -86,6 +89,7 @@ export default function SinglePage() {
       items: state.items,
       tax: state.tax,
       service: state.service,
+      discounts: state.discounts ?? [],
     }),
     [state]
   );
@@ -221,6 +225,7 @@ export default function SinglePage() {
       tax: 22000,
       service: 18000,
       payerId: a,
+      discounts: [],
     });
     toast({
       title: "Sample data loaded",
@@ -403,6 +408,14 @@ export default function SinglePage() {
                     />
                   </CardContent>
                 </Card>
+
+                {/* Discounts — optional, collapsed behind a trigger by default */}
+                <DiscountsInput
+                  discounts={state.discounts ?? []}
+                  items={state.items}
+                  participants={state.participants}
+                  onChange={(discounts) => updateState({ discounts })}
+                />
               </div>
             )}
 

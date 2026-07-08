@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
 import { FeesInput } from "@/components/FeesInput";
+import { DiscountsInput } from "@/components/DiscountsInput";
 import { SummaryPanel, TripSummaryPanel } from "@/components/SummaryPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
@@ -466,6 +467,15 @@ export default function TripPage() {
                       onPayerChange={(payerId) =>
                         updateEditingReceipt({ payerId })
                       }
+                    />
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <DiscountsInput
+                      discounts={editingReceipt.receipt.discounts ?? []}
+                      items={editingReceipt.receipt.items}
+                      participants={trip.participants}
+                      onChange={(discounts) => updateEditingReceipt({ discounts })}
                     />
                   </div>
                 </CardContent>

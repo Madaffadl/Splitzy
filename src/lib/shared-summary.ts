@@ -25,6 +25,7 @@ const MAX_ID = 100;
 const MAX_RECEIPTS = 100;
 const MAX_ITEMS_PER_RECEIPT = 200;
 const MAX_ASSIGNEES_PER_ITEM = 100;
+const MAX_DISCOUNTS_PER_RECEIPT = 100;
 const MAX_AMOUNT = 1_000_000_000; // 1 billion rupiah ceiling
 
 // Hard cap on the serialized snapshot. ~256KB comfortably fits a 100-receipt
@@ -40,6 +41,15 @@ export interface SharedItem {
   assignedToIds: string[];
 }
 
+export interface SharedDiscount {
+  id: string;
+  scope: "receipt" | "item" | "participant";
+  type: "amount" | "percent";
+  value: number;
+  label?: string;
+  targetId?: string;
+}
+
 export interface SharedReceipt {
   id: string;
   title: string;
@@ -48,6 +58,7 @@ export interface SharedReceipt {
   tax: number;
   service: number;
   items: SharedItem[];
+  discounts?: SharedDiscount[];
 }
 
 export interface SharedPaymentInfo {
@@ -111,6 +122,69 @@ function asIdArray(value: unknown, field: string, validIds: Set<string>): string
       throw new ValidationError(`${field}[${i}]`, `references unknown participant ${id}`);
     }
     return id;
+  });
+}
+
+function validateDiscounts(
+  value: unknown,
+  field: string,
+  itemIds: Set<string>,
+  participantIds: Set<string>
+): SharedDiscount[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) throw new ValidationError(field, "must be an array");
+  if (value.length === 0) return undefined;
+  if (value.length > MAX_DISCOUNTS_PER_RECEIPT) {
+    throw new ValidationError(field, `too many discounts (max ${MAX_DISCOUNTS_PER_RECEIPT})`);
+  }
+
+  return value.map((raw, i): SharedDiscount => {
+    const f = `${field}[${i}]`;
+    if (!raw || typeof raw !== "object") throw new ValidationError(f, "must be an object");
+    const d = raw as Record<string, unknown>;
+
+    if (d.scope !== "receipt" && d.scope !== "item" && d.scope !== "participant") {
+      throw new ValidationError(`${f}.scope`, "must be receipt, item, or participant");
+    }
+    if (d.type !== "amount" && d.type !== "percent") {
+      throw new ValidationError(`${f}.type`, "must be amount or percent");
+    }
+
+    let value: number;
+    if (d.type === "percent") {
+      const n = typeof d.value === "number" ? d.value : parseFloat(String(d.value ?? "0"));
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        throw new ValidationError(`${f}.value`, "percent must be between 0 and 100");
+      }
+      value = n;
+    } else {
+      value = asMoney(d.value, `${f}.value`);
+    }
+
+    let targetId: string | undefined;
+    if (d.scope === "item") {
+      targetId = asString(d.targetId, `${f}.targetId`, MAX_ID);
+      if (!itemIds.has(targetId)) {
+        throw new ValidationError(`${f}.targetId`, "references unknown item");
+      }
+    } else if (d.scope === "participant") {
+      targetId = asString(d.targetId, `${f}.targetId`, MAX_ID);
+      if (!participantIds.has(targetId)) {
+        throw new ValidationError(`${f}.targetId`, "references unknown participant");
+      }
+    }
+
+    const label =
+      d.label != null && d.label !== "" ? asString(d.label, `${f}.label`, MAX_NAME) : undefined;
+
+    return {
+      id: asString(d.id, `${f}.id`, MAX_ID),
+      scope: d.scope,
+      type: d.type,
+      value,
+      ...(label ? { label } : {}),
+      ...(targetId ? { targetId } : {}),
+    };
   });
 }
 
@@ -197,6 +271,14 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
       date = parsed.toISOString();
     }
 
+    const itemIds = new Set(items.map((it) => it.id));
+    const discounts = validateDiscounts(
+      r.discounts,
+      `receipts[${ri}].discounts`,
+      itemIds,
+      participantIds
+    );
+
     return {
       id: asString(r.id, `receipts[${ri}].id`, MAX_ID),
       title: asString(r.title, `receipts[${ri}].title`, MAX_TITLE),
@@ -205,6 +287,7 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
       tax: asMoney(r.tax ?? 0, `receipts[${ri}].tax`),
       service: asMoney(r.service ?? 0, `receipts[${ri}].service`),
       items,
+      ...(discounts ? { discounts } : {}),
     };
   });
 

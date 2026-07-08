@@ -7,6 +7,7 @@ import {
     calculatePersonTotals,
     calculateReceiptBalances,
     minimizeTransactions,
+    getReceiptSummary,
     getTripSummary,
 } from "./calculations";
 import { Receipt, ReceiptItem, Trip } from "@/types";
@@ -202,6 +203,105 @@ describe("minimizeTransactions", () => {
         const transfers = minimizeTransactions(balances);
 
         expect(transfers.length).toBe(0);
+    });
+});
+
+describe("discounts", () => {
+    // Shared setup for the two voucher cases: 4 people, one 300 bill, "a"
+    // consumes 150 and b/c/d consume 50 each, "a" owns a personal 50 voucher.
+    const buildReceipt = (payerId: string): Receipt => ({
+        id: "r1",
+        title: "Restaurant A",
+        payerId,
+        tax: 0,
+        service: 0,
+        items: [
+            { id: "i1", name: "My food", qty: 1, unitPrice: 150, total: 150, assignedToIds: ["a"] },
+            { id: "i2", name: "Shared", qty: 1, unitPrice: 150, total: 150, assignedToIds: ["b", "c", "d"] },
+        ],
+        discounts: [
+            { id: "d1", scope: "participant", type: "amount", value: 50, targetId: "a", label: "Voucher" },
+        ],
+    });
+    const ids = ["a", "b", "c", "d"];
+
+    it("case 1: voucher owner is the payer — owner only bears 100", () => {
+        const receipt = buildReceipt("a");
+        const summary = getReceiptSummary(receipt, ids);
+
+        expect(summary.totalDiscount).toBe(50);
+        expect(summary.amountPaid).toBe(250);
+
+        const byId = new Map(summary.shares.map((s) => [s.participantId, s]));
+        expect(byId.get("a")!.discount).toBe(50);
+        expect(byId.get("a")!.total).toBe(100); // 150 − 50 voucher
+        expect(byId.get("b")!.total).toBe(50);
+
+        // a fronted 250 cash, owes 100 → is owed 150; b/c/d each owe 50.
+        expect(summary.balances.get("a")).toBe(150);
+        expect(summary.balances.get("b")).toBe(-50);
+
+        const settlements = minimizeTransactions(summary.balances);
+        expect(settlements.length).toBe(3);
+        expect(settlements.every((t) => t.to === "a" && t.amount === 50)).toBe(true);
+    });
+
+    it("case 2: a friend pays — voucher owner still only bears 100", () => {
+        const receipt = buildReceipt("b");
+        const summary = getReceiptSummary(receipt, ids);
+
+        expect(summary.amountPaid).toBe(250);
+        const byId = new Map(summary.shares.map((s) => [s.participantId, s]));
+        expect(byId.get("a")!.total).toBe(100);
+        expect(byId.get("b")!.total).toBe(50);
+
+        // b fronted 250 cash, owes 50 → is owed 200.
+        expect(summary.balances.get("b")).toBe(200);
+        expect(summary.balances.get("a")).toBe(-100);
+
+        const settlements = minimizeTransactions(summary.balances);
+        // a → b 100, c → b 50, d → b 50
+        expect(settlements.every((t) => t.to === "b")).toBe(true);
+        const fromA = settlements.find((t) => t.from === "a");
+        expect(fromA!.amount).toBe(100);
+    });
+
+    it("item discount is split across the item's consumers", () => {
+        const receipt: Receipt = {
+            id: "r", title: "t", payerId: "a", tax: 0, service: 0,
+            items: [{ id: "i1", name: "Pizza", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] }],
+            discounts: [{ id: "d", scope: "item", type: "amount", value: 20, targetId: "i1" }],
+        };
+        const shares = calculatePersonTotals(receipt, ["a", "b"]);
+        const byId = new Map(shares.map((s) => [s.participantId, s]));
+        expect(byId.get("a")!.discount).toBe(10);
+        expect(byId.get("b")!.discount).toBe(10);
+        expect(byId.get("a")!.total).toBe(40); // 50 − 10
+    });
+
+    it("receipt percent discount is split proportionally to base total", () => {
+        const receipt: Receipt = {
+            id: "r", title: "t", payerId: "a", tax: 0, service: 0,
+            items: [{ id: "i1", name: "Food", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] }],
+            discounts: [{ id: "d", scope: "receipt", type: "percent", value: 10 }],
+        };
+        const summary = getReceiptSummary(receipt, ["a", "b"]);
+        expect(summary.totalDiscount).toBe(10); // 10% of 100
+        const byId = new Map(summary.shares.map((s) => [s.participantId, s]));
+        expect(byId.get("a")!.total).toBe(45);
+        expect(byId.get("b")!.total).toBe(45);
+    });
+
+    it("caps a voucher larger than the owner's share (no cash back)", () => {
+        const receipt: Receipt = {
+            id: "r", title: "t", payerId: "a", tax: 0, service: 0,
+            items: [{ id: "i1", name: "Food", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] }],
+            discounts: [{ id: "d", scope: "participant", type: "amount", value: 200, targetId: "a" }],
+        };
+        const shares = calculatePersonTotals(receipt, ["a", "b"]);
+        const a = shares.find((s) => s.participantId === "a")!;
+        expect(a.discount).toBe(50); // capped at their 50 share
+        expect(a.total).toBe(0); // never negative
     });
 });
 

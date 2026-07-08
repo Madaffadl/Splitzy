@@ -186,6 +186,106 @@ export function allocateTaxService(
 }
 
 /**
+ * Resolve every manual discount into a per-person credit (Rupiah).
+ *
+ * Discounts behave like money handed over at payment, so they are applied on
+ * top of the fully-computed (subtotal + tax + service) share:
+ *   - "participant": credited entirely to its owner (a personal voucher)
+ *   - "item": split across the item's consumers, proportional to their share
+ *   - "receipt": split across everyone, proportional to their base total
+ * Percentages resolve against a pre-discount base (item total, grand total, or
+ * the person's base share) so multiple discounts never compound. Finally each
+ * person's credit is capped at their base share — a voucher never pays cash back
+ * or turns a share negative.
+ */
+export function calculateDiscountCredits(
+    receipt: Receipt,
+    participantIds: string[],
+    baseTotals: Map<string, number>
+): Map<string, number> {
+    const credits = new Map<string, number>();
+    for (const id of participantIds) credits.set(id, 0);
+
+    const discounts = receipt.discounts ?? [];
+    if (discounts.length === 0) return credits;
+
+    const add = (id: string, amount: number) => {
+        if (!credits.has(id) || amount <= 0) return;
+        credits.set(id, roundTo2((credits.get(id) || 0) + amount));
+    };
+
+    const grandTotal = roundTo2(
+        calculateReceiptSubtotal(receipt.items) + receipt.tax + receipt.service
+    );
+    const totalBase = roundTo2(
+        Array.from(baseTotals.values()).reduce((sum, v) => sum + v, 0)
+    );
+
+    for (const d of discounts) {
+        const value = Math.max(0, d.value || 0);
+        if (value <= 0) continue;
+
+        if (d.scope === "participant") {
+            const id = d.targetId;
+            if (!id || !baseTotals.has(id)) continue;
+            const base = baseTotals.get(id) || 0;
+            add(id, d.type === "percent" ? roundTo2((base * value) / 100) : value);
+        } else if (d.scope === "item") {
+            const item = receipt.items.find((i) => i.id === d.targetId);
+            if (!item || item.total <= 0) continue;
+            const amount =
+                d.type === "percent" ? roundTo2((item.total * value) / 100) : value;
+            if (amount <= 0) continue;
+            // Distribute to the item's consumers proportional to their item share.
+            const itemShares = calculateItemShares(item);
+            for (const [id, share] of itemShares) {
+                add(id, roundTo2((amount * share) / item.total));
+            }
+        } else {
+            // "receipt" — distribute to everyone proportional to their base total.
+            const amount =
+                d.type === "percent" ? roundTo2((grandTotal * value) / 100) : value;
+            if (amount <= 0 || totalBase <= 0) continue;
+            for (const id of participantIds) {
+                const base = baseTotals.get(id) || 0;
+                add(id, roundTo2((amount * base) / totalBase));
+            }
+        }
+    }
+
+    // Cap each person's credit at their base share so effective share ≥ 0.
+    for (const id of participantIds) {
+        const base = Math.max(0, baseTotals.get(id) || 0);
+        credits.set(id, roundTo2(Math.min(credits.get(id) || 0, base)));
+    }
+
+    return credits;
+}
+
+/**
+ * Base (pre-discount) totals per person: subtotal + tax + service.
+ */
+function calculateBaseTotals(
+    subtotals: Map<string, number>,
+    taxAllocations: Map<string, number>,
+    serviceAllocations: Map<string, number>,
+    participantIds: string[]
+): Map<string, number> {
+    const base = new Map<string, number>();
+    for (const id of participantIds) {
+        base.set(
+            id,
+            roundTo2(
+                (subtotals.get(id) || 0) +
+                    (taxAllocations.get(id) || 0) +
+                    (serviceAllocations.get(id) || 0)
+            )
+        );
+    }
+    return base;
+}
+
+/**
  * Calculate the full per-person totals for a receipt.
  */
 export function calculatePersonTotals(
@@ -201,19 +301,29 @@ export function calculatePersonTotals(
         receipt.service
     );
 
+    const baseTotals = calculateBaseTotals(
+        subtotals,
+        taxAllocations,
+        serviceAllocations,
+        participantIds
+    );
+    const credits = calculateDiscountCredits(receipt, participantIds, baseTotals);
+
     const shares: PersonShare[] = [];
 
     for (const id of participantIds) {
         const subtotal = subtotals.get(id) || 0;
         const taxAlloc = taxAllocations.get(id) || 0;
         const serviceAlloc = serviceAllocations.get(id) || 0;
+        const discount = credits.get(id) || 0;
 
         shares.push({
             participantId: id,
             subtotal,
             taxAllocation: taxAlloc,
             serviceAllocation: serviceAlloc,
-            total: roundTo2(subtotal + taxAlloc + serviceAlloc),
+            discount,
+            total: roundTo2(subtotal + taxAlloc + serviceAlloc - discount),
         });
     }
 
@@ -230,15 +340,18 @@ export function calculateReceiptBalances(
     participantIds: string[]
 ): Map<string, number> {
     const shares = calculatePersonTotals(receipt, participantIds);
-    const receiptSubtotal = calculateReceiptSubtotal(receipt.items);
-    const grandTotal = roundTo2(receiptSubtotal + receipt.tax + receipt.service);
+    // The payer only fronted the actual cash handed to the merchant, which is
+    // the sum of everyone's effective (post-discount) share. A personal voucher
+    // is the owner's own money-equivalent, so it reduces that owner's share
+    // rather than crediting the payer.
+    const amountPaid = roundTo2(shares.reduce((sum, s) => sum + s.total, 0));
 
     const balances = new Map<string, number>();
 
     for (const share of shares) {
         if (share.participantId === receipt.payerId) {
-            // Payer: paid grandTotal, owes share.total
-            balances.set(share.participantId, roundTo2(grandTotal - share.total));
+            // Payer: paid amountPaid, owes share.total
+            balances.set(share.participantId, roundTo2(amountPaid - share.total));
         } else {
             // Others: paid 0, owes share.total
             balances.set(share.participantId, roundTo2(0 - share.total));
@@ -259,10 +372,14 @@ export function getReceiptSummary(
     const grandTotal = roundTo2(receiptSubtotal + receipt.tax + receipt.service);
     const shares = calculatePersonTotals(receipt, participantIds);
     const balances = calculateReceiptBalances(receipt, participantIds);
+    const totalDiscount = roundTo2(shares.reduce((sum, s) => sum + s.discount, 0));
+    const amountPaid = roundTo2(grandTotal - totalDiscount);
 
     return {
         receiptSubtotal,
         grandTotal,
+        totalDiscount,
+        amountPaid,
         shares,
         balances,
     };
@@ -419,6 +536,14 @@ export function getPersonShareDetails(
         receipt.service
     );
 
+    const baseTotals = calculateBaseTotals(
+        subtotals,
+        taxAllocations,
+        serviceAllocations,
+        participantIds
+    );
+    const credits = calculateDiscountCredits(receipt, participantIds, baseTotals);
+
     const details: PersonShareDetail[] = [];
 
     for (const id of participantIds) {
@@ -462,12 +587,14 @@ export function getPersonShareDetails(
             }
         }
 
+        const discount = credits.get(id) || 0;
         details.push({
             participantId: id,
             subtotal,
             taxAllocation: taxAlloc,
             serviceAllocation: serviceAlloc,
-            total: roundTo2(subtotal + taxAlloc + serviceAlloc),
+            discount,
+            total: roundTo2(subtotal + taxAlloc + serviceAlloc - discount),
             items,
         });
     }
@@ -493,10 +620,11 @@ export function getWalletStats(
     for (const receipt of trip.receipts) {
         const summary = getReceiptSummary(receipt, participantIds);
 
-        // Add to payer's "paid" total
+        // Add to payer's "paid" total — the actual cash fronted (after any
+        // discounts that acted like money at payment), not the printed total.
         const payerStats = stats.get(receipt.payerId);
         if (payerStats) {
-            payerStats.paid = roundTo2(payerStats.paid + summary.grandTotal);
+            payerStats.paid = roundTo2(payerStats.paid + summary.amountPaid);
         }
 
         // Add to each person's "consumed" total based on their share

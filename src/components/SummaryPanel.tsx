@@ -9,6 +9,7 @@ import {
   hasPaymentInfo,
   PAYMENT_INFO_LIMITS,
 } from "@/lib/payment-info";
+import { formatDiscountValue, describeDiscountTarget } from "@/lib/discounts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus } from "lucide-react";
+import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
@@ -333,6 +334,14 @@ function PersonBreakdown({
             </div>
           )}
 
+          {/* Discount credit */}
+          {detail.discount > 0 && (
+            <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
+              <span>− Discount</span>
+              <span>− Rp {formatCurrency(detail.discount)}</span>
+            </div>
+          )}
+
           {/* Final total */}
           <div className="flex justify-between text-sm pt-1 border-t font-medium">
             <span>Total</span>
@@ -391,7 +400,7 @@ function ReceiptBreakdown({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="font-semibold text-primary">
-            Rp {formatCurrency(summary.grandTotal)}
+            Rp {formatCurrency(summary.amountPaid)}
           </span>
           {expanded ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -409,6 +418,12 @@ function ReceiptBreakdown({
               {getParticipantName(receipt.payerId)}
             </span>
           </p>
+          {summary.totalDiscount > 0 && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+              Includes − Rp {formatCurrency(summary.totalDiscount)} discount
+              (bill Rp {formatCurrency(summary.grandTotal)})
+            </p>
+          )}
           {shareDetails.map((detail) => (
             <PersonBreakdown
               key={detail.participantId}
@@ -507,6 +522,10 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
     text += `💵 Tax: Rp ${formatCurrency(receipt.tax)}\n`;
     text += `🍽️ Service: Rp ${formatCurrency(receipt.service)}\n`;
     text += `💳 Total: Rp ${formatCurrency(summary.grandTotal)}\n`;
+    if (summary.totalDiscount > 0) {
+      text += `🏷️ Discount: -Rp ${formatCurrency(summary.totalDiscount)}\n`;
+      text += `✅ Amount to pay: Rp ${formatCurrency(summary.amountPaid)}\n`;
+    }
     text += `👤 Paid by: ${getParticipantName(receipt.payerId)}\n\n`;
     text += `📊 Per Person:\n`;
 
@@ -688,9 +707,23 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
           <div className="text-muted-foreground font-medium pt-2 border-t">
             Grand Total
           </div>
-          <div className="text-right font-bold pt-2 border-t text-primary">
+          <div className={cn("text-right pt-2 border-t", summary.totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
             Rp {formatCurrency(summary.grandTotal)}
           </div>
+          {summary.totalDiscount > 0 && (
+            <>
+              <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
+              <div className="text-right text-emerald-600 dark:text-emerald-400">
+                − Rp {formatCurrency(summary.totalDiscount)}
+              </div>
+              <div className="text-muted-foreground font-medium pt-2 border-t">
+                Amount to Pay
+              </div>
+              <div className="text-right font-bold pt-2 border-t text-primary">
+                Rp {formatCurrency(summary.amountPaid)}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="text-xs text-muted-foreground">
@@ -699,6 +732,31 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
             {getParticipantName(receipt.payerId)}
           </Badge>
         </div>
+
+        {/* Applied discounts */}
+        {receipt.discounts && receipt.discounts.length > 0 && (
+          <div className="space-y-1.5">
+            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Discounts
+            </h4>
+            <div className="space-y-1">
+              {receipt.discounts.map((d) => (
+                <div key={d.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate text-muted-foreground">
+                    {d.label || describeDiscountTarget(d, receipt.items, participants)}
+                    <span className="ml-1 text-muted-foreground/60">
+                      · {d.scope === "receipt" ? "bill" : d.scope === "item" ? "item" : "person"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">
+                    − {formatDiscountValue(d)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Per Person Breakdown with Expandable Audit */}
         <div className="space-y-2">
@@ -834,15 +892,19 @@ export function TripSummaryPanel({
   );
 
   // Aggregate balances across all receipts
-  const { aggregateBalances, totalGrandTotal } = useMemo(() => {
+  const { aggregateBalances, totalGrandTotal, totalDiscount, totalPaid } = useMemo(() => {
     const balances = new Map<string, number>();
     participantIds.forEach((id) => balances.set(id, 0));
 
     let total = 0;
+    let discount = 0;
+    let paid = 0;
 
     for (const receipt of receipts) {
       const summary = getReceiptSummary(receipt, participantIds);
       total += summary.grandTotal;
+      discount += summary.totalDiscount;
+      paid += summary.amountPaid;
 
       for (const [id, balance] of summary.balances) {
         balances.set(id, (balances.get(id) || 0) + balance);
@@ -852,7 +914,12 @@ export function TripSummaryPanel({
     // Round balances
     balances.forEach((v, k) => balances.set(k, Math.round(v * 100) / 100));
 
-    return { aggregateBalances: balances, totalGrandTotal: Math.round(total * 100) / 100 };
+    return {
+      aggregateBalances: balances,
+      totalGrandTotal: Math.round(total * 100) / 100,
+      totalDiscount: Math.round(discount * 100) / 100,
+      totalPaid: Math.round(paid * 100) / 100,
+    };
   }, [receipts, participantIds]);
 
   // Wallet stats (paid vs consumed)
@@ -868,10 +935,10 @@ export function TripSummaryPanel({
     for (const receipt of receipts) {
       const summary = getReceiptSummary(receipt, participantIds);
       
-      // Add to payer's paid total
+      // Add to payer's paid total — the actual cash fronted after discounts.
       const payerStats = stats.get(receipt.payerId);
       if (payerStats) {
-        payerStats.paid = Math.round((payerStats.paid + summary.grandTotal) * 100) / 100;
+        payerStats.paid = Math.round((payerStats.paid + summary.amountPaid) * 100) / 100;
       }
       
       // Add to each person's consumed total
@@ -897,14 +964,16 @@ export function TripSummaryPanel({
     for (const id of participantIds) map.set(id, { paid: [], consumed: [] });
 
     for (const receipt of receipts) {
+      const title = receipt.title || "Untitled";
+      const details = getPersonShareDetails(receipt, participantIds);
       const receiptSubtotal = receipt.items.reduce((s, i) => s + i.total, 0);
       const grandTotal = Math.round((receiptSubtotal + receipt.tax + receipt.service) * 100) / 100;
-      const title = receipt.title || "Untitled";
+      const receiptDiscount = Math.round(details.reduce((s, d) => s + d.discount, 0) * 100) / 100;
+      const amountPaid = Math.round((grandTotal - receiptDiscount) * 100) / 100;
 
       const payerEntry = map.get(receipt.payerId);
-      if (payerEntry) payerEntry.paid.push({ receiptTitle: title, amount: grandTotal });
+      if (payerEntry) payerEntry.paid.push({ receiptTitle: title, amount: amountPaid });
 
-      const details = getPersonShareDetails(receipt, participantIds);
       for (const detail of details) {
         if (detail.total === 0) continue;
         const entry = map.get(detail.participantId);
@@ -982,7 +1051,12 @@ export function TripSummaryPanel({
     let text = `🌴 ${tripName} - Trip Summary\n`;
     text += `━━━━━━━━━━━━━━━\n\n`;
     text += `📋 ${receipts.length} receipt(s)\n`;
-    text += `💳 Total: Rp ${formatCurrency(totalGrandTotal)}\n\n`;
+    text += `💳 Total: Rp ${formatCurrency(totalGrandTotal)}\n`;
+    if (totalDiscount > 0) {
+      text += `🏷️ Discount: -Rp ${formatCurrency(totalDiscount)}\n`;
+      text += `✅ Amount paid: Rp ${formatCurrency(totalPaid)}\n`;
+    }
+    text += `\n`;
 
     if (settlements.length > 0) {
       text += `💸 Final Settlements:\n`;
@@ -1150,9 +1224,23 @@ export function TripSummaryPanel({
           <div className="text-muted-foreground font-medium pt-2 border-t">
             Trip Total
           </div>
-          <div className="text-right font-bold pt-2 border-t text-primary">
+          <div className={cn("text-right pt-2 border-t", totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
             Rp {formatCurrency(totalGrandTotal)}
           </div>
+          {totalDiscount > 0 && (
+            <>
+              <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
+              <div className="text-right text-emerald-600 dark:text-emerald-400">
+                − Rp {formatCurrency(totalDiscount)}
+              </div>
+              <div className="text-muted-foreground font-medium pt-2 border-t">
+                Amount Paid
+              </div>
+              <div className="text-right font-bold pt-2 border-t text-primary">
+                Rp {formatCurrency(totalPaid)}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Per-receipt details — expand a receipt to see who ordered what,
