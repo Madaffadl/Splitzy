@@ -27,6 +27,13 @@ import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
 
+// Attribution + light promo appended to every copied summary. This is often
+// the first time a non-user sees Splitzy (a friend gets billed, opens the
+// message), so it doubles as brand awareness and a CTA back to the app.
+function splitzyCopyFooter(origin: string): string {
+  return `\n━━━━━━━━━━━━━━━\n✨ Split with Splitzy\n${origin}\n`;
+}
+
 interface SummaryPanelProps {
   receipt: Receipt;
   participants: Participant[];
@@ -590,7 +597,8 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
   const handleCopy = async () => {
     const url = await ensureShareUrl();
     let text = generateExportText();
-    if (url) text += `\n🔗 Lihat rincian lengkap:\n${url}\n`;
+    if (url) text += `\n🔗 View full breakdown:\n${url}\n`;
+    text += splitzyCopyFooter(window.location.origin);
 
     try {
       await navigator.clipboard.writeText(text);
@@ -1059,7 +1067,8 @@ export function TripSummaryPanel({
   const handleCopy = async () => {
     const url = await ensureShareUrl();
     let text = generateExportText();
-    if (url) text += `\n🔗 Lihat rincian lengkap:\n${url}\n`;
+    if (url) text += `\n🔗 View full breakdown:\n${url}\n`;
+    text += splitzyCopyFooter(window.location.origin);
 
     try {
       await navigator.clipboard.writeText(text);

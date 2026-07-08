@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { parseSharedSummaryPayload } from "@/lib/shared-summary";
 import { SummaryPanel, TripSummaryPanel } from "@/components/SummaryPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AppFooter } from "@/components/AppFooter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -51,6 +52,8 @@ function PageShell({ children }: { children: React.ReactNode }) {
       <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow w-full">
         {children}
       </div>
+
+      <AppFooter />
     </main>
   );
 }
