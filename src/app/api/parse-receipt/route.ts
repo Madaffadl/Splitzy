@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { assertSameOrigin } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
+import { parseIndonesianPrice } from "@/lib/parser";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -126,7 +127,7 @@ Rules:
 3. "qty" should be the quantity if shown (e.g., "2x Nasi Goreng" = qty:2), default to 1
 4. "tax" is the tax amount if shown (may be labeled as Tax, PB1, PPN, Pajak)
 5. "service" is the service charge if shown (may be labeled as Service, SC, Service Charge)
-6. All prices should be numbers without currency symbols or thousand separators
+6. Prices use Indonesian formatting: "." is the THOUSANDS separator and "," is the DECIMAL separator. Return the whole-Rupiah integer value: drop the cents/decimal part, and NEVER merge the cents digits into the number. Examples: "700.000,00" -> 700000 (NOT 70000000, NOT 700); "Rp 1.234.567" -> 1234567; "25.000" -> 25000; "12.500,50" -> 12500
 7. Do NOT include subtotals, totals, payment methods, or change
 8. If you cannot read the receipt clearly, return {"items": [], "tax": 0, "service": 0}
 
@@ -174,9 +175,12 @@ Extract the items now:`;
                 const name = typeof item.name === "string" ? item.name.trim() : "";
                 if (!name) return null;
 
+                // Gemini usually returns a number, but when it returns a string
+                // it may still carry Indonesian separators — parse robustly so a
+                // stray "700.000,00" isn't deflated/inflated.
                 const priceNum = typeof item.price === "number"
                     ? item.price
-                    : parseFloat(String(item.price));
+                    : parseIndonesianPrice(String(item.price));
                 if (!Number.isFinite(priceNum) || priceNum <= 0) return null;
 
                 const qtyNum = typeof item.qty === "number"
@@ -190,8 +194,8 @@ Extract the items now:`;
             })
             .filter((item): item is { name: string; qty: number; price: number } => item !== null);
 
-        const taxRaw = typeof parsed.tax === "number" ? parsed.tax : parseFloat(String(parsed.tax));
-        const serviceRaw = typeof parsed.service === "number" ? parsed.service : parseFloat(String(parsed.service));
+        const taxRaw = typeof parsed.tax === "number" ? parsed.tax : parseIndonesianPrice(String(parsed.tax));
+        const serviceRaw = typeof parsed.service === "number" ? parsed.service : parseIndonesianPrice(String(parsed.service));
 
         return NextResponse.json({
             items: cleanedItems,

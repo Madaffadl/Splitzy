@@ -47,31 +47,47 @@ function cleanOCRText(text: string): string {
 }
 
 /**
- * Parse Indonesian price format
- * Handles: 25.000, 25,000, 25000, Rp 25.000, Rp25000
+ * Parse an Indonesian (or mixed) price string into a number.
+ *
+ * Handles: 25.000, 25,000, 25000, Rp 25.000, Rp25000, and — critically —
+ * amounts that carry a decimal/cents part such as "700.000,00", "700.000.00",
+ * or "1.234.567,89". The naive "strip every dot" approach mis-parsed these two
+ * ways: dropping to 700 (parseFloat stops at the first dot) or, on the AI path,
+ * concatenating the cents into 70.000.000.
+ *
+ * Rule: the LAST separator is a decimal point only when it is followed by
+ * exactly 1-2 digits (cents). Three trailing digits mean a thousands group, so
+ * they stay part of the integer. Everything before the decimal separator is the
+ * integer part with its grouping separators stripped. This also correctly
+ * handles US-style "1,234.56".
  */
-function parseIndonesianPrice(priceStr: string): number {
-    // Remove Rp prefix and whitespace
-    let cleaned = priceStr.replace(/^[Rr][Pp]\.?\s*/i, '').trim();
+export function parseIndonesianPrice(priceStr: string): number {
+    // Remove Rp prefix, currency symbols, and anything that isn't a digit or
+    // a separator so stray characters can't derail parseFloat.
+    const cleaned = priceStr
+        .replace(/^[Rr][Pp]\.?\s*/i, '')
+        .replace(/[^\d.,]/g, '');
 
-    // Remove any currency symbols
-    cleaned = cleaned.replace(/[$€£¥]/g, '');
+    if (!cleaned) return 0;
 
-    // Handle Indonesian format: 25.000 or 150.000 (dots as thousand separators)
-    // Pattern: 1-3 digits, then groups of .XXX
-    if (/^\d{1,3}(\.\d{3})+$/.test(cleaned)) {
-        cleaned = cleaned.replace(/\./g, '');
-    }
-    // Handle comma as thousand separator: 25,000 or 150,000
-    else if (/^\d{1,3}(,\d{3})+$/.test(cleaned)) {
-        cleaned = cleaned.replace(/,/g, '');
-    }
-    // Handle decimal with comma: 25,50 (European)
-    else if (/^\d+,\d{1,2}$/.test(cleaned)) {
-        cleaned = cleaned.replace(',', '.');
+    const lastSep = Math.max(cleaned.lastIndexOf('.'), cleaned.lastIndexOf(','));
+
+    let normalized: string;
+    if (lastSep === -1) {
+        normalized = cleaned;
+    } else {
+        const fraction = cleaned.slice(lastSep + 1);
+        if (/^\d{1,2}$/.test(fraction)) {
+            // Decimal/cents part: keep it, strip grouping from the integer part.
+            const intPart = cleaned.slice(0, lastSep).replace(/[.,]/g, '');
+            normalized = `${intPart}.${fraction}`;
+        } else {
+            // All separators are thousands groups.
+            normalized = cleaned.replace(/[.,]/g, '');
+        }
     }
 
-    const value = parseFloat(cleaned);
+    const value = parseFloat(normalized);
     return isNaN(value) ? 0 : value;
 }
 
