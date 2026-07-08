@@ -50,9 +50,18 @@ export interface SharedReceipt {
   items: SharedItem[];
 }
 
+export interface SharedPaymentInfo {
+  bank?: string;
+  accountNumber?: string;
+  accountName?: string;
+}
+
 export interface SharedParticipant {
   id: string;
   name: string;
+  // Optional bank/e-wallet details, carried through so a shared link shows the
+  // recipient's account. Validated by validateParticipantsJson on write + read.
+  paymentInfo?: SharedPaymentInfo;
 }
 
 export interface SharedSummaryPayload {

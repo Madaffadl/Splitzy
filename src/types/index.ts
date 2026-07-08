@@ -1,8 +1,21 @@
 // Core type definitions for SplitBill Trip
 
+// Optional bank/e-wallet details so people who owe money know where to transfer.
+// Every field is optional — a participant may fill in only what they want, and
+// the whole object is omitted when nothing meaningful is entered.
+export interface PaymentInfo {
+    bank?: string;          // Bank / e-wallet name, e.g. "BCA", "GoPay"
+    accountNumber?: string; // Account / phone number ("No. Rekening")
+    accountName?: string;   // Account holder name ("Nama Pemilik")
+}
+
 export interface Participant {
     id: string;
     name: string;
+    // Where this person should be paid. Only meaningful for people who are owed
+    // money (settlement recipients), but stored per-participant so single and
+    // trip flows share one model.
+    paymentInfo?: PaymentInfo;
 }
 
 export interface ItemAssignment {

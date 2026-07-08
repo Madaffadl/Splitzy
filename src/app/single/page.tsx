@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Participant, ReceiptItem, Receipt } from "@/types";
+import { Participant, ReceiptItem, Receipt, PaymentInfo } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId } from "@/lib/utils";
@@ -188,6 +188,17 @@ export default function SinglePage() {
 
   const updateState = (updates: Partial<SingleState>) => {
     setState((prev) => ({ ...prev, ...updates }));
+  };
+
+  // Attach/update/clear a participant's bank details from the summary. Passing
+  // `undefined` clears it (JSON serialization drops the empty key).
+  const updatePaymentInfo = (participantId: string, info: PaymentInfo | undefined) => {
+    setState((prev) => ({
+      ...prev,
+      participants: prev.participants.map((p) =>
+        p.id === participantId ? { ...p, paymentInfo: info } : p
+      ),
+    }));
   };
 
   const loadSampleData = () => {
@@ -439,6 +450,7 @@ export default function SinglePage() {
                     receipt={receipt}
                     participants={state.participants}
                     title={state.title}
+                    onUpdatePaymentInfo={updatePaymentInfo}
                   />
                 </ErrorBoundary>
 
@@ -496,6 +508,7 @@ export default function SinglePage() {
                   receipt={receipt}
                   participants={state.participants}
                   title={state.title}
+                  onUpdatePaymentInfo={updatePaymentInfo}
                 />
               </ErrorBoundary>
             </div>

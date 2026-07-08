@@ -102,6 +102,38 @@ describe("validateSharedSummaryInput", () => {
       })
     ).toThrow(/exactly one/i);
   });
+
+  it("carries participant paymentInfo through the snapshot", () => {
+    const out = validateSharedSummaryInput({
+      ...validTrip,
+      participants: [
+        {
+          id: "p1",
+          name: "Alex",
+          paymentInfo: { bank: "BCA", accountNumber: "1234567890", accountName: "Alex P" },
+        },
+        { id: "p2", name: "Bella" },
+      ],
+    });
+    expect(out.participants[0].paymentInfo).toEqual({
+      bank: "BCA",
+      accountNumber: "1234567890",
+      accountName: "Alex P",
+    });
+    // Absent on those who didn't set it.
+    expect(out.participants[1].paymentInfo).toBeUndefined();
+  });
+
+  it("drops an all-empty paymentInfo object", () => {
+    const out = validateSharedSummaryInput({
+      ...validTrip,
+      participants: [
+        { id: "p1", name: "Alex", paymentInfo: { bank: "  ", accountNumber: "" } },
+        { id: "p2", name: "Bella" },
+      ],
+    });
+    expect(out.participants[0].paymentInfo).toBeUndefined();
+  });
 });
 
 describe("parseSharedSummaryPayload", () => {

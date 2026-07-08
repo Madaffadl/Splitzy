@@ -1,12 +1,28 @@
 "use client";
 
-import { Receipt, Participant, PersonShareDetail } from "@/types";
+import { Receipt, Participant, PersonShareDetail, PaymentInfo } from "@/types";
 import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, getWalletStats, buildSettlementTrace } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
+import {
+  formatPaymentInfoText,
+  normalizePaymentInfo,
+  hasPaymentInfo,
+  PAYMENT_INFO_LIMITS,
+} from "@/lib/payment-info";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
@@ -18,6 +34,201 @@ interface SummaryPanelProps {
   // When true (public read-only views), hide the CSV/Share/Export actions and
   // drop the sidebar `sticky` so several panels can stack in a list.
   readOnly?: boolean;
+  // When provided (editable contexts), each settlement recipient gets an
+  // add/edit affordance for their bank/e-wallet details. Omitted in read-only
+  // views, where payment info is shown but not editable.
+  onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
+}
+
+// One recipient's payment details as a card row inside the "Rekening Tujuan"
+// section. Shows the saved account (or a placeholder) and, in editable
+// contexts (onSave provided), an add/edit dialog with a clear option.
+function PaymentDestinationRow({
+  participant,
+  readOnly,
+  onSave,
+}: {
+  participant: Participant;
+  readOnly: boolean;
+  onSave?: (info: PaymentInfo | undefined) => void;
+}) {
+  const info = participant.paymentInfo;
+  const line = formatPaymentInfoText(info);
+  const editable = !readOnly && !!onSave;
+
+  const [open, setOpen] = useState(false);
+  const [bank, setBank] = useState(info?.bank ?? "");
+  const [accountNumber, setAccountNumber] = useState(info?.accountNumber ?? "");
+  const [accountName, setAccountName] = useState(info?.accountName ?? "");
+
+  const openDialog = () => {
+    // Seed the form with the latest saved values each time it opens.
+    setBank(info?.bank ?? "");
+    setAccountNumber(info?.accountNumber ?? "");
+    setAccountName(info?.accountName ?? "");
+    setOpen(true);
+  };
+
+  const handleSave = () => {
+    onSave?.(normalizePaymentInfo({ bank, accountNumber, accountName }));
+    setOpen(false);
+  };
+
+  const handleClear = () => {
+    onSave?.(undefined);
+    setOpen(false);
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2.5">
+      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+        <div className="h-7 w-7 shrink-0 rounded-md bg-primary/10 flex items-center justify-center">
+          <Landmark className="h-3.5 w-3.5 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-tight">{participant.name}</p>
+          {line ? (
+            <p className="mt-0.5 text-xs text-muted-foreground break-all">{line}</p>
+          ) : (
+            <p className="mt-0.5 text-xs italic text-muted-foreground/70">
+              No account added
+            </p>
+          )}
+        </div>
+      </div>
+      {editable && (
+        <Button
+          type="button"
+          variant={line ? "ghost" : "outline"}
+          size="sm"
+          onClick={openDialog}
+          className="h-8 shrink-0"
+        >
+          {line ? (
+            <>
+              <Pencil className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Edit</span>
+            </>
+          ) : (
+            <>
+              <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Add</span>
+            </>
+          )}
+        </Button>
+      )}
+
+      {editable && (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Payment details</DialogTitle>
+              <DialogDescription>
+                Where to pay {participant.name} so others can transfer directly.
+                All fields are optional.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Bank / E-Wallet</Label>
+                <Input
+                  value={bank}
+                  maxLength={PAYMENT_INFO_LIMITS.bank}
+                  onChange={(e) => setBank(e.target.value)}
+                  placeholder="e.g. BCA, GoPay, OVO"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Account Number</Label>
+                <Input
+                  value={accountNumber}
+                  maxLength={PAYMENT_INFO_LIMITS.accountNumber}
+                  inputMode="numeric"
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  placeholder="e.g. 1234567890"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Account Holder Name</Label>
+                <Input
+                  value={accountName}
+                  maxLength={PAYMENT_INFO_LIMITS.accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="e.g. Alex Pratama"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              {hasPaymentInfo(info) && (
+                <Button
+                  variant="ghost"
+                  onClick={handleClear}
+                  className="text-destructive hover:text-destructive sm:mr-auto"
+                >
+                  Remove
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave}>Save</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+// "Rekening Tujuan" — one deduped row per unique settlement recipient, shown
+// below the settlements list. Payment info belongs to the recipient (a person),
+// not to each transfer, so rendering it once per person avoids the repetition
+// of showing the same account on every "X → Y" line. In read-only views only
+// recipients with saved details appear (section hides when none); in editable
+// views every recipient is listed so each can be filled in.
+function PaymentDestinationsSection({
+  recipientIds,
+  participantsById,
+  getParticipantName,
+  readOnly,
+  onUpdatePaymentInfo,
+}: {
+  recipientIds: string[];
+  participantsById: Map<string, Participant>;
+  getParticipantName: (id: string) => string;
+  readOnly: boolean;
+  onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
+}) {
+  const editable = !readOnly && !!onUpdatePaymentInfo;
+  const recipients = recipientIds
+    .map((id) => participantsById.get(id) ?? { id, name: getParticipantName(id) })
+    .filter((p) => editable || hasPaymentInfo(p.paymentInfo));
+
+  if (recipients.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+        <Landmark className="h-4 w-4" />
+        Payment Details
+        {editable && <span className="text-xs font-normal">(where to pay)</span>}
+      </h4>
+      <div className="space-y-2">
+        {recipients.map((p) => (
+          <PaymentDestinationRow
+            key={p.id}
+            participant={p}
+            readOnly={readOnly}
+            onSave={
+              onUpdatePaymentInfo
+                ? (info) => onUpdatePaymentInfo(p.id, info)
+                : undefined
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // Expandable person row component for audit view
@@ -205,7 +416,7 @@ function ReceiptBreakdown({
   );
 }
 
-export function SummaryPanel({ receipt, participants, title, readOnly = false }: SummaryPanelProps) {
+export function SummaryPanel({ receipt, participants, title, readOnly = false, onUpdatePaymentInfo }: SummaryPanelProps) {
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session.
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -238,6 +449,20 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false }:
     [summary.balances]
   );
 
+  // Unique recipients (settlement "to" side), in settlement order. Payment
+  // details are shown once per recipient in the "Rekening Tujuan" section.
+  const recipientIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const s of settlements) {
+      if (!seen.has(s.to)) {
+        seen.add(s.to);
+        ids.push(s.to);
+      }
+    }
+    return ids;
+  }, [settlements]);
+
   const { isPaid, togglePaid } = usePaidSettlements(`receipt:${receipt.id}`);
 
   // Memoized name lookup — settlements + per-person breakdown can call this
@@ -248,6 +473,25 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false }:
     return map;
   }, [participants]);
   const getParticipantName = (id: string) => participantNames.get(id) || "Unknown";
+
+  const participantsById = useMemo(() => {
+    const map = new Map<string, Participant>();
+    for (const p of participants) map.set(p.id, p);
+    return map;
+  }, [participants]);
+
+  // Deduped "Rekening tujuan" block for the copy text (one line per recipient),
+  // mirroring the on-screen section. Empty string when no recipient has details.
+  const formatPaymentDestinations = (ids: string[]): string => {
+    const lines = ids
+      .map((id) => ({
+        name: getParticipantName(id),
+        line: formatPaymentInfoText(participantsById.get(id)?.paymentInfo),
+      }))
+      .filter((d) => d.line);
+    if (lines.length === 0) return "";
+    return `\n🏦 Payment details:\n` + lines.map((d) => `• ${d.name}: ${d.line}\n`).join("");
+  };
 
   const generateExportText = () => {
     let text = `💰 ${title || receipt.title || "Bill Split"}\n`;
@@ -268,6 +512,7 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false }:
       for (const s of settlements) {
         text += `• ${getParticipantName(s.from)} → ${getParticipantName(s.to)}: Rp ${formatCurrency(s.amount)}\n`;
       }
+      text += formatPaymentDestinations(recipientIds);
     } else {
       text += `\n✅ All settled!\n`;
     }
@@ -522,6 +767,15 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false }:
             </div>
           )}
         </div>
+
+        {/* Payment destinations — one row per unique recipient (deduped). */}
+        <PaymentDestinationsSection
+          recipientIds={recipientIds}
+          participantsById={participantsById}
+          getParticipantName={getParticipantName}
+          readOnly={readOnly}
+          onUpdatePaymentInfo={onUpdatePaymentInfo}
+        />
       </CardContent>
     </Card>
   );
@@ -536,6 +790,9 @@ interface TripSummaryPanelProps {
   // When true (the public /s/<code> view), hide the Share/Copy actions — the
   // viewer is already looking at the shared snapshot and can't edit it.
   readOnly?: boolean;
+  // Editable contexts pass this to let each settlement recipient add/edit their
+  // bank/e-wallet details. Omitted in the read-only shared view.
+  onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
 }
 
 export function TripSummaryPanel({
@@ -544,6 +801,7 @@ export function TripSummaryPanel({
   tripName,
   tripId,
   readOnly = false,
+  onUpdatePaymentInfo,
 }: TripSummaryPanelProps) {
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session
@@ -661,6 +919,20 @@ export function TripSummaryPanel({
     [aggregateBalances]
   );
 
+  // Unique recipients (settlement "to" side), in settlement order. Payment
+  // details are shown once per recipient in the "Rekening Tujuan" section.
+  const recipientIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const s of settlements) {
+      if (!seen.has(s.to)) {
+        seen.add(s.to);
+        ids.push(s.to);
+      }
+    }
+    return ids;
+  }, [settlements]);
+
   const { isPaid, togglePaid } = usePaidSettlements(`trip:${tripId ?? tripName}`);
 
   const [showTrace, setShowTrace] = useState(false);
@@ -679,6 +951,25 @@ export function TripSummaryPanel({
   }, [participants]);
   const getParticipantName = (id: string) => participantNames.get(id) || "Unknown";
 
+  const participantsById = useMemo(() => {
+    const map = new Map<string, Participant>();
+    for (const p of participants) map.set(p.id, p);
+    return map;
+  }, [participants]);
+
+  // Deduped "Rekening tujuan" block for the copy text (one line per recipient),
+  // mirroring the on-screen section. Empty string when no recipient has details.
+  const formatPaymentDestinations = (ids: string[]): string => {
+    const lines = ids
+      .map((id) => ({
+        name: getParticipantName(id),
+        line: formatPaymentInfoText(participantsById.get(id)?.paymentInfo),
+      }))
+      .filter((d) => d.line);
+    if (lines.length === 0) return "";
+    return `\n🏦 Payment details:\n` + lines.map((d) => `• ${d.name}: ${d.line}\n`).join("");
+  };
+
   const generateExportText = () => {
     let text = `🌴 ${tripName} - Trip Summary\n`;
     text += `━━━━━━━━━━━━━━━\n\n`;
@@ -690,6 +981,7 @@ export function TripSummaryPanel({
       for (const s of settlements) {
         text += `• ${getParticipantName(s.from)} → ${getParticipantName(s.to)}: Rp ${formatCurrency(s.amount)}\n`;
       }
+      text += formatPaymentDestinations(recipientIds);
     } else {
       text += `✅ Everyone is settled!\n`;
     }
@@ -1108,6 +1400,15 @@ export function TripSummaryPanel({
             </div>
           )}
         </div>
+
+        {/* Payment destinations — one row per unique recipient (deduped). */}
+        <PaymentDestinationsSection
+          recipientIds={recipientIds}
+          participantsById={participantsById}
+          getParticipantName={getParticipantName}
+          readOnly={readOnly}
+          onUpdatePaymentInfo={onUpdatePaymentInfo}
+        />
       </CardContent>
     </Card>
   );

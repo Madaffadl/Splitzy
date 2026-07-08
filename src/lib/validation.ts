@@ -85,12 +85,58 @@ function asStringArray(value: unknown, field: string, maxItems = 50): string[] {
   return value.map((v, i) => asString(v, `${field}[${i}]`, 100));
 }
 
+export interface ValidatedPaymentInfo {
+  bank?: string;
+  accountNumber?: string;
+  accountName?: string;
+}
+
 export interface ValidatedParticipant {
   id: string;
   name: string;
+  paymentInfo?: ValidatedPaymentInfo;
 }
 
 const MAX_PARTICIPANTS = 100;
+
+// Length ceilings mirror src/lib/payment-info.ts PAYMENT_INFO_LIMITS.
+const MAX_BANK = 60;
+const MAX_ACCOUNT_NUMBER = 40;
+const MAX_ACCOUNT_NAME = 100;
+
+/**
+ * Validate the optional per-participant payment details. All three fields are
+ * optional; a blank/whitespace field is dropped. Returns undefined when nothing
+ * meaningful is present so the stored/shared payload stays clean.
+ */
+export function validatePaymentInfo(
+  value: unknown,
+  field: string
+): ValidatedPaymentInfo | undefined {
+  if (value == null) return undefined;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new ValidationError(field, "must be an object");
+  }
+  const r = value as Record<string, unknown>;
+  const optionalString = (v: unknown, name: string, max: number): string | undefined => {
+    if (v == null) return undefined;
+    const s = asString(v, name, max, true);
+    return s || undefined;
+  };
+  const bank = optionalString(r.bank, `${field}.bank`, MAX_BANK);
+  const accountNumber = optionalString(
+    r.accountNumber,
+    `${field}.accountNumber`,
+    MAX_ACCOUNT_NUMBER
+  );
+  const accountName = optionalString(
+    r.accountName,
+    `${field}.accountName`,
+    MAX_ACCOUNT_NAME
+  );
+  if (!bank && !accountNumber && !accountName) return undefined;
+  return { bank, accountNumber, accountName };
+}
 
 /**
  * Validate the optional `participantsJson` payload.
@@ -127,7 +173,8 @@ export function validateParticipantsJson(
       throw new ValidationError(`${field}[${idx}].id`, "duplicate participant id");
     }
     seen.add(id);
-    return { id, name };
+    const paymentInfo = validatePaymentInfo(r.paymentInfo, `${field}[${idx}].paymentInfo`);
+    return paymentInfo ? { id, name, paymentInfo } : { id, name };
   });
   return result;
 }

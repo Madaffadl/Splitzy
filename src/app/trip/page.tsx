@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Participant, ReceiptItem, Receipt, Trip } from "@/types";
+import { Participant, ReceiptItem, Receipt, Trip, PaymentInfo } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
 import { generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -176,6 +176,19 @@ export default function TripPage() {
 
   const getParticipantName = (id: string) =>
     trip.participants.find((p) => p.id === id)?.name || "Unknown";
+
+  // Attach/update/clear a trip participant's bank details from the summary.
+  // Passing `undefined` clears it (JSON serialization drops the empty key).
+  const updateParticipantPaymentInfo = (
+    participantId: string,
+    info: PaymentInfo | undefined
+  ) => {
+    updateTrip({
+      participants: trip.participants.map((p) =>
+        p.id === participantId ? { ...p, paymentInfo: info } : p
+      ),
+    });
+  };
 
   // Calculate receipt total for display
   const getReceiptTotal = (receipt: Receipt) => {
@@ -388,6 +401,7 @@ export default function TripPage() {
                   participants={trip.participants}
                   tripName={trip.name}
                   tripId={trip.id}
+                  onUpdatePaymentInfo={updateParticipantPaymentInfo}
                 />
               </ErrorBoundary>
             </div>
@@ -521,6 +535,7 @@ export default function TripPage() {
                   receipt={editingReceipt.receipt}
                   participants={trip.participants}
                   title={editingReceipt.receipt.title}
+                  onUpdatePaymentInfo={updateParticipantPaymentInfo}
                 />
               </ErrorBoundary>
             </div>
