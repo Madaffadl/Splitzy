@@ -125,6 +125,7 @@ export default async function SharedSplitPage({
             participants={payload.participants}
             splitName={payload.title}
             splitId={code}
+            budget={payload.budget}
             readOnly
           />
         )}

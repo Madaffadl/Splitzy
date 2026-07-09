@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag } from "lucide-react";
+import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
@@ -194,7 +194,7 @@ function PaymentDestinationRow({
 // of showing the same account on every "X → Y" line. In read-only views only
 // recipients with saved details appear (section hides when none); in editable
 // views every recipient is listed so each can be filled in.
-function PaymentDestinationsSection({
+export function PaymentDestinationsSection({
   recipientIds,
   participantsById,
   getParticipantName,
@@ -353,17 +353,23 @@ function PersonBreakdown({
   );
 }
 
-// One receipt as an expandable row inside the Multiple Receipts summary. Collapsed it
-// shows the receipt title + total; expanded it reveals each person's per-item
-// breakdown — the same PersonBreakdown used in the single-receipt view.
-function ReceiptBreakdown({
+// One receipt as an expandable row. Collapsed it shows the receipt title +
+// total; expanded it reveals each person's per-item breakdown (the same
+// PersonBreakdown used in the single-receipt view). Optional onEdit/onDelete
+// render icon actions beside the toggle — used by the Travel Spend receipts list
+// so receipt details live there instead of in the summary.
+export function ReceiptBreakdown({
   receipt,
   participants,
   index,
+  onEdit,
+  onDelete,
 }: {
   receipt: Receipt;
   participants: Participant[];
   index: number;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -388,27 +394,53 @@ function ReceiptBreakdown({
 
   return (
     <div className="rounded-md border overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded bg-primary/10 px-1 text-xs font-semibold text-primary">
-            {index + 1}
-          </span>
-          <span className="font-medium truncate">{receipt.title}</span>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="font-semibold text-primary">
-            Rp {formatCurrency(summary.amountPaid)}
-          </span>
-          {expanded ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
-        </div>
-      </button>
+      <div className="flex items-center">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 min-w-0 flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded bg-primary/10 px-1 text-xs font-semibold text-primary">
+              {index + 1}
+            </span>
+            <span className="font-medium truncate">{receipt.title}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="font-semibold text-primary">
+              Rp {formatCurrency(summary.amountPaid)}
+            </span>
+            {expanded ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+        </button>
+        {(onEdit || onDelete) && (
+          <div className="flex items-center gap-0.5 pr-1 shrink-0">
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                aria-label={`Edit ${receipt.title}`}
+                className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                aria-label={`Delete ${receipt.title}`}
+                className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {expanded && (
         <div className="px-3 pb-3 pt-2 bg-muted/30 border-t space-y-2 animate-fade-in">
@@ -854,6 +886,16 @@ interface MultipleReceiptSummaryPanelProps {
   participants: Participant[];
   splitName: string;
   splitId?: string;
+  // Optional spending target (Travel Spend). When set, a Budget vs Spent
+  // progress block is shown.
+  budget?: number;
+  // When false, the per-receipt "Receipt Details" section is hidden (Travel
+  // Spend shows those details in its Receipts list instead, to keep the
+  // summary compact). Defaults to true.
+  showReceiptDetails?: boolean;
+  // Compact mode (Travel Spend overview sidebar): show only Total, Budget, and
+  // per-person net — the full breakdown lives on the dedicated summary view.
+  compact?: boolean;
   // When true (the public /s/<code> view), hide the Share/Copy actions — the
   // viewer is already looking at the shared snapshot and can't edit it.
   readOnly?: boolean;
@@ -867,6 +909,9 @@ export function MultipleReceiptSummaryPanel({
   participants,
   splitName,
   splitId,
+  budget,
+  showReceiptDetails = true,
+  compact = false,
   readOnly = false,
   onUpdatePaymentInfo,
 }: MultipleReceiptSummaryPanelProps) {
@@ -1082,10 +1127,13 @@ export function MultipleReceiptSummaryPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "multiple",
+          // A trip with a budget is a Travel Spend share; carry the budget so
+          // the shared view can show Budget vs Spent.
+          type: budget != null ? "travel" : "multiple",
           title: splitName,
           participants,
           receipts,
+          ...(budget != null ? { budget } : {}),
         }),
       });
       if (!res.ok) {
@@ -1169,6 +1217,74 @@ export function MultipleReceiptSummaryPanel({
     );
   }
 
+  // Compact overview: totals + budget + per-person net only. The full breakdown
+  // (wallet detail, settlements, payment accounts, receipts) lives on the
+  // dedicated summary view.
+  if (compact) {
+    const over = budget != null && budget > 0 && totalPaid > budget;
+    const pct = budget != null && budget > 0 ? Math.min(100, Math.round((totalPaid / budget) * 100)) : 0;
+    return (
+      <Card className={cn(!readOnly && "sticky top-4")}>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Total spent</span>
+            <span className="text-lg font-bold text-primary">Rp {formatCurrency(totalGrandTotal)}</span>
+          </div>
+
+          {budget != null && budget > 0 && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Target className="h-4 w-4" />
+                  Budget
+                </span>
+                <span className="font-medium">Rp {formatCurrency(budget)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all", over ? "bg-red-500" : "bg-emerald-500")}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className={cn("text-xs text-right", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                {over ? `Over by Rp ${formatCurrency(totalPaid - budget)}` : `Rp ${formatCurrency(budget - totalPaid)} left`}
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-muted-foreground">Balances</h4>
+            <div className="space-y-1">
+              {Array.from(aggregateBalances.entries()).map(([id, net]) => (
+                <div key={id} className="flex items-center justify-between text-sm">
+                  <span className="truncate">{getParticipantName(id)}</span>
+                  <span
+                    className={cn(
+                      "font-semibold shrink-0",
+                      net > 0.01
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : net < -0.01
+                        ? "text-red-500"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {net > 0.01 ? "+" : net < -0.01 ? "-" : ""}Rp {formatCurrency(Math.abs(net))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className={cn(!readOnly && "sticky top-4")}>
       <CardHeader className="pb-3">
@@ -1244,24 +1360,57 @@ export function MultipleReceiptSummaryPanel({
           )}
         </div>
 
+        {/* Budget vs Spent (Travel Spend) */}
+        {budget != null && budget > 0 && (() => {
+          const spent = totalPaid;
+          const over = spent > budget;
+          const pct = Math.min(100, Math.round((spent / budget) * 100));
+          return (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Target className="h-4 w-4" />
+                  Budget
+                </span>
+                <span className="font-medium">Rp {formatCurrency(budget)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full transition-all", over ? "bg-red-500" : "bg-emerald-500")}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className={cn("text-xs text-right", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                {over
+                  ? `Over budget by Rp ${formatCurrency(spent - budget)}`
+                  : `Rp ${formatCurrency(budget - spent)} left`}
+                {" · "}spent Rp {formatCurrency(spent)}
+              </p>
+            </div>
+          );
+        })()}
+
         {/* Per-receipt details — expand a receipt to see who ordered what,
-            the same breakdown as the single-receipt view. */}
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            Receipt Details
-            <span className="text-xs font-normal">(tap to expand)</span>
-          </h4>
+            the same breakdown as the single-receipt view. Hidden when the host
+            (Travel Spend) surfaces these in its own Receipts list. */}
+        {showReceiptDetails && (
           <div className="space-y-2">
-            {receipts.map((r, i) => (
-              <ReceiptBreakdown
-                key={r.id}
-                receipt={r}
-                participants={participants}
-                index={i}
-              />
-            ))}
+            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              Receipt Details
+              <span className="text-xs font-normal">(tap to expand)</span>
+            </h4>
+            <div className="space-y-2">
+              {receipts.map((r, i) => (
+                <ReceiptBreakdown
+                  key={r.id}
+                  receipt={r}
+                  participants={participants}
+                  index={i}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Wallet Tracking */}
         <div className="space-y-2">

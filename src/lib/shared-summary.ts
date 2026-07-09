@@ -77,11 +77,13 @@ export interface SharedParticipant {
 
 export interface SharedSummaryPayload {
   v: typeof SHARE_PAYLOAD_VERSION;
-  type: "multiple" | "single";
+  type: "multiple" | "single" | "travel";
   title: string;
   participants: SharedParticipant[];
-  // Always an array. For type "single" it holds exactly one receipt.
+  // All three modes are receipt-based; "single" holds exactly one receipt.
   receipts: SharedReceipt[];
+  // Optional spending target, only meaningful for "travel".
+  budget?: number;
 }
 
 // --- Local primitive validators (validation.ts keeps its helpers private) ---
@@ -199,8 +201,8 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
   }
   const b = body as Record<string, unknown>;
 
-  if (b.type !== "multiple" && b.type !== "single") {
-    throw new ValidationError("type", "must be 'multiple' or 'single'");
+  if (b.type !== "multiple" && b.type !== "single" && b.type !== "travel") {
+    throw new ValidationError("type", "must be 'multiple', 'single', or 'travel'");
   }
   const type = b.type;
 
@@ -211,6 +213,13 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
     throw new ValidationError("participants", "must have at least one participant");
   }
   const participantIds = new Set(participants.map((p) => p.id));
+
+  // Optional spending target (Travel Spend); dropped unless positive.
+  let budget: number | undefined;
+  if (b.budget != null && b.budget !== "") {
+    const parsed = asMoney(b.budget, "budget");
+    budget = parsed > 0 ? parsed : undefined;
+  }
 
   if (!Array.isArray(b.receipts)) {
     throw new ValidationError("receipts", "must be an array");
@@ -291,7 +300,7 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
     };
   });
 
-  return { v: SHARE_PAYLOAD_VERSION, type, title, participants, receipts };
+  return { v: SHARE_PAYLOAD_VERSION, type, title, participants, receipts, ...(budget ? { budget } : {}) };
 }
 
 /** Re-parse a stored row's payload, returning null if it's malformed/legacy. */

@@ -42,7 +42,7 @@ describe("validateSharedSummaryInput", () => {
     expect(out.type).toBe("multiple");
     expect(out.title).toBe("Bali Trip");
     expect(out.participants).toHaveLength(2);
-    expect(out.receipts[0].items[0].assignedToIds).toEqual(["p1", "p2"]);
+    expect(out.receipts![0].items[0].assignedToIds).toEqual(["p1", "p2"]);
   });
 
   it("strips unknown fields (only known shape is persisted)", () => {
@@ -52,7 +52,7 @@ describe("validateSharedSummaryInput", () => {
       receipts: [{ ...validTrip.receipts[0], secret: 42 }],
     });
     expect(out).not.toHaveProperty("evil");
-    expect(out.receipts[0]).not.toHaveProperty("secret");
+    expect(out.receipts![0]).not.toHaveProperty("secret");
   });
 
   it("rejects an invalid type", () => {
@@ -149,8 +149,8 @@ describe("validateSharedSummaryInput", () => {
         },
       ],
     });
-    expect(out.receipts[0].discounts).toHaveLength(3);
-    expect(out.receipts[0].discounts![0]).toMatchObject({ scope: "participant", targetId: "p1" });
+    expect(out.receipts![0].discounts).toHaveLength(3);
+    expect(out.receipts![0].discounts![0]).toMatchObject({ scope: "participant", targetId: "p1" });
   });
 
   it("rejects a discount targeting an unknown item/participant", () => {
@@ -179,6 +179,42 @@ describe("validateSharedSummaryInput", () => {
         ],
       })
     ).toThrow(/percent/i);
+  });
+});
+
+describe("travel shares", () => {
+  const validTravel = {
+    type: "travel" as const,
+    title: "Bali",
+    budget: 5_000_000,
+    participants: [
+      { id: "p1", name: "Alex" },
+      { id: "p2", name: "Bella" },
+    ],
+    receipts: [
+      {
+        id: "r1",
+        title: "Dinner",
+        payerId: "p1",
+        tax: 0,
+        service: 0,
+        items: [
+          { id: "i1", name: "Pizza", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["p1", "p2"] },
+        ],
+      },
+    ],
+  };
+
+  it("accepts a receipt-based travel payload and carries the budget", () => {
+    const out = validateSharedSummaryInput(validTravel);
+    expect(out.type).toBe("travel");
+    expect(out.budget).toBe(5_000_000);
+    expect(out.receipts).toHaveLength(1);
+  });
+
+  it("drops a non-positive budget", () => {
+    const out = validateSharedSummaryInput({ ...validTravel, budget: 0 });
+    expect(out.budget).toBeUndefined();
   });
 });
 

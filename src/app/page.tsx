@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Layers, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft, History } from "lucide-react";
+import { Receipt, Layers, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft, History } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { useAuth } from "@/hooks/useAuth";
@@ -157,7 +157,7 @@ export default function Home() {
           </div>
 
           {/* Mode Selection */}
-          <div className="grid md:grid-cols-2 gap-5 pt-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-4">
             {/* Single Receipt Card */}
             <Link
               href="/single"
@@ -233,6 +233,49 @@ export default function Home() {
                 <div className="flex items-center gap-2 text-sm font-semibold text-accent">
                   <span>Start Splitting</span>
                   <div className="w-6 h-6 rounded-full bg-accent/10 flex items-center justify-center group-hover:bg-accent group-hover:text-accent-foreground transition-all duration-300">
+                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            {/* Travel Spend Card */}
+            <Link
+              href="/travel"
+              className="group relative overflow-hidden rounded-2xl border-2 border-transparent bg-card p-6 text-left transition-all duration-500 hover:shadow-premium-lg hover:border-emerald-500/30 hover-lift animate-fade-in-right stagger-4 sm:col-span-2 lg:col-span-1"
+            >
+              {/* Animated Background Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+              {/* Decorative gradient */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-emerald-500/20 via-emerald-500/5 to-transparent rounded-bl-full opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500" />
+
+              {/* Shimmer overlay */}
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 group-hover:animate-shimmer transition-opacity duration-300" />
+
+              <div className="relative">
+                {/* New badge */}
+                <div className="absolute top-4 right-4 px-2.5 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold shadow-md shadow-emerald-500/30 animate-bounce-in z-10">
+                  NEW
+                </div>
+
+                {/* Icon */}
+                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mb-5 group-hover:scale-110 group-hover:shadow-lg group-hover:shadow-emerald-500/20 transition-all duration-500">
+                  <Plane className="h-7 w-7 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-300" />
+                </div>
+
+                {/* Content */}
+                <h2 className="text-xl font-bold mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors duration-300">
+                  Travel Spend
+                </h2>
+                <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
+                  Log expenses across a whole trip and see who owes whom, anytime.
+                </p>
+
+                {/* CTA */}
+                <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span>Start a Trip</span>
+                  <div className="w-6 h-6 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
                     <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
                 </div>

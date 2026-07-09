@@ -71,6 +71,18 @@ export interface Trip {
     receipts: Receipt[];
 }
 
+// --- Travel Spend ---
+// An ongoing trip that groups several itemized receipts (same Receipt shape as
+// the Single/Multiple modes, so it supports scan, manual entry, per-quantity
+// assignment, tax/service, and discounts) plus an optional budget target.
+export interface TravelTrip {
+    id: string;
+    name: string;
+    budget?: number;
+    participants: Participant[];
+    receipts: Receipt[];
+}
+
 // Calculation result types
 export interface PersonShare {
     participantId: string;
