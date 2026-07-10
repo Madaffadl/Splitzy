@@ -24,7 +24,7 @@ const DEFAULT: TravelStore = { trips: [], activeId: null };
  * receipt.id as the primary key), so no separate _rid tracking is needed.
  */
 export function useTravelData() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, dbUser } = useAuth();
   const [local, setLocal] = useLocalStorage<TravelStore>(LOCAL_KEY, DEFAULT);
 
   // ── Cloud state ──────────────────────────────────────────────────────────
@@ -34,6 +34,10 @@ export function useTravelData() {
   const cloudRef = useRef<TravelTrip[]>([]);
   const [cloudActiveId, setCloudActiveId] = useState<string | null>(null);
   const [cloudLoaded, setCloudLoaded] = useState(false);
+  // Bumped whenever cloud state is authoritatively replaced (a fresh load or a
+  // sync). An in-flight loadCloud whose sequence is stale on resolve is dropped,
+  // so a slow initial load can't clobber trips a subsequent sync just added.
+  const loadSeqRef = useRef(0);
 
   // Sync dialog: offer to push local trips to cloud when user signs in.
   const [showSyncDialog, setShowSyncDialog] = useState(false);
@@ -52,20 +56,16 @@ export function useTravelData() {
   );
 
   // ── Cloud load ────────────────────────────────────────────────────────────
+  // Single request: the list endpoint returns fully-hydrated trips, so there's
+  // no per-trip N+1 fetch (that waterfall is what made loading feel slow).
   const loadCloud = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     try {
-      const listRes = await fetch("/api/travel");
-      if (!listRes.ok) return;
-      const { trips: summary } = (await listRes.json()) as { trips: { id: string }[] };
-
-      // Fetch each trip fully in parallel (N+1 is fine for personal use).
-      const full = await Promise.all(
-        summary.map(async ({ id }) => {
-          const r = await fetch(`/api/travel/${id}`);
-          return r.ok ? ((await r.json()) as TravelTrip) : null;
-        })
-      );
-      setCloudTrips(full.filter(Boolean) as TravelTrip[]);
+      const res = await fetch("/api/travel");
+      if (!res.ok) return;
+      const { trips } = (await res.json()) as { trips: TravelTrip[] };
+      // Drop a stale response (e.g. a sync bumped the sequence while in flight).
+      if (seq === loadSeqRef.current) setCloudTrips(trips);
     } catch {
       // Network failure — cloud list stays empty; user can still work locally.
     } finally {
@@ -113,10 +113,10 @@ export function useTravelData() {
             body: JSON.stringify({ name: trip.name, participants: [], receipts: [] }),
           });
           if (res.ok) {
-            const { id: dbId } = (await res.json()) as { id: string };
+            const { id: dbId, version } = (await res.json()) as { id: string; version?: number };
             // Replace optimistic local ID with the DB-assigned ID.
             setCloudTrips((prev) =>
-              prev.map((t) => (t.id === trip.id ? { ...t, id: dbId } : t))
+              prev.map((t) => (t.id === trip.id ? { ...t, id: dbId, version } : t))
             );
             setCloudActiveId(dbId);
           } else {
@@ -290,10 +290,28 @@ export function useTravelData() {
   );
 
   // ── Guest → cloud sync ────────────────────────────────────────────────────
+  // POST every local trip in parallel, then build cloud state directly from the
+  // data we already have + the server-assigned id/version. No refetch: the old
+  // full loadCloud() after syncing was the main reason sync felt slow.
   const syncLocalToCloud = useCallback(async (): Promise<number> => {
     const localTrips = local.trips ?? [];
-    let count = 0;
     const syncedIds = new Set<string>();
+    const created: TravelTrip[] = [];
+
+    // The current user becomes the owner member of every synced trip. Build the
+    // member entry locally (matches what the server creates) so the Members
+    // card is populated immediately without an extra round trip.
+    const ownerMembers = dbUser
+      ? [{
+          userId: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          avatarUrl: dbUser.avatarUrl,
+          role: "owner" as const,
+          joinedAt: new Date().toISOString(),
+        }]
+      : [];
+
     await Promise.all(
       localTrips.map(async (trip) => {
         try {
@@ -308,24 +326,29 @@ export function useTravelData() {
             }),
           });
           if (res.ok) {
-            count++;
+            const { id, version } = (await res.json()) as { id: string; version?: number };
             syncedIds.add(trip.id);
+            created.push({ ...trip, id, version, members: ownerMembers });
           }
         } catch {
           // Skip this trip — it stays in localStorage.
         }
       })
     );
+
     if (syncedIds.size > 0) {
-      // Only clear trips that were successfully synced — preserve failed ones.
+      // Invalidate any in-flight initial load so it can't overwrite what we're
+      // about to append, then merge the freshly-created trips (newest first).
+      loadSeqRef.current++;
+      setCloudTrips((prev) => [...created, ...prev]);
+      // Drop only the trips that synced — failed ones stay in localStorage.
       setLocal((prev) => ({
         ...prev,
         trips: (prev.trips ?? []).filter((t) => !syncedIds.has(t.id)),
       }));
-      await loadCloud();
     }
-    return count;
-  }, [local.trips, setLocal, loadCloud]);
+    return created.length;
+  }, [local.trips, setLocal, setCloudTrips, dbUser]);
 
   const dismissSyncDialog = useCallback(() => setShowSyncDialog(false), []);
 

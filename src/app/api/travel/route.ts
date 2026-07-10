@@ -9,7 +9,10 @@ import { validateTravelTripInput } from "@/lib/travel-cloud";
 
 export const runtime = "nodejs";
 
-// GET /api/travel — list the signed-in user's trips (owned or member).
+// GET /api/travel — the signed-in user's trips (owned or member), fully
+// hydrated. Returning participants + receipts + members here (instead of a
+// summary that the client then N+1-fetches per trip) collapses the initial
+// load into a single round trip. Fine for this app's scale (few trips).
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
@@ -23,8 +26,20 @@ export async function GET(request: NextRequest) {
       id: true,
       name: true,
       budget: true,
-      updatedAt: true,
-      _count: { select: { tripReceipts: true, members: true } },
+      version: true,
+      participantsJson: true,
+      tripReceipts: {
+        select: { payload: true },
+        orderBy: { sortOrder: "asc" },
+      },
+      members: {
+        select: {
+          userId: true,
+          role: true,
+          joinedAt: true,
+          user: { select: { name: true, email: true, avatarUrl: true } },
+        },
+      },
     },
     orderBy: { updatedAt: "desc" },
   });
@@ -34,9 +49,17 @@ export async function GET(request: NextRequest) {
       id: t.id,
       name: t.name,
       budget: t.budget ?? undefined,
-      receiptCount: t._count.tripReceipts,
-      memberCount: t._count.members,
-      updatedAt: t.updatedAt.toISOString(),
+      version: t.version,
+      participants: t.participantsJson ?? [],
+      receipts: t.tripReceipts.map((r) => r.payload),
+      members: t.members.map((m) => ({
+        userId: m.userId,
+        name: m.user.name,
+        email: m.user.email,
+        avatarUrl: m.user.avatarUrl,
+        role: m.role as "owner" | "member",
+        joinedAt: m.joinedAt.toISOString(),
+      })),
     })),
   });
 }
@@ -79,8 +102,8 @@ export async function POST(request: NextRequest) {
         })),
       },
     },
-    select: { id: true },
+    select: { id: true, version: true },
   });
 
-  return NextResponse.json({ id: trip.id }, { status: 201 });
+  return NextResponse.json({ id: trip.id, version: trip.version }, { status: 201 });
 }
