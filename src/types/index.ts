@@ -75,6 +75,16 @@ export interface Trip {
 // An ongoing trip that groups several itemized receipts (same Receipt shape as
 // the Single/Multiple modes, so it supports scan, manual entry, per-quantity
 // assignment, tax/service, and discounts) plus an optional budget target.
+/** A user account that has joined a cloud trip (C2 collaboration). */
+export interface TripMember {
+    userId: string;
+    name: string | null;
+    email: string;
+    avatarUrl: string | null;
+    role: "owner" | "member";
+    joinedAt: string;
+}
+
 export interface TravelTrip {
     id: string;
     name: string;
@@ -83,6 +93,8 @@ export interface TravelTrip {
     receipts: Receipt[];
     /** Server-side optimistic-lock version (cloud mode only). */
     version?: number;
+    /** Account-level members who can view/edit this trip (cloud only). */
+    members?: TripMember[];
 }
 
 // Calculation result types

@@ -30,6 +30,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         select: { payload: true },
         orderBy: { sortOrder: "asc" },
       },
+      members: {
+        select: {
+          userId: true,
+          role: true,
+          joinedAt: true,
+          user: { select: { name: true, email: true, avatarUrl: true } },
+        },
+      },
     },
   });
   if (!trip) return notFound();
@@ -41,6 +49,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     version: trip.version,
     participants: trip.participantsJson ?? [],
     receipts: trip.tripReceipts.map((r) => r.payload),
+    members: trip.members.map((m) => ({
+      userId: m.userId,
+      name: m.user.name,
+      email: m.user.email,
+      avatarUrl: m.user.avatarUrl,
+      role: m.role as "owner" | "member",
+      joinedAt: m.joinedAt.toISOString(),
+    })),
   });
 }
 

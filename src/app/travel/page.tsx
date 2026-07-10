@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { TravelTrip, Receipt, Participant, PaymentInfo } from "@/types";
+import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember } from "@/types";
 import { useTravelData } from "@/hooks/useTravelData";
+import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/utils";
 import { generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -39,6 +40,11 @@ import {
   CheckCircle2,
   Loader2,
   Upload,
+  Link2,
+  Copy,
+  X,
+  Crown,
+  UserPlus,
 } from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
 
@@ -148,9 +154,174 @@ function TravelSyncDialog({
   );
 }
 
+// ── Members + Invite card ─────────────────────────────────────────────────────
+interface InviteInfo { token: string; expiresAt: string }
+
+function MembersCard({
+  tripId,
+  members,
+  currentUserId,
+}: {
+  tripId: string;
+  members: TripMember[];
+  currentUserId: string | null;
+}) {
+  const { toast } = useToast();
+  const isOwner = members.some((m) => m.userId === currentUserId && m.role === "owner");
+
+  const [invites, setInvites] = useState<InviteInfo[]>([]);
+  const [loadingInvites, setLoadingInvites] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const fetchInvites = useCallback(async () => {
+    if (!isOwner) return;
+    setLoadingInvites(true);
+    try {
+      const res = await fetch(`/api/travel/${tripId}/invites`);
+      if (res.ok) {
+        const { invites: list } = (await res.json()) as { invites: InviteInfo[] };
+        setInvites(list);
+      }
+    } finally {
+      setLoadingInvites(false);
+    }
+  }, [tripId, isOwner]);
+
+  useEffect(() => { void fetchInvites(); }, [fetchInvites]);
+
+  const generateInvite = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/travel/${tripId}/invites`, { method: "POST" });
+      if (res.ok) {
+        const inv = (await res.json()) as InviteInfo;
+        setInvites((prev) => [inv, ...prev]);
+      }
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const revokeInvite = async (token: string) => {
+    await fetch(`/api/travel/${tripId}/invites/${token}`, { method: "DELETE" });
+    setInvites((prev) => prev.filter((i) => i.token !== token));
+  };
+
+  const copyLink = async (token: string) => {
+    const url = `${window.location.origin}/invite/${token}`;
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast({ title: "Link copied!", variant: "success" });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const activeInvite = invites[0] ?? null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Members
+        </CardTitle>
+        <CardDescription>{members.length} member{members.length !== 1 ? "s" : ""}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Member list */}
+        <ul className="space-y-2">
+          {members.map((m) => (
+            <li key={m.userId} className="flex items-center gap-2">
+              {m.avatarUrl ? (
+                <img src={m.avatarUrl} alt={m.name ?? m.email} className="h-7 w-7 rounded-full object-cover" />
+              ) : (
+                <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold">
+                  {(m.name ?? m.email)[0].toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium leading-none truncate">
+                  {m.name ?? m.email}
+                  {m.userId === currentUserId && (
+                    <span className="ml-1 text-xs text-muted-foreground">(you)</span>
+                  )}
+                </p>
+              </div>
+              {m.role === "owner" ? (
+                <Crown className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Owner" />
+              ) : null}
+            </li>
+          ))}
+        </ul>
+
+        {/* Invite section — owner only */}
+        {isOwner && (
+          <div className="pt-3 border-t space-y-2">
+            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <UserPlus className="h-3.5 w-3.5" />
+              Invite link
+            </p>
+            {loadingInvites ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading…
+              </div>
+            ) : activeInvite ? (
+              <div className="rounded-lg border bg-muted/40 px-3 py-2 space-y-2">
+                <p className="text-xs text-muted-foreground break-all font-mono select-all">
+                  {`${typeof window !== "undefined" ? window.location.origin : ""}/invite/${activeInvite.token}`}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Expires {new Date(activeInvite.expiresAt).toLocaleDateString()}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="flex-1 gap-1.5 text-xs h-7"
+                    onClick={() => void copyLink(activeInvite.token)}
+                  >
+                    {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? "Copied!" : "Copy"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1.5 text-xs h-7 text-destructive hover:text-destructive"
+                    onClick={() => void revokeInvite(activeInvite.token)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Revoke
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full gap-2 text-xs h-8"
+                onClick={() => void generateInvite()}
+                disabled={generating}
+              >
+                {generating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Link2 className="h-3.5 w-3.5" />
+                )}
+                Generate invite link
+              </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function TravelPage() {
   const travel = useTravelData();
+  const { dbUser } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
   const [newTripName, setNewTripName] = useState("");
@@ -572,6 +743,14 @@ export default function TravelPage() {
                   View summary
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
+              )}
+              {/* Members card — cloud mode only (members are a cloud-only feature) */}
+              {travel.cloudMode && (activeTrip.members?.length ?? 0) > 0 && (
+                <MembersCard
+                  tripId={activeTrip.id}
+                  members={activeTrip.members!}
+                  currentUserId={dbUser?.id ?? null}
+                />
               )}
             </div>
           </div>
