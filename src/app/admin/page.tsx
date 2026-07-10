@@ -382,17 +382,13 @@ export default function AdminPage() {
       if (!res.ok) throw new Error("Failed");
       const data = (await res.json()) as { users: AdminUser[] };
       setUsers(data.users);
-      // Refresh selected user data from new list
-      if (selectedUser) {
-        const updated = data.users.find((u) => u.id === selectedUser.id);
-        setSelectedUser(updated ?? null);
-      }
+      // Refresh drawer with latest data using functional setter to read current state.
+      setSelectedUser((prev) => (prev ? (data.users.find((u) => u.id === prev.id) ?? null) : null));
     } catch {
       setError("Failed to load users. Try refreshing.");
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   useEffect(() => {

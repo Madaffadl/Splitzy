@@ -119,9 +119,15 @@ export function useTravelData() {
               prev.map((t) => (t.id === trip.id ? { ...t, id: dbId } : t))
             );
             setCloudActiveId(dbId);
+          } else {
+            // Server rejected — remove the ghost trip.
+            setCloudTrips((prev) => prev.filter((t) => t.id !== trip.id));
+            setCloudActiveId(null);
           }
         } catch {
-          // Keep the optimistic ID — will drift out of sync but UX stays usable.
+          // Network failure — remove the ghost trip.
+          setCloudTrips((prev) => prev.filter((t) => t.id !== trip.id));
+          setCloudActiveId(null);
         }
       } else {
         setLocal((prev) => ({ trips: [trip, ...prev.trips], activeId: trip.id }));
@@ -287,6 +293,7 @@ export function useTravelData() {
   const syncLocalToCloud = useCallback(async (): Promise<number> => {
     const localTrips = local.trips ?? [];
     let count = 0;
+    const syncedIds = new Set<string>();
     await Promise.all(
       localTrips.map(async (trip) => {
         try {
@@ -300,15 +307,21 @@ export function useTravelData() {
               receipts: trip.receipts,
             }),
           });
-          if (res.ok) count++;
+          if (res.ok) {
+            count++;
+            syncedIds.add(trip.id);
+          }
         } catch {
           // Skip this trip — it stays in localStorage.
         }
       })
     );
-    if (count > 0) {
-      // Clear local trips that were synced, then reload cloud.
-      setLocal(DEFAULT);
+    if (syncedIds.size > 0) {
+      // Only clear trips that were successfully synced — preserve failed ones.
+      setLocal((prev) => ({
+        ...prev,
+        trips: (prev.trips ?? []).filter((t) => !syncedIds.has(t.id)),
+      }));
       await loadCloud();
     }
     return count;

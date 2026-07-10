@@ -213,7 +213,9 @@ Extract the items now:`;
 
         // Count successful scans against the user's monthly quota.
         if (authUser) {
-            void incrementScanCount(authUser.id);
+            await incrementScanCount(authUser.id).catch((err) =>
+                console.error("scan-quota increment failed:", err)
+            );
         }
 
         return NextResponse.json({

@@ -31,16 +31,18 @@ export async function checkScanQuota(userId: string): Promise<ScanQuotaStatus> {
   let count = user.aiScanCount;
 
   // Monthly window expired → reset counter now.
+  let effectiveResetAt = user.aiScanResetAt;
   if (user.aiScanResetAt && user.aiScanResetAt <= now) {
     await prisma.user.update({
       where: { id: userId },
       data: { aiScanCount: 0, aiScanResetAt: null },
     });
     count = 0;
+    effectiveResetAt = null;
   }
 
   const remaining = Math.max(0, effectiveLimit - count);
-  return { allowed: remaining > 0, remaining, resetAt: user.aiScanResetAt, plan: "free" };
+  return { allowed: remaining > 0, remaining, resetAt: effectiveResetAt, plan: "free" };
 }
 
 /**
