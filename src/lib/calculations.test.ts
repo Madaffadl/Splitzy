@@ -375,4 +375,74 @@ describe("getTripSummary", () => {
         expect(summary.settlements.every((t) => t.to === "a")).toBe(true);
         expect(summary.settlements.every((t) => t.amount === 30)).toBe(true);
     });
+
+    it("should exclude a settled receipt from balances but keep it in the total", () => {
+        const trip: Trip = {
+            id: "trip1",
+            name: "Trip",
+            participants: [{ id: "a", name: "Alice" }, { id: "b", name: "Bob" }],
+            receipts: [
+                {
+                    id: "r1",
+                    title: "Meal 1",
+                    payerId: "a",
+                    items: [
+                        { id: "1", name: "Item", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] },
+                    ],
+                    tax: 0,
+                    service: 0,
+                },
+                {
+                    // Already settled outside the app — should not affect balances.
+                    id: "r2",
+                    title: "Meal 2",
+                    payerId: "b",
+                    settled: true,
+                    items: [
+                        { id: "2", name: "Item", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] },
+                    ],
+                    tax: 0,
+                    service: 0,
+                },
+            ],
+        };
+
+        const summary = getTripSummary(trip);
+
+        // Only receipt 1 counts toward balances: a paid 100, each owes 50.
+        expect(summary.aggregateBalances.get("a")).toBe(50);
+        expect(summary.aggregateBalances.get("b")).toBe(-50);
+        // b owes a 50 (receipt 2 is excluded even though b fronted it).
+        expect(summary.settlements).toEqual([{ from: "b", to: "a", amount: 50 }]);
+        // But the settled receipt still counts toward total spend.
+        expect(summary.totalGrandTotal).toBe(200);
+    });
+
+    it("should settle to zero when every receipt is marked settled", () => {
+        const trip: Trip = {
+            id: "trip1",
+            name: "Trip",
+            participants: [{ id: "a", name: "Alice" }, { id: "b", name: "Bob" }],
+            receipts: [
+                {
+                    id: "r1",
+                    title: "Meal 1",
+                    payerId: "a",
+                    settled: true,
+                    items: [
+                        { id: "1", name: "Item", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] },
+                    ],
+                    tax: 0,
+                    service: 0,
+                },
+            ],
+        };
+
+        const summary = getTripSummary(trip);
+
+        expect(summary.aggregateBalances.get("a")).toBe(0);
+        expect(summary.aggregateBalances.get("b")).toBe(0);
+        expect(summary.settlements.length).toBe(0);
+        expect(summary.totalGrandTotal).toBe(100);
+    });
 });

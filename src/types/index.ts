@@ -62,6 +62,11 @@ export interface Receipt {
     tax: number;
     service: number;
     discounts?: Discount[];
+    // Travel Spend only: when true, this receipt has already been squared up
+    // between the payer and everyone else (e.g. cash on the spot). It still
+    // counts toward Total Spent / Budget, but is excluded from the final
+    // settlement so it isn't double-counted in who-owes-whom.
+    settled?: boolean;
 }
 
 export interface Trip {

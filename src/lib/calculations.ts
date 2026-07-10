@@ -500,10 +500,14 @@ export function getTripSummary(trip: Trip): TripSummary {
 
     let totalGrandTotal = 0;
 
-    // Sum up balances across all receipts
+    // Sum up balances across all receipts. A receipt marked "settled" was
+    // already squared up outside the app, so it still counts toward the trip
+    // total but is excluded from the balances that drive the final settlement.
     for (const receipt of trip.receipts) {
         const summary = getReceiptSummary(receipt, participantIds);
         totalGrandTotal += summary.grandTotal;
+
+        if (receipt.settled) continue;
 
         for (const [id, balance] of summary.balances) {
             const current = aggregateBalances.get(id) || 0;

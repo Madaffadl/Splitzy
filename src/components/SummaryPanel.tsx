@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Copy, Check, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2 } from "lucide-react";
+import { Copy, Check, CheckCircle2, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
@@ -364,14 +364,19 @@ export function ReceiptBreakdown({
   index,
   onEdit,
   onDelete,
+  onToggleSettled,
 }: {
   receipt: Receipt;
   participants: Participant[];
   index: number;
   onEdit?: () => void;
   onDelete?: () => void;
+  // Travel Spend: mark the whole receipt as already settled. When provided, a
+  // toggle is shown; a settled receipt is dimmed and excluded from settlement.
+  onToggleSettled?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const settled = receipt.settled === true;
 
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
@@ -393,7 +398,7 @@ export function ReceiptBreakdown({
   const getParticipantName = (id: string) => participantNames.get(id) || "Unknown";
 
   return (
-    <div className="rounded-md border overflow-hidden">
+    <div className={cn("rounded-md border overflow-hidden", settled && "bg-emerald-500/[0.04] border-emerald-500/30")}>
       <div className="flex items-center">
         <button
           onClick={() => setExpanded(!expanded)}
@@ -403,10 +408,18 @@ export function ReceiptBreakdown({
             <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded bg-primary/10 px-1 text-xs font-semibold text-primary">
               {index + 1}
             </span>
-            <span className="font-medium truncate">{receipt.title}</span>
+            <span className={cn("font-medium truncate", settled && "text-muted-foreground line-through")}>
+              {receipt.title}
+            </span>
+            {settled && (
+              <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
+                <Check className="h-3 w-3" />
+                Paid
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="font-semibold text-primary">
+            <span className={cn("font-semibold", settled ? "text-muted-foreground" : "text-primary")}>
               Rp {formatCurrency(summary.amountPaid)}
             </span>
             {expanded ? (
@@ -416,8 +429,25 @@ export function ReceiptBreakdown({
             )}
           </div>
         </button>
-        {(onEdit || onDelete) && (
+        {(onEdit || onDelete || onToggleSettled) && (
           <div className="flex items-center gap-0.5 pr-1 shrink-0">
+            {onToggleSettled && (
+              <button
+                type="button"
+                onClick={onToggleSettled}
+                aria-pressed={settled}
+                aria-label={settled ? `Mark ${receipt.title} as unpaid` : `Mark ${receipt.title} as paid`}
+                title={settled ? "Marked as paid — excluded from settlement" : "Mark as paid (exclude from settlement)"}
+                className={cn(
+                  "h-8 w-8 flex items-center justify-center rounded-md transition-colors",
+                  settled
+                    ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    : "text-muted-foreground hover:bg-muted hover:text-emerald-600"
+                )}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+              </button>
+            )}
             {onEdit && (
               <button
                 type="button"
@@ -952,6 +982,10 @@ export function MultipleReceiptSummaryPanel({
       discount += summary.totalDiscount;
       paid += summary.amountPaid;
 
+      // Settled receipts still count toward totals above, but are excluded
+      // from the balances that drive the final settlement.
+      if (receipt.settled) continue;
+
       for (const [id, balance] of summary.balances) {
         balances.set(id, (balances.get(id) || 0) + balance);
       }
@@ -977,10 +1011,12 @@ export function MultipleReceiptSummaryPanel({
       stats.set(id, { paid: 0, consumed: 0 });
     }
     
-    // Calculate
+    // Calculate — settled receipts are excluded so the wallet net matches the
+    // (settled-excluded) balances that drive the settlement.
     for (const receipt of receipts) {
+      if (receipt.settled) continue;
       const summary = getReceiptSummary(receipt, participantIds);
-      
+
       // Add to payer's paid total — the actual cash fronted after discounts.
       const payerStats = stats.get(receipt.payerId);
       if (payerStats) {
@@ -1010,6 +1046,7 @@ export function MultipleReceiptSummaryPanel({
     for (const id of participantIds) map.set(id, { paid: [], consumed: [] });
 
     for (const receipt of receipts) {
+      if (receipt.settled) continue;
       const title = receipt.title || "Untitled";
       const details = getPersonShareDetails(receipt, participantIds);
       const receiptSubtotal = receipt.items.reduce((s, i) => s + i.total, 0);
@@ -1040,6 +1077,13 @@ export function MultipleReceiptSummaryPanel({
   const settlements = useMemo(
     () => minimizeTransactions(aggregateBalances),
     [aggregateBalances]
+  );
+
+  // Receipts already squared up outside the app — excluded from the settlement
+  // above, listed separately so it's clear why they aren't in the balances.
+  const settledReceipts = useMemo(
+    () => receipts.filter((r) => r.settled),
+    [receipts]
   );
 
   // Unique recipients (settlement "to" side), in settlement order. Payment
@@ -1112,6 +1156,13 @@ export function MultipleReceiptSummaryPanel({
       text += formatPaymentDestinations(recipientIds);
     } else {
       text += `✅ Everyone is settled!\n`;
+    }
+
+    if (settledReceipts.length > 0) {
+      text += `\n✔️ Already paid (excluded from settlement):\n`;
+      for (const r of settledReceipts) {
+        text += `• ${r.title || "Untitled"}\n`;
+      }
     }
 
     return text;
@@ -1525,6 +1576,21 @@ export function MultipleReceiptSummaryPanel({
               </button>
             )}
           </div>
+
+          {/* Already-paid receipts — excluded from the settlement above */}
+          {settledReceipts.length > 0 && (
+            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs space-y-1">
+              <p className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
+                <Check className="h-3.5 w-3.5" />
+                Already paid — not included in settlement
+              </p>
+              <ul className="space-y-0.5 pl-5 text-emerald-800/80 dark:text-emerald-200/80">
+                {settledReceipts.map((r) => (
+                  <li key={r.id} className="list-disc">{r.title || "Untitled"}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Step-by-step settlement trace */}
           {showTrace && settlements.length > 0 && (

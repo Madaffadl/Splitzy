@@ -75,4 +75,14 @@ describe("validateTripReceiptPayload", () => {
   it("rejects when payer isn't a participant", () => {
     expect(() => validateTripReceiptPayload({ ...receipt, payerId: "ghost" }, new Set(["p1", "p2"]))).toThrow();
   });
+  it("preserves the settled flag through a cloud round-trip", () => {
+    const out = validateTripReceiptPayload({ ...receipt, settled: true }, new Set(["p1", "p2"]));
+    expect(out.settled).toBe(true);
+  });
+  it("omits settled when not explicitly true", () => {
+    expect(validateTripReceiptPayload(receipt, new Set(["p1", "p2"])).settled).toBeUndefined();
+    expect(
+      validateTripReceiptPayload({ ...receipt, settled: false }, new Set(["p1", "p2"])).settled
+    ).toBeUndefined();
+  });
 });

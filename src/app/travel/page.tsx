@@ -439,6 +439,21 @@ export default function TravelPage() {
     toast({ title: "Receipt deleted", description: removed?.title, variant: "success" });
   };
 
+  // Mark a whole receipt as already settled (or undo). Settled receipts still
+  // count toward Total Spent / Budget but drop out of the final settlement.
+  const toggleSettled = async (receipt: Receipt) => {
+    if (!activeTrip) return;
+    const next = !receipt.settled;
+    await travel.updateReceipt(activeTrip.id, { ...receipt, settled: next });
+    toast({
+      title: next ? "Marked as paid" : "Marked as unpaid",
+      description: next
+        ? `${receipt.title} is excluded from the settlement.`
+        : `${receipt.title} is back in the settlement.`,
+      variant: "success",
+    });
+  };
+
   const canAddReceipt = (activeTrip?.participants.length ?? 0) >= 2;
 
   // ── Trip name sync on blur ────────────────────────────────────────────────
@@ -705,6 +720,7 @@ export default function TravelPage() {
                           index={i}
                           onEdit={() => editReceipt(r.id)}
                           onDelete={() => setDeleteReceiptId(r.id)}
+                          onToggleSettled={() => void toggleSettled(r)}
                         />
                       ))}
                     </div>

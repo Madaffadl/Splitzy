@@ -59,6 +59,10 @@ export interface SharedReceipt {
   service: number;
   items: SharedItem[];
   discounts?: SharedDiscount[];
+  // Travel Spend: receipt already settled outside the app; excluded from the
+  // final settlement but still counted in totals. Carried through so cloud
+  // sync and read-only share links reflect the same settled state.
+  settled?: boolean;
 }
 
 export interface SharedPaymentInfo {
@@ -315,6 +319,7 @@ export function validateSharedReceipts(
       service: asMoney(r.service ?? 0, `receipts[${ri}].service`),
       items,
       ...(discounts ? { discounts } : {}),
+      ...(r.settled === true ? { settled: true } : {}),
     };
   });
 }
