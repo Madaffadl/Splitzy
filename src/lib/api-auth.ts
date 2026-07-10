@@ -44,7 +44,10 @@ const resolveAuth = cache(
     } = await supabase.auth.getUser();
     if (!user) return null;
 
-    return prisma.user.findUnique({ where: { googleId: user.id } });
+    const dbUser = await prisma.user.findUnique({ where: { googleId: user.id } });
+    // Banned users are treated as unauthenticated — all protected routes 401.
+    if (!dbUser || dbUser.bannedAt) return null;
+    return dbUser;
   }
 );
 

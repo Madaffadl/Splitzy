@@ -21,6 +21,10 @@ model User {
   plan          String    @default("free")
   aiScanCount   Int       @default(0) @map("ai_scan_count")
   aiScanResetAt DateTime? @map("ai_scan_reset_at")
+  // Per-user override; null = use plan default (15 for free, ∞ for pro).
+  aiScanLimit   Int?      @map("ai_scan_limit")
+  // Set by admin to suspend access; null = active account.
+  bannedAt      DateTime? @map("banned_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 

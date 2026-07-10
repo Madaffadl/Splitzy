@@ -1,9 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { assertSameOrigin } from "@/lib/api-auth";
+import { assertSameOrigin, getAuthUser } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
 import { parseIndonesianPrice } from "@/lib/parser";
+import { checkScanQuota, incrementScanCount } from "@/lib/scan-quota";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -79,6 +80,19 @@ export async function POST(request: NextRequest) {
             windowMs: PARSE_RATE_WINDOW_MS,
         });
         if (limited) return limited;
+
+        // Monthly AI scan quota — only enforced for authenticated users.
+        const authUser = await getAuthUser(request);
+        if (authUser) {
+            const quota = await checkScanQuota(authUser.id);
+            if (!quota.allowed) {
+                return apiError(
+                    "QUOTA_EXCEEDED",
+                    `Monthly scan limit reached (${quota.plan === "free" ? 15 : "∞"} scans/month). Upgrade to Pro for unlimited scans.`,
+                    { remaining: 0, resetAt: quota.resetAt?.toISOString() ?? null }
+                );
+            }
+        }
 
         const body = await request.json().catch(() => null);
         const image = typeof body?.image === "string" ? body.image : null;
@@ -196,6 +210,11 @@ Extract the items now:`;
 
         const taxRaw = typeof parsed.tax === "number" ? parsed.tax : parseIndonesianPrice(String(parsed.tax));
         const serviceRaw = typeof parsed.service === "number" ? parsed.service : parseIndonesianPrice(String(parsed.service));
+
+        // Count successful scans against the user's monthly quota.
+        if (authUser) {
+            void incrementScanCount(authUser.id);
+        }
 
         return NextResponse.json({
             items: cleanedItems,

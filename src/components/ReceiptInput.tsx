@@ -55,6 +55,11 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
     });
 
     if (!response.ok) {
+      // Surface quota-exceeded errors with a friendly upsell message.
+      const errBody = await response.json().catch(() => null) as { code?: string; error?: string } | null;
+      if (errBody?.code === "QUOTA_EXCEEDED") {
+        throw new Error("__QUOTA__");
+      }
       throw new Error("Failed to process image");
     }
 
@@ -105,7 +110,12 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       }, 500);
     } catch (error) {
       console.error("Processing error:", error);
-      setErrorMessage("Failed to process image. Please try again.");
+      const msg = error instanceof Error ? error.message : "";
+      if (msg === "__QUOTA__") {
+        setErrorMessage("Monthly scan limit reached (15 scans/month). Sign in with a Pro account for unlimited scans.");
+      } else {
+        setErrorMessage("Failed to process image. Please try again.");
+      }
       setStatus("error");
     }
   }, [processWithGemini, onParsed]);
