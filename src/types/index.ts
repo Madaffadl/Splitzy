@@ -16,6 +16,10 @@ export interface Participant {
     // money (settlement recipients), but stored per-participant so single and
     // trip flows share one model.
     paymentInfo?: PaymentInfo;
+    // Travel Spend only: this person's individual spending target for the trip.
+    // Optional — each traveler can set their own, independent of the trip-wide
+    // budget. Measured against their share of consumption across all receipts.
+    budget?: number;
 }
 
 export interface ItemAssignment {

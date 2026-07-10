@@ -95,9 +95,20 @@ export interface ValidatedParticipant {
   id: string;
   name: string;
   paymentInfo?: ValidatedPaymentInfo;
+  budget?: number;
 }
 
 const MAX_PARTICIPANTS = 100;
+const MAX_PARTICIPANT_BUDGET = 1_000_000_000_000; // 1 trillion rupiah ceiling
+
+/** Optional positive per-participant budget; undefined for missing/≤0/invalid. */
+function validateParticipantBudget(value: unknown, field: string): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = typeof value === "number" ? value : parseFloat(String(value));
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  if (n > MAX_PARTICIPANT_BUDGET) throw new ValidationError(field, "exceeds maximum");
+  return n;
+}
 
 // Length ceilings mirror src/lib/payment-info.ts PAYMENT_INFO_LIMITS.
 const MAX_BANK = 60;
@@ -174,7 +185,13 @@ export function validateParticipantsJson(
     }
     seen.add(id);
     const paymentInfo = validatePaymentInfo(r.paymentInfo, `${field}[${idx}].paymentInfo`);
-    return paymentInfo ? { id, name, paymentInfo } : { id, name };
+    const budget = validateParticipantBudget(r.budget, `${field}[${idx}].budget`);
+    return {
+      id,
+      name,
+      ...(paymentInfo ? { paymentInfo } : {}),
+      ...(budget !== undefined ? { budget } : {}),
+    };
   });
   return result;
 }

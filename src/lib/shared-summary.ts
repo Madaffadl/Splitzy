@@ -77,6 +77,9 @@ export interface SharedParticipant {
   // Optional bank/e-wallet details, carried through so a shared link shows the
   // recipient's account. Validated by validateParticipantsJson on write + read.
   paymentInfo?: SharedPaymentInfo;
+  // Optional individual spending target (Travel Spend), carried through so the
+  // shared view can show each traveler's budget progress.
+  budget?: number;
 }
 
 export interface SharedSummaryPayload {

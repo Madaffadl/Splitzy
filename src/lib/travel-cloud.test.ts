@@ -50,6 +50,25 @@ describe("validateTravelTripInput", () => {
       })
     ).toThrow(/unknown participant/i);
   });
+
+  it("preserves a positive individual participant budget", () => {
+    const out = validateTravelTripInput({
+      name: "X",
+      participants: [{ id: "p1", name: "Alex", budget: 500000 }, { id: "p2", name: "Bella" }],
+    });
+    expect(out.participants[0].budget).toBe(500000);
+    // Not set / non-positive budgets are dropped, not stored as 0.
+    expect(out.participants[1].budget).toBeUndefined();
+  });
+
+  it("drops a non-positive individual participant budget", () => {
+    const out = validateTravelTripInput({
+      name: "X",
+      participants: [{ id: "p1", name: "Alex", budget: 0 }, { id: "p2", name: "Bella", budget: -100 }],
+    });
+    expect(out.participants[0].budget).toBeUndefined();
+    expect(out.participants[1].budget).toBeUndefined();
+  });
 });
 
 describe("validateBudget", () => {

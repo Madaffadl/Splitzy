@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember } from "@/types";
 import { useTravelData } from "@/hooks/useTravelData";
 import { useAuth } from "@/hooks/useAuth";
-import { formatCurrency } from "@/lib/utils";
+import { calculatePersonTotals } from "@/lib/calculations";
+import { formatCurrency, cn } from "@/lib/utils";
 import { generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
@@ -151,6 +152,100 @@ function TravelSyncDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Individual budgets card ────────────────────────────────────────────────
+// Each traveler can set an optional personal spending target, tracked against
+// their share of consumption across all receipts (settled receipts included —
+// this is total spend, not the outstanding settlement).
+function IndividualBudgets({
+  participants,
+  spent,
+  onSetBudget,
+}: {
+  participants: Participant[];
+  spent: Map<string, number>;
+  onSetBudget: (participantId: string, budget: number | undefined) => void;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const commit = (id: string) => {
+    setDrafts((prev) => {
+      if (!(id in prev)) return prev;
+      const val = parseAmount(prev[id]);
+      onSetBudget(id, val > 0 ? val : undefined);
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          Individual budgets
+        </CardTitle>
+        <CardDescription>Optional — a personal spending target per traveler.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {participants.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Add travelers first to set individual budgets.</p>
+        ) : (
+          participants.map((p) => {
+            const budget = p.budget;
+            const s = spent.get(p.id) ?? 0;
+            const hasBudget = budget != null && budget > 0;
+            const over = hasBudget && s > budget;
+            const pct = hasBudget ? Math.min(100, Math.round((s / budget) * 100)) : 0;
+            const draft = drafts[p.id];
+            return (
+              <div key={p.id} className="space-y-1.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                    {p.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-sm font-medium flex-1 truncate">{p.name}</span>
+                  <div className="relative w-32 shrink-0">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">Rp</span>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      className="pl-8 h-8 text-sm"
+                      placeholder="0"
+                      aria-label={`${p.name} budget`}
+                      value={draft !== undefined ? draft : hasBudget ? formatCurrency(budget) : ""}
+                      onFocus={() => setDrafts((prev) => ({ ...prev, [p.id]: hasBudget ? String(budget) : "" }))}
+                      onChange={(e) => setDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                      onBlur={() => commit(p.id)}
+                      onKeyDown={(e) => e.key === "Enter" && commit(p.id)}
+                    />
+                  </div>
+                </div>
+                {hasBudget && (
+                  <div className="pl-9 space-y-1">
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn("h-full rounded-full transition-all", over ? "bg-red-500" : "bg-emerald-500")}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <p className={cn("text-[11px]", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                      Rp {formatCurrency(s)} of Rp {formatCurrency(budget)}
+                      {over
+                        ? ` · over by Rp ${formatCurrency(s - budget)}`
+                        : ` · Rp ${formatCurrency(budget - s)} left`}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -388,6 +483,32 @@ export default function TravelPage() {
     );
     await travel.updateParticipants(activeTrip.id, participants);
   };
+
+  const setParticipantBudget = async (participantId: string, budget: number | undefined) => {
+    if (!activeTrip) return;
+    const participants = activeTrip.participants.map((p) =>
+      p.id === participantId ? { ...p, budget } : p
+    );
+    await travel.updateParticipants(activeTrip.id, participants);
+  };
+
+  // Per-person spend = their share of every receipt (settled included), used to
+  // track each traveler against their individual budget.
+  const spentByPerson = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!activeTrip) return map;
+    const ids = activeTrip.participants.map((p) => p.id);
+    ids.forEach((id) => map.set(id, 0));
+    for (const receipt of activeTrip.receipts) {
+      for (const share of calculatePersonTotals(receipt, ids)) {
+        map.set(
+          share.participantId,
+          Math.round(((map.get(share.participantId) ?? 0) + share.total) * 100) / 100
+        );
+      }
+    }
+    return map;
+  }, [activeTrip]);
 
   // ── Receipts ──────────────────────────────────────────────────────────────
   const startNewReceipt = () => {
@@ -673,6 +794,15 @@ export default function TravelPage() {
                   />
                 </CardContent>
               </Card>
+
+              {/* Individual budgets */}
+              {activeTrip.participants.length > 0 && (
+                <IndividualBudgets
+                  participants={activeTrip.participants}
+                  spent={spentByPerson}
+                  onSetBudget={(id, budget) => void setParticipantBudget(id, budget)}
+                />
+              )}
 
               {/* Receipts */}
               <Card>
