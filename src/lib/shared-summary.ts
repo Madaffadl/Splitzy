@@ -221,20 +221,38 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
     budget = parsed > 0 ? parsed : undefined;
   }
 
-  if (!Array.isArray(b.receipts)) {
+  const receipts = validateSharedReceipts(b.receipts, participantIds, {
+    requireAtLeastOne: true,
+    exactlyOne: type === "single",
+  });
+
+  return { v: SHARE_PAYLOAD_VERSION, type, title, participants, receipts, ...(budget ? { budget } : {}) };
+}
+
+/**
+ * Validate + normalize an array of name-based receipts against a set of valid
+ * participant ids. Shared by the share payload validator and the Travel Spend
+ * cloud API (which persists the same receipt shape).
+ */
+export function validateSharedReceipts(
+  value: unknown,
+  participantIds: Set<string>,
+  opts: { requireAtLeastOne?: boolean; exactlyOne?: boolean } = {}
+): SharedReceipt[] {
+  if (!Array.isArray(value)) {
     throw new ValidationError("receipts", "must be an array");
   }
-  if (b.receipts.length === 0) {
+  if (opts.requireAtLeastOne && value.length === 0) {
     throw new ValidationError("receipts", "must have at least one receipt");
   }
-  if (b.receipts.length > MAX_RECEIPTS) {
+  if (value.length > MAX_RECEIPTS) {
     throw new ValidationError("receipts", `too many receipts (max ${MAX_RECEIPTS})`);
   }
-  if (type === "single" && b.receipts.length !== 1) {
+  if (opts.exactlyOne && value.length !== 1) {
     throw new ValidationError("receipts", "a single-receipt share must have exactly one receipt");
   }
 
-  const receipts: SharedReceipt[] = b.receipts.map((raw, ri) => {
+  return value.map((raw, ri): SharedReceipt => {
     if (!raw || typeof raw !== "object") {
       throw new ValidationError(`receipts[${ri}]`, "must be an object");
     }
@@ -299,8 +317,6 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
       ...(discounts ? { discounts } : {}),
     };
   });
-
-  return { v: SHARE_PAYLOAD_VERSION, type, title, participants, receipts, ...(budget ? { budget } : {}) };
 }
 
 /** Re-parse a stored row's payload, returning null if it's malformed/legacy. */

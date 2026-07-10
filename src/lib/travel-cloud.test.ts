@@ -1,0 +1,78 @@
+import { describe, it, expect } from "vitest";
+import { validateTravelTripInput, validateBudget, validateTripReceiptPayload } from "./travel-cloud";
+
+const participants = [
+  { id: "p1", name: "Alex" },
+  { id: "p2", name: "Bella" },
+];
+const receipt = {
+  id: "r1",
+  title: "Dinner",
+  payerId: "p1",
+  tax: 0,
+  service: 0,
+  items: [{ id: "i1", name: "Pizza", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["p1", "p2"] }],
+};
+
+describe("validateTravelTripInput", () => {
+  it("accepts a full trip and normalizes it", () => {
+    const out = validateTravelTripInput({ name: "Bali", budget: 5_000_000, participants, receipts: [receipt] });
+    expect(out.name).toBe("Bali");
+    expect(out.budget).toBe(5_000_000);
+    expect(out.participants).toHaveLength(2);
+    expect(out.receipts).toHaveLength(1);
+  });
+
+  it("allows an empty trip (no participants/receipts yet) and defaults the name", () => {
+    const out = validateTravelTripInput({});
+    expect(out.name).toBe("My Trip");
+    expect(out.participants).toEqual([]);
+    expect(out.receipts).toEqual([]);
+    expect(out.budget).toBeUndefined();
+  });
+
+  it("drops a non-positive budget", () => {
+    expect(validateTravelTripInput({ name: "X", budget: 0 }).budget).toBeUndefined();
+  });
+
+  it("rejects a receipt payer not among participants", () => {
+    expect(() =>
+      validateTravelTripInput({ name: "X", participants, receipts: [{ ...receipt, payerId: "ghost" }] })
+    ).toThrow(/participant/i);
+  });
+
+  it("rejects an item assigned to an unknown participant", () => {
+    expect(() =>
+      validateTravelTripInput({
+        name: "X",
+        participants,
+        receipts: [{ ...receipt, items: [{ ...receipt.items[0], assignedToIds: ["ghost"] }] }],
+      })
+    ).toThrow(/unknown participant/i);
+  });
+});
+
+describe("validateBudget", () => {
+  it("returns undefined for empty/invalid/non-positive", () => {
+    expect(validateBudget(null)).toBeUndefined();
+    expect(validateBudget("")).toBeUndefined();
+    expect(validateBudget(0)).toBeUndefined();
+    expect(validateBudget(-5)).toBeUndefined();
+  });
+  it("accepts a positive number", () => {
+    expect(validateBudget(250000)).toBe(250000);
+  });
+  it("rejects absurdly large values", () => {
+    expect(() => validateBudget(2_000_000_000_000)).toThrow(/maximum/i);
+  });
+});
+
+describe("validateTripReceiptPayload", () => {
+  it("validates a single receipt against the participant set", () => {
+    const out = validateTripReceiptPayload(receipt, new Set(["p1", "p2"]));
+    expect(out.title).toBe("Dinner");
+  });
+  it("rejects when payer isn't a participant", () => {
+    expect(() => validateTripReceiptPayload({ ...receipt, payerId: "ghost" }, new Set(["p1", "p2"]))).toThrow();
+  });
+});

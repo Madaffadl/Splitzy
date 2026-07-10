@@ -9,13 +9,20 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  email     String   @unique
-  name      String?
-  avatarUrl String?  @map("avatar_url")
-  googleId  String?  @unique @map("google_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  name          String?
+  avatarUrl     String?   @map("avatar_url")
+  googleId      String?   @unique @map("google_id")
+  // Freemium hook: everything is free today, but the plan + AI-scan usage
+  // counter let us gate/upsell the variable-cost AI scan later without a
+  // schema migration. aiScanResetAt marks the start of the current monthly
+  // window; the counter resets when now() passes it + 1 month.
+  plan          String    @default("free")
+  aiScanCount   Int       @default(0) @map("ai_scan_count")
+  aiScanResetAt DateTime? @map("ai_scan_reset_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
   ownedTrips      Trip[]           @relation("TripOwner")
   tripMemberships TripMember[]
@@ -40,14 +47,75 @@ model Trip {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
-  owner    User         @relation("TripOwner", fields: [ownerId], references: [id])
-  members  TripMember[]
-  receipts Receipt[]
+  // Travel Spend fields. Participants are name-based (not User accounts), stored
+  // as a JSON snapshot; the split targets differ from `members` (the accounts
+  // that can edit the trip). Budget is an optional spend target.
+  budget           Float?
+  participantsJson Json?  @map("participants_json")
+
+  owner        User          @relation("TripOwner", fields: [ownerId], references: [id])
+  members      TripMember[]
+  receipts     Receipt[]
+  tripReceipts TripReceipt[]
+  tripPayments TripPayment[]
+  invites      TripInvite[]
 
   // Pagination + ownership filtering (most common query pattern).
   @@index([ownerId, updatedAt(sort: Desc)])
   @@index([deletedAt])
   @@map("trips")
+}
+
+// A single Travel Spend receipt, stored as a JSON payload (the client's
+// name-based Receipt shape) so the split model doesn't fight the User-FK
+// assumptions of the legacy normalized Receipt table. One row per receipt keeps
+// concurrent adds independent and makes realtime granular later.
+model TripReceipt {
+  id          String   @id @default(uuid()) @db.Uuid
+  tripId      String   @map("trip_id") @db.Uuid
+  payload     Json
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdById String?  @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("trip_receipts")
+}
+
+// A recorded settle-up payment between two participants (by name-id). Append
+// only; adjusts net balances so "mark paid" is real and synced, not cosmetic.
+model TripPayment {
+  id                String   @id @default(uuid()) @db.Uuid
+  tripId            String   @map("trip_id") @db.Uuid
+  fromParticipantId String   @map("from_participant_id")
+  toParticipantId   String   @map("to_participant_id")
+  amount            Float
+  note              String?
+  createdById       String?  @map("created_by") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("trip_payments")
+}
+
+// Invite link token → join a trip as a member (collaboration).
+model TripInvite {
+  token       String   @id
+  tripId      String   @map("trip_id") @db.Uuid
+  role        String   @default("member")
+  createdById String?  @map("created_by") @db.Uuid
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@map("trip_invites")
 }
 
 model TripMember {
