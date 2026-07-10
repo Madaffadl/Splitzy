@@ -81,6 +81,8 @@ export interface TravelTrip {
     budget?: number;
     participants: Participant[];
     receipts: Receipt[];
+    /** Server-side optimistic-lock version (cloud mode only). */
+    version?: number;
 }
 
 // Calculation result types

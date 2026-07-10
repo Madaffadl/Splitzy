@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { TravelTrip, Receipt, Participant, PaymentInfo } from "@/types";
-import { useHybridState } from "@/hooks/useHybridState";
-import { generateId, formatCurrency } from "@/lib/utils";
+import { useTravelData } from "@/hooks/useTravelData";
+import { formatCurrency } from "@/lib/utils";
+import { generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { ParticipantManager } from "@/components/ParticipantManager";
@@ -24,15 +25,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, ArrowRight, Plane, Plus, Trash2, Users, Info, Target, Receipt as ReceiptIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Plane,
+  Plus,
+  Trash2,
+  Users,
+  Info,
+  Target,
+  Receipt as ReceiptIcon,
+  Cloud,
+  CheckCircle2,
+  Loader2,
+  Upload,
+} from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
-
-interface TravelStore {
-  trips: TravelTrip[];
-  activeId: string | null;
-}
-
-const DEFAULT_STATE: TravelStore = { trips: [], activeId: null };
 
 type ViewMode = "overview" | "edit-receipt" | "summary";
 
@@ -47,8 +55,7 @@ function parseAmount(s: string): number {
 }
 
 // Drop removed participants from receipts so no dangling payer/assignee refs
-// break the balance math. Receipts whose payer was removed, or that end up with
-// an unassigned item, are dropped.
+// break the balance math.
 function reconcileReceipts(
   receipts: Receipt[],
   validIds: Set<string>
@@ -56,10 +63,7 @@ function reconcileReceipts(
   let dropped = 0;
   const out: Receipt[] = [];
   for (const r of receipts) {
-    if (!validIds.has(r.payerId)) {
-      dropped++;
-      continue;
-    }
+    if (!validIds.has(r.payerId)) { dropped++; continue; }
     const items = r.items.map((it) => ({
       ...it,
       assignedToIds: it.assignedToIds.filter((id) => validIds.has(id)),
@@ -67,30 +71,98 @@ function reconcileReceipts(
         ? { assignments: it.assignments.filter((a) => validIds.has(a.participantId)) }
         : {}),
     }));
-    if (items.some((it) => it.assignedToIds.length === 0)) {
-      dropped++;
-      continue;
-    }
+    if (items.some((it) => it.assignedToIds.length === 0)) { dropped++; continue; }
     out.push({ ...r, items });
   }
   return { receipts: out, dropped };
 }
 
+// ── Sync Dialog ──────────────────────────────────────────────────────────────
+function TravelSyncDialog({
+  open,
+  onSync,
+  onDismiss,
+}: {
+  open: boolean;
+  onSync: () => Promise<number>;
+  onDismiss: () => void;
+}) {
+  const [status, setStatus] = useState<"idle" | "syncing" | "done">("idle");
+  const [count, setCount] = useState(0);
+
+  const handleSync = async () => {
+    setStatus("syncing");
+    const n = await onSync();
+    setCount(n);
+    setStatus("done");
+  };
+
+  const handleClose = () => {
+    setStatus("idle");
+    onDismiss();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          {status === "done" ? (
+            <>
+              <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+              </div>
+              <DialogTitle className="text-center">Sync complete</DialogTitle>
+              <DialogDescription className="text-center">
+                {count} trip{count !== 1 ? "s" : ""} synced to your account.
+              </DialogDescription>
+            </>
+          ) : (
+            <>
+              <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Upload className="h-6 w-6 text-primary" />
+              </div>
+              <DialogTitle className="text-center">Sync trips to cloud?</DialogTitle>
+              <DialogDescription className="text-center">
+                You have trips saved on this device. Sync them to your account so they&apos;re accessible anywhere.
+              </DialogDescription>
+            </>
+          )}
+        </DialogHeader>
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+          {status === "done" ? (
+            <Button onClick={handleClose} className="w-full">Done</Button>
+          ) : (
+            <>
+              <Button onClick={handleSync} disabled={status === "syncing"} className="w-full gap-2">
+                {status === "syncing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
+                {status === "syncing" ? "Syncing…" : "Sync to my account"}
+              </Button>
+              <Button variant="ghost" onClick={handleClose} disabled={status === "syncing"} className="w-full">
+                Keep local only
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
 export default function TravelPage() {
-  const [store, setStore] = useHybridState<TravelStore>("splitzy-travel", DEFAULT_STATE);
+  const travel = useTravelData();
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
   const [newTripName, setNewTripName] = useState("");
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [budgetDraft, setBudgetDraft] = useState<string | null>(null);
   const [deleteTripId, setDeleteTripId] = useState<string | null>(null);
   const [deleteReceiptId, setDeleteReceiptId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
-  const trips = store.trips ?? [];
-  const rawActive = trips.find((t) => t.id === store.activeId) ?? null;
-  // Normalize so a legacy/corrupt trip (e.g. missing `receipts`) can't crash the
-  // workspace by dereferencing undefined arrays.
+  const trips = travel.trips ?? [];
+  const rawActive = trips.find((t) => t.id === travel.activeId) ?? null;
   const activeTrip: TravelTrip | null = rawActive
     ? { ...rawActive, participants: rawActive.participants ?? [], receipts: rawActive.receipts ?? [] }
     : null;
@@ -99,45 +171,36 @@ export default function TravelPage() {
     if (viewMode !== "overview") window.scrollTo({ top: 0, behavior: "instant" });
   }, [viewMode]);
 
-  const updateActiveTrip = (updates: Partial<TravelTrip>) => {
-    setStore((prev) => ({
-      ...prev,
-      trips: prev.trips.map((t) => (t.id === prev.activeId ? { ...t, ...updates } : t)),
-    }));
-  };
-
-  const createTrip = () => {
+  // ── Trip CRUD ─────────────────────────────────────────────────────────────
+  const createTrip = async () => {
     const name = newTripName.trim() || "My Trip";
-    const trip: TravelTrip = { id: generateId(), name, participants: [], receipts: [] };
-    setStore((prev) => ({ trips: [trip, ...prev.trips], activeId: trip.id }));
+    await travel.createTrip(name);
     setNewTripName("");
   };
 
-  const deleteTrip = (id: string) => {
-    setStore((prev) => ({
-      trips: prev.trips.filter((t) => t.id !== id),
-      activeId: prev.activeId === id ? null : prev.activeId,
-    }));
+  const deleteTrip = async (id: string) => {
+    await travel.deleteTrip(id);
     setDeleteTripId(null);
     toast({ title: "Trip deleted", variant: "success" });
   };
 
   const openTrip = (id: string) => {
     setViewMode("overview");
-    setStore((prev) => ({ ...prev, activeId: id }));
+    travel.setActiveId(id);
   };
-  const closeTrip = () => setStore((prev) => ({ ...prev, activeId: null }));
+  const closeTrip = () => travel.setActiveId(null);
 
-  const handleParticipantsChange = (participants: Participant[]) => {
+  // ── Participants ──────────────────────────────────────────────────────────
+  const handleParticipantsChange = async (participants: Participant[]) => {
     if (!activeTrip) return;
     const ids = new Set(participants.map((p) => p.id));
     const removedSomeone = activeTrip.participants.some((p) => !ids.has(p.id));
     if (!removedSomeone) {
-      updateActiveTrip({ participants });
+      await travel.updateParticipants(activeTrip.id, participants);
       return;
     }
     const { receipts, dropped } = reconcileReceipts(activeTrip.receipts, ids);
-    updateActiveTrip({ participants, receipts });
+    await travel.updateParticipants(activeTrip.id, participants, receipts);
     if (dropped > 0) {
       toast({
         title: `${dropped} receipt${dropped > 1 ? "s" : ""} removed`,
@@ -147,6 +210,15 @@ export default function TravelPage() {
     }
   };
 
+  const updateParticipantPaymentInfo = async (participantId: string, info: PaymentInfo | undefined) => {
+    if (!activeTrip) return;
+    const participants = activeTrip.participants.map((p) =>
+      p.id === participantId ? { ...p, paymentInfo: info } : p
+    );
+    await travel.updateParticipants(activeTrip.id, participants);
+  };
+
+  // ── Receipts ──────────────────────────────────────────────────────────────
   const startNewReceipt = () => {
     if (!activeTrip) return;
     const receipt: Receipt = {
@@ -173,40 +245,40 @@ export default function TravelPage() {
     setEditingReceipt((prev) => (prev ? { ...prev, receipt: { ...prev.receipt, ...updates } } : prev));
   };
 
-  const saveReceipt = () => {
+  const saveReceipt = async () => {
     if (!activeTrip || !editingReceipt || isSaving) return;
     setIsSaving(true);
     const { receipt, isNew } = editingReceipt;
-    updateActiveTrip({
-      receipts: isNew
-        ? [...activeTrip.receipts, receipt]
-        : activeTrip.receipts.map((r) => (r.id === receipt.id ? receipt : r)),
-    });
+    if (isNew) {
+      await travel.addReceipt(activeTrip.id, receipt);
+    } else {
+      await travel.updateReceipt(activeTrip.id, receipt);
+    }
     setEditingReceipt(null);
     setViewMode("overview");
     toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
     setTimeout(() => setIsSaving(false), 0);
   };
 
-  const deleteReceipt = (id: string) => {
+  const deleteReceipt = async (id: string) => {
     if (!activeTrip) return;
     const removed = activeTrip.receipts.find((r) => r.id === id);
-    updateActiveTrip({ receipts: activeTrip.receipts.filter((r) => r.id !== id) });
+    await travel.deleteReceipt(activeTrip.id, id);
     setDeleteReceiptId(null);
     toast({ title: "Receipt deleted", description: removed?.title, variant: "success" });
   };
 
-  const updateParticipantPaymentInfo = (participantId: string, info: PaymentInfo | undefined) => {
-    if (!activeTrip) return;
-    updateActiveTrip({
-      participants: activeTrip.participants.map((p) =>
-        p.id === participantId ? { ...p, paymentInfo: info } : p
-      ),
-    });
-  };
-
   const canAddReceipt = (activeTrip?.participants.length ?? 0) >= 2;
 
+  // ── Trip name sync on blur ────────────────────────────────────────────────
+  const commitName = async () => {
+    if (nameDraft !== null && activeTrip) {
+      await travel.updateTrip(activeTrip.id, { name: nameDraft.trim() || "My Trip" });
+      setNameDraft(null);
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
@@ -254,16 +326,31 @@ export default function TravelPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow w-full">
-        {/* Local-only notice */}
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-          <p className="text-foreground/90">
-            <span className="font-semibold text-amber-700 dark:text-amber-300">Saved on this device only.</span>{" "}
-            Trips are stored in your browser. Clearing browser data or switching devices will lose them.
-          </p>
-        </div>
+        {/* Status banner */}
+        {travel.isLoading ? (
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-muted p-3 text-sm">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <p className="text-muted-foreground">Loading your trips…</p>
+          </div>
+        ) : travel.cloudMode ? (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+            <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <p className="text-foreground/90">
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">Saved to your account.</span>{" "}
+              Trips sync across devices automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-foreground/90">
+              <span className="font-semibold text-amber-700 dark:text-amber-300">Saved on this device only.</span>{" "}
+              Sign in to sync trips across devices.
+            </p>
+          </div>
+        )}
 
-        {/* --- Trip list --- */}
+        {/* ── Trip list ── */}
         {!activeTrip && (
           <div className="space-y-6">
             <Card>
@@ -279,10 +366,10 @@ export default function TravelPage() {
                   <Input
                     value={newTripName}
                     onChange={(e) => setNewTripName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && createTrip()}
+                    onKeyDown={(e) => e.key === "Enter" && void createTrip()}
                     placeholder="e.g., Bali 2026"
                   />
-                  <Button onClick={createTrip}>
+                  <Button onClick={() => void createTrip()}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create
                   </Button>
@@ -338,7 +425,7 @@ export default function TravelPage() {
           </div>
         )}
 
-        {/* --- Trip workspace: overview --- */}
+        {/* ── Trip workspace: overview ── */}
         {activeTrip && viewMode === "overview" && (
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
@@ -351,8 +438,11 @@ export default function TravelPage() {
                   <div className="space-y-2">
                     <Label>Trip name</Label>
                     <Input
-                      value={activeTrip.name}
-                      onChange={(e) => updateActiveTrip({ name: e.target.value })}
+                      value={nameDraft !== null ? nameDraft : activeTrip.name}
+                      onFocus={() => setNameDraft(activeTrip.name)}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onBlur={() => void commitName()}
+                      onKeyDown={(e) => e.key === "Enter" && void commitName()}
                       placeholder="e.g., Bali 2026"
                     />
                   </div>
@@ -371,10 +461,10 @@ export default function TravelPage() {
                         value={budgetDraft !== null ? budgetDraft : activeTrip.budget ? formatCurrency(activeTrip.budget) : ""}
                         onFocus={() => setBudgetDraft(activeTrip.budget ? String(activeTrip.budget) : "")}
                         onChange={(e) => setBudgetDraft(e.target.value)}
-                        onBlur={() => {
+                        onBlur={async () => {
                           if (budgetDraft !== null) {
                             const val = parseAmount(budgetDraft);
-                            updateActiveTrip({ budget: val > 0 ? val : undefined });
+                            await travel.updateTrip(activeTrip.id, { budget: val > 0 ? val : undefined });
                             setBudgetDraft(null);
                           }
                         }}
@@ -393,7 +483,7 @@ export default function TravelPage() {
                 <CardContent>
                   <ParticipantManager
                     participants={activeTrip.participants}
-                    onChange={handleParticipantsChange}
+                    onChange={(p) => void handleParticipantsChange(p)}
                   />
                 </CardContent>
               </Card>
@@ -464,7 +554,7 @@ export default function TravelPage() {
               </div>
             </div>
 
-            {/* Summary sidebar — compact; full breakdown lives on the summary view */}
+            {/* Summary sidebar — compact */}
             <div className="space-y-3">
               <ErrorBoundary label="the trip summary">
                 <MultipleReceiptSummaryPanel
@@ -474,7 +564,7 @@ export default function TravelPage() {
                   splitId={activeTrip.id}
                   budget={activeTrip.budget}
                   compact
-                  onUpdatePaymentInfo={updateParticipantPaymentInfo}
+                  onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
                 />
               </ErrorBoundary>
               {activeTrip.receipts.length > 0 && (
@@ -487,7 +577,7 @@ export default function TravelPage() {
           </div>
         )}
 
-        {/* --- Trip workspace: full summary --- */}
+        {/* ── Trip workspace: full summary ── */}
         {activeTrip && viewMode === "summary" && (
           <div className="max-w-3xl mx-auto space-y-4">
             <div>
@@ -501,23 +591,23 @@ export default function TravelPage() {
                 splitName={activeTrip.name}
                 splitId={activeTrip.id}
                 budget={activeTrip.budget}
-                onUpdatePaymentInfo={updateParticipantPaymentInfo}
+                onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
               />
             </ErrorBoundary>
           </div>
         )}
 
-        {/* --- Trip workspace: edit receipt --- */}
+        {/* ── Trip workspace: edit receipt ── */}
         {activeTrip && viewMode === "edit-receipt" && editingReceipt && (
           <ReceiptEditor
             receipt={editingReceipt.receipt}
             participants={activeTrip.participants}
             isNew={editingReceipt.isNew}
             onChange={updateEditingReceipt}
-            onSave={saveReceipt}
+            onSave={() => void saveReceipt()}
             onCancel={() => { setEditingReceipt(null); setViewMode("overview"); }}
             isSaving={isSaving}
-            onUpdatePaymentInfo={updateParticipantPaymentInfo}
+            onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
           />
         )}
       </div>
@@ -533,7 +623,7 @@ export default function TravelPage() {
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDeleteTripId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteTripId && deleteTrip(deleteTripId)}>
+            <Button variant="destructive" onClick={() => deleteTripId && void deleteTrip(deleteTripId)}>
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
             </Button>
@@ -552,12 +642,19 @@ export default function TravelPage() {
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDeleteReceiptId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteReceiptId && deleteReceipt(deleteReceiptId)}>
+            <Button variant="destructive" onClick={() => deleteReceiptId && void deleteReceipt(deleteReceiptId)}>
               Delete
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Guest → cloud sync dialog */}
+      <TravelSyncDialog
+        open={travel.showSyncDialog}
+        onSync={travel.syncLocalToCloud}
+        onDismiss={travel.dismissSyncDialog}
+      />
 
       <AppFooter />
     </main>

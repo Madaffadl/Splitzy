@@ -36,9 +36,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return apiError("BAD_REQUEST", "Invalid request body");
   }
 
+  const receiptId = (payload as { id: string }).id;
   const sortOrder = await prisma.tripReceipt.count({ where: { tripId: id } });
-  const created = await prisma.tripReceipt.create({
-    data: {
+
+  // Use the client-generated receipt.id as the DB row ID so the client can
+  // address receipts for PUT/DELETE without a separate server-assigned rid.
+  // upsert makes this idempotent (safe for retry / guest→cloud sync).
+  const row = await prisma.tripReceipt.upsert({
+    where: { id: receiptId },
+    update: { payload: payload as unknown as Prisma.InputJsonValue },
+    create: {
+      id: receiptId,
       tripId: id,
       payload: payload as unknown as Prisma.InputJsonValue,
       sortOrder,
@@ -47,5 +55,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     select: { id: true },
   });
 
-  return NextResponse.json({ id: created.id }, { status: 201 });
+  return NextResponse.json({ id: row.id }, { status: 201 });
 }
