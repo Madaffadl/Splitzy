@@ -19,6 +19,88 @@ const receipt = {
   items: [{ id: "i1", name: "Pizza", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["p1", "p2"] }],
 };
 
+// Drift guard: a fully-populated object must survive validation with EVERY
+// field intact. If someone adds a field to the type but forgets to preserve it
+// in the validator (the class of bug that dropped `assignments`), these fail.
+describe("drift guard — validators preserve every field", () => {
+  const ids = new Set(["p1", "p2"]);
+
+  it("preserves every receipt field through validateTripReceiptPayload", () => {
+    const full = {
+      id: "r1",
+      title: "Dinner",
+      date: "2026-07-01T00:00:00.000Z",
+      payerId: "p1",
+      tax: 5,
+      service: 3,
+      items: [
+        {
+          id: "i1",
+          name: "Pizza",
+          qty: 3,
+          unitPrice: 30,
+          total: 90,
+          assignedToIds: ["p1", "p2"],
+          assignments: [{ participantId: "p1", qty: 2 }, { participantId: "p2", qty: 1 }],
+        },
+      ],
+      discounts: [{ id: "d1", scope: "item", type: "amount", value: 10, label: "Promo", targetId: "i1" }],
+    };
+    const out = validateTripReceiptPayload(full, ids);
+    expect(out.id).toBe("r1");
+    expect(out.title).toBe("Dinner");
+    expect(out.date).toBe("2026-07-01T00:00:00.000Z");
+    expect(out.payerId).toBe("p1");
+    expect(out.tax).toBe(5);
+    expect(out.service).toBe(3);
+    expect(out.items[0]).toMatchObject({
+      id: "i1",
+      name: "Pizza",
+      qty: 3,
+      unitPrice: 30,
+      total: 90,
+      assignedToIds: ["p1", "p2"],
+      assignments: [{ participantId: "p1", qty: 2 }, { participantId: "p2", qty: 1 }],
+    });
+    expect(out.discounts?.[0]).toMatchObject({
+      id: "d1",
+      scope: "item",
+      type: "amount",
+      value: 10,
+      label: "Promo",
+      targetId: "i1",
+    });
+  });
+
+  it("preserves every participant field (paymentInfo + budget)", () => {
+    const out = validateTravelTripInput({
+      name: "T",
+      participants: [
+        {
+          id: "p1",
+          name: "Alex",
+          budget: 500000,
+          paymentInfo: { bank: "BCA", accountNumber: "123", accountName: "Alex P" },
+        },
+      ],
+    });
+    expect(out.participants[0]).toMatchObject({
+      id: "p1",
+      name: "Alex",
+      budget: 500000,
+      paymentInfo: { bank: "BCA", accountNumber: "123", accountName: "Alex P" },
+    });
+  });
+
+  it("preserves every payment field through validateTripPaymentInput", () => {
+    const out = validateTripPaymentInput(
+      { from: "p2", to: "p1", amount: 150, note: "cash", source: "share:r1:p2" },
+      ids
+    );
+    expect(out).toEqual({ from: "p2", to: "p1", amount: 150, note: "cash", source: "share:r1:p2" });
+  });
+});
+
 describe("validateTravelTripInput", () => {
   it("accepts a full trip and normalizes it", () => {
     const out = validateTravelTripInput({ name: "Bali", budget: 5_000_000, participants, receipts: [receipt] });

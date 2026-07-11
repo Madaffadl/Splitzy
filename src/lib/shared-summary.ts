@@ -13,6 +13,7 @@
 // (defending against a malformed/legacy row in the Json column).
 
 import { ValidationError, validateParticipantsJson } from "@/lib/validation";
+import type { Receipt, ReceiptItem, Discount, Participant, PaymentInfo, TripPayment } from "@/types";
 
 export const SHARE_TTL_DAYS = 14;
 export const SHARE_PAYLOAD_VERSION = 1 as const;
@@ -32,64 +33,15 @@ const MAX_AMOUNT = 1_000_000_000; // 1 billion rupiah ceiling
 // trip and stops a client from writing a multi-MB blob into Postgres.
 export const MAX_PAYLOAD_BYTES = 256_000;
 
-export interface SharedItem {
-  id: string;
-  name: string;
-  qty: number;
-  unitPrice: number;
-  total: number;
-  assignedToIds: string[];
-  // Qty-per-person split (used when an item's quantity is shared unevenly).
-  // Carried through so cloud sync + share links preserve the exact split
-  // instead of silently collapsing to an equal split.
-  assignments?: { participantId: string; qty: number }[];
-}
-
-export interface SharedDiscount {
-  id: string;
-  scope: "receipt" | "item" | "participant";
-  type: "amount" | "percent";
-  value: number;
-  label?: string;
-  targetId?: string;
-}
-
-export interface SharedReceipt {
-  id: string;
-  title: string;
-  date?: string;
-  payerId: string;
-  tax: number;
-  service: number;
-  items: SharedItem[];
-  discounts?: SharedDiscount[];
-}
-
-export interface SharedPaymentInfo {
-  bank?: string;
-  accountNumber?: string;
-  accountName?: string;
-}
-
-export interface SharedParticipant {
-  id: string;
-  name: string;
-  // Optional bank/e-wallet details, carried through so a shared link shows the
-  // recipient's account. Validated by validateParticipantsJson on write + read.
-  paymentInfo?: SharedPaymentInfo;
-  // Optional individual spending target (Travel Spend), carried through so the
-  // shared view can show each traveler's budget progress.
-  budget?: number;
-}
-
-export interface SharedPayment {
-  id: string;
-  from: string;
-  to: string;
-  amount: number;
-  note?: string;
-  source?: string;
-}
+// The "shared" (persisted snapshot) shapes are exactly the canonical client
+// shapes — aliased here rather than re-declared so there is ONE source of truth
+// and adding a field can't leave these definitions out of sync.
+export type SharedItem = ReceiptItem;
+export type SharedDiscount = Discount;
+export type SharedReceipt = Receipt;
+export type SharedPaymentInfo = PaymentInfo;
+export type SharedParticipant = Participant;
+export type SharedPayment = Omit<TripPayment, "createdAt">;
 
 export interface SharedSummaryPayload {
   v: typeof SHARE_PAYLOAD_VERSION;

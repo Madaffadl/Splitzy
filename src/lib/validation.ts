@@ -2,6 +2,8 @@
 // Avoids adding zod as a dependency for the small number of POST/PUT shapes
 // we actually validate. If validation needs grow, swap to zod.
 
+import type { Participant, PaymentInfo } from "@/types";
+
 export class ValidationError extends Error {
   constructor(public field: string, message: string) {
     super(`${field}: ${message}`);
@@ -85,18 +87,11 @@ function asStringArray(value: unknown, field: string, maxItems = 50): string[] {
   return value.map((v, i) => asString(v, `${field}[${i}]`, 100));
 }
 
-export interface ValidatedPaymentInfo {
-  bank?: string;
-  accountNumber?: string;
-  accountName?: string;
-}
-
-export interface ValidatedParticipant {
-  id: string;
-  name: string;
-  paymentInfo?: ValidatedPaymentInfo;
-  budget?: number;
-}
+// Validator output shapes are exactly the canonical client shapes — aliased so
+// there is a single source of truth (see also SharedParticipant in
+// shared-summary.ts). A drift-guard test asserts validation preserves every field.
+export type ValidatedPaymentInfo = PaymentInfo;
+export type ValidatedParticipant = Participant;
 
 const MAX_PARTICIPANTS = 100;
 const MAX_PARTICIPANT_BUDGET = 1_000_000_000_000; // 1 trillion rupiah ceiling
