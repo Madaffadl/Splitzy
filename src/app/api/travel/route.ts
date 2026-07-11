@@ -40,6 +40,10 @@ export async function GET(request: NextRequest) {
           user: { select: { name: true, email: true, avatarUrl: true } },
         },
       },
+      tripPayments: {
+        select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, note: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      },
     },
     orderBy: { updatedAt: "desc" },
   });
@@ -59,6 +63,14 @@ export async function GET(request: NextRequest) {
         avatarUrl: m.user.avatarUrl,
         role: m.role as "owner" | "member",
         joinedAt: m.joinedAt.toISOString(),
+      })),
+      payments: t.tripPayments.map((p) => ({
+        id: p.id,
+        from: p.fromParticipantId,
+        to: p.toParticipantId,
+        amount: p.amount,
+        note: p.note ?? undefined,
+        createdAt: p.createdAt.toISOString(),
       })),
     })),
   });

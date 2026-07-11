@@ -1,7 +1,7 @@
 "use client";
 
-import { Receipt, Participant, PersonShareDetail, PaymentInfo } from "@/types";
-import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, getWalletStats, buildSettlementTrace } from "@/lib/calculations";
+import { Receipt, Participant, PersonShareDetail, PaymentInfo, TripPayment } from "@/types";
+import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, getWalletStats, buildSettlementTrace, applyPaymentsToBalances } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   formatPaymentInfoText,
@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Copy, Check, CheckCircle2, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2 } from "lucide-react";
+import { Copy, Check, CheckCircle2, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2, X } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
@@ -46,6 +46,16 @@ interface SummaryPanelProps {
   // add/edit affordance for their bank/e-wallet details. Omitted in read-only
   // views, where payment info is shown but not editable.
   onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
+  // When true, the Settlements list is static (no mark-as-paid toggle). Used by
+  // the ReceiptEditor live preview: settle-up belongs to the trip level, not to
+  // an in-progress single-receipt edit, so the cosmetic per-receipt toggle
+  // (which synced nowhere) is suppressed there.
+  settlementReadOnly?: boolean;
+  // Travel Spend: when provided, each non-payer in the "Per Person" breakdown
+  // gets a mark-as-paid checkbox bound to the receipt's `paidBy`. This is the
+  // real, synced settle-up (persisted with the receipt) — not the cosmetic
+  // per-receipt toggle. Only Travel passes this; single/multiple leave it off.
+  onTogglePaidShare?: (participantId: string) => void;
 }
 
 // One recipient's payment details as a card row inside the "Rekening Tujuan"
@@ -550,7 +560,12 @@ export function ReceiptBreakdown({
   );
 }
 
-export function SummaryPanel({ receipt, participants, title, readOnly = false, onUpdatePaymentInfo }: SummaryPanelProps) {
+export function SummaryPanel({ receipt, participants, title, readOnly = false, onUpdatePaymentInfo, settlementReadOnly = false, onTogglePaidShare }: SummaryPanelProps) {
+  // Settle-up is a trip-level action; suppress the cosmetic per-receipt toggle
+  // in read-only and editor-preview contexts (render static rows instead).
+  const settleStatic = readOnly || settlementReadOnly;
+  // Which non-payers have already paid their share (Travel Spend paidBy).
+  const paidBySet = useMemo(() => new Set(receipt.paidBy ?? []), [receipt.paidBy]);
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session.
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -883,6 +898,12 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
                 detail={detail}
                 name={getParticipantName(detail.participantId)}
                 isPayer={detail.participantId === receipt.payerId}
+                paid={paidBySet.has(detail.participantId)}
+                onTogglePaid={
+                  onTogglePaidShare && detail.participantId !== receipt.payerId
+                    ? () => onTogglePaidShare(detail.participantId)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -896,6 +917,24 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
           {settlements.length === 0 ? (
             <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
               ✓ All settled!
+            </div>
+          ) : settleStatic ? (
+            // Static rows — no cosmetic per-receipt toggle (settle-up is
+            // trip-level; this avoids a mark-as-paid that syncs nowhere).
+            <div className="space-y-2">
+              {settlements.map((s, i) => (
+                <div
+                  key={`${s.from}>${s.to}:${i}`}
+                  className="flex items-center gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">{getParticipantName(s.from)}</span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">{getParticipantName(s.to)}</span>
+                  </div>
+                  <span className="font-bold text-primary sm:ml-auto">Rp {formatCurrency(s.amount)}</span>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="space-y-2">
@@ -982,6 +1021,19 @@ interface MultipleReceiptSummaryPanelProps {
   // Editable contexts pass this to let each settlement recipient add/edit their
   // bank/e-wallet details. Omitted in the read-only shared view.
   onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
+  // Recorded settle-up payments (Travel Spend). Applied to the settlement and
+  // listed in the "already paid" note.
+  payments?: TripPayment[];
+  // Travel Spend: when provided, the Receipt Details rows become interactive —
+  // the same mark-as-paid controls as the overview receipts list, so paid state
+  // can be toggled from the summary and reflects here immediately.
+  onToggleReceiptSettled?: (receiptId: string) => void;
+  onTogglePaidShare?: (receiptId: string, participantId: string) => void;
+  // Travel Spend: when provided, "Final Settlements" becomes a real checklist —
+  // marking a transfer paid records a synced settle-up payment (moving it into
+  // "Already paid"), instead of the cosmetic localStorage strike-through.
+  onRecordPayment?: (from: string, to: string, amount: number) => void;
+  onDeletePayment?: (paymentId: string) => void;
 }
 
 export function MultipleReceiptSummaryPanel({
@@ -994,6 +1046,11 @@ export function MultipleReceiptSummaryPanel({
   compact = false,
   readOnly = false,
   onUpdatePaymentInfo,
+  payments,
+  onToggleReceiptSettled,
+  onTogglePaidShare,
+  onRecordPayment,
+  onDeletePayment,
 }: MultipleReceiptSummaryPanelProps) {
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session
@@ -1044,13 +1101,16 @@ export function MultipleReceiptSummaryPanel({
     // Round balances
     balances.forEach((v, k) => balances.set(k, Math.round(v * 100) / 100));
 
+    // Recorded settle-up payments further reduce the outstanding balances.
+    const settled = applyPaymentsToBalances(balances, payments ?? []);
+
     return {
-      aggregateBalances: balances,
+      aggregateBalances: settled,
       totalGrandTotal: Math.round(total * 100) / 100,
       totalDiscount: Math.round(discount * 100) / 100,
       totalPaid: Math.round(paid * 100) / 100,
     };
-  }, [receipts, participantIds]);
+  }, [receipts, participantIds, payments]);
 
   // Wallet stats (paid vs consumed)
   const walletStats = useMemo(() => {
@@ -1265,13 +1325,17 @@ export function MultipleReceiptSummaryPanel({
       text += `✅ Everyone is settled!\n`;
     }
 
-    if (settledReceipts.length > 0 || paidShares.length > 0) {
+    const recordedPayments = (payments ?? []).filter((p) => p.amount > 0);
+    if (settledReceipts.length > 0 || paidShares.length > 0 || recordedPayments.length > 0) {
       text += `\n✔️ Already paid (excluded from settlement):\n`;
       for (const r of settledReceipts) {
         text += `• ${getParticipantName(r.payerId)} paid ${r.title}: Rp ${formatCurrency(r.amountPaid)}\n`;
       }
       for (const s of paidShares) {
         text += `• ${getParticipantName(s.participantId)} paid their share of ${s.receiptTitle}: Rp ${formatCurrency(s.amount)}\n`;
+      }
+      for (const p of recordedPayments) {
+        text += `• ${getParticipantName(p.from)} paid ${getParticipantName(p.to)}${p.note ? ` (${p.note})` : ""}: Rp ${formatCurrency(p.amount)}\n`;
       }
     }
 
@@ -1295,6 +1359,7 @@ export function MultipleReceiptSummaryPanel({
           participants,
           receipts,
           ...(budget != null ? { budget } : {}),
+          ...(payments && payments.length > 0 ? { payments } : {}),
         }),
       });
       if (!res.ok) {
@@ -1567,6 +1632,12 @@ export function MultipleReceiptSummaryPanel({
                   receipt={r}
                   participants={participants}
                   index={i}
+                  onToggleSettled={
+                    onToggleReceiptSettled ? () => onToggleReceiptSettled(r.id) : undefined
+                  }
+                  onTogglePaidShare={
+                    onTogglePaidShare ? (pid) => onTogglePaidShare(r.id, pid) : undefined
+                  }
                 />
               ))}
             </div>
@@ -1727,8 +1798,8 @@ export function MultipleReceiptSummaryPanel({
             )}
           </div>
 
-          {/* Already-paid — receipts + individual shares excluded from settlement */}
-          {(settledReceipts.length > 0 || paidShares.length > 0) && (
+          {/* Already-paid — receipts + individual shares + recorded settle-ups */}
+          {(settledReceipts.length > 0 || paidShares.length > 0 || (payments?.length ?? 0) > 0) && (
             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs space-y-2">
               <p className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
                 <Check className="h-3.5 w-3.5 shrink-0" />
@@ -1757,6 +1828,33 @@ export function MultipleReceiptSummaryPanel({
                     </span>
                   </li>
                 ))}
+                {(payments ?? [])
+                  .filter((p) => p.amount > 0)
+                  .map((p) => (
+                    <li key={p.id} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-foreground/90">
+                        <span className="font-semibold">{getParticipantName(p.from)}</span> paid{" "}
+                        <span className="font-semibold">{getParticipantName(p.to)}</span>
+                        {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
+                      </span>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                          Rp {formatCurrency(p.amount)}
+                        </span>
+                        {onDeletePayment && (
+                          <button
+                            type="button"
+                            onClick={() => onDeletePayment(p.id)}
+                            aria-label="Undo this payment"
+                            title="Undo — move back to settlement"
+                            className="h-5 w-5 flex items-center justify-center rounded text-emerald-700/70 hover:text-destructive hover:bg-background/60 transition-colors"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </span>
+                    </li>
+                  ))}
               </ul>
             </div>
           )}
@@ -1833,6 +1931,37 @@ export function MultipleReceiptSummaryPanel({
           {settlements.length === 0 ? (
             <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
               ✓ Everyone is settled!
+            </div>
+          ) : onRecordPayment ? (
+            // Ledger mode (Travel): marking a transfer paid records a real,
+            // synced settle-up payment. It then moves into "Already paid" above
+            // and the remaining list updates — nothing is silently hidden.
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Tap <span className="font-medium text-foreground">Mark paid</span> once a transfer is done — it&apos;s recorded and synced.
+              </p>
+              {settlements.map((s, i) => (
+                <div
+                  key={`${s.from}>${s.to}:${i}`}
+                  className="flex items-center gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="font-medium truncate">{getParticipantName(s.from)}</span>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate">{getParticipantName(s.to)}</span>
+                  </div>
+                  <span className="font-bold text-primary shrink-0">Rp {formatCurrency(s.amount)}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 text-xs shrink-0"
+                    onClick={() => onRecordPayment(s.from, s.to, s.amount)}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Mark paid
+                  </Button>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="space-y-2">

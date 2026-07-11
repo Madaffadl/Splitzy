@@ -39,6 +39,10 @@ export interface SharedItem {
   unitPrice: number;
   total: number;
   assignedToIds: string[];
+  // Qty-per-person split (used when an item's quantity is shared unevenly).
+  // Carried through so cloud sync + share links preserve the exact split
+  // instead of silently collapsing to an equal split.
+  assignments?: { participantId: string; qty: number }[];
 }
 
 export interface SharedDiscount {
@@ -85,6 +89,14 @@ export interface SharedParticipant {
   budget?: number;
 }
 
+export interface SharedPayment {
+  id: string;
+  from: string;
+  to: string;
+  amount: number;
+  note?: string;
+}
+
 export interface SharedSummaryPayload {
   v: typeof SHARE_PAYLOAD_VERSION;
   type: "multiple" | "single" | "travel";
@@ -94,6 +106,8 @@ export interface SharedSummaryPayload {
   receipts: SharedReceipt[];
   // Optional spending target, only meaningful for "travel".
   budget?: number;
+  // Recorded settle-up payments (Travel Spend), so the shared settlement matches.
+  payments?: SharedPayment[];
 }
 
 // --- Local primitive validators (validation.ts keeps its helpers private) ---
@@ -135,6 +149,33 @@ function asIdArray(value: unknown, field: string, validIds: Set<string>): string
     }
     return id;
   });
+}
+
+// Validate optional qty-per-person assignments: each entry must reference a
+// current participant and carry a positive integer qty. Unknown/zero entries
+// are dropped; returns undefined when nothing valid remains.
+function validateAssignments(
+  value: unknown,
+  field: string,
+  participantIds: Set<string>
+): { participantId: string; qty: number }[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  if (value.length > MAX_ASSIGNEES_PER_ITEM) {
+    throw new ValidationError(field, `too many entries (max ${MAX_ASSIGNEES_PER_ITEM})`);
+  }
+  const seen = new Set<string>();
+  const out: { participantId: string; qty: number }[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const a = raw as Record<string, unknown>;
+    const participantId = typeof a.participantId === "string" ? a.participantId : "";
+    if (!participantIds.has(participantId) || seen.has(participantId)) continue;
+    const qty = typeof a.qty === "number" ? a.qty : parseInt(String(a.qty ?? ""), 10);
+    if (!Number.isInteger(qty) || qty <= 0 || qty > 100_000) continue;
+    seen.add(participantId);
+    out.push({ participantId, qty });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 function validateDiscounts(
@@ -236,7 +277,46 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
     exactlyOne: type === "single",
   });
 
-  return { v: SHARE_PAYLOAD_VERSION, type, title, participants, receipts, ...(budget ? { budget } : {}) };
+  const payments = validateSharedPayments(b.payments, participantIds);
+
+  return {
+    v: SHARE_PAYLOAD_VERSION,
+    type,
+    title,
+    participants,
+    receipts,
+    ...(budget ? { budget } : {}),
+    ...(payments ? { payments } : {}),
+  };
+}
+
+const MAX_PAYMENTS = 500;
+
+/**
+ * Validate + normalize recorded settle-up payments against the participant set.
+ * Entries with unknown/equal participants or non-positive amounts are dropped
+ * (rather than throwing) so a stale entry never invalidates the whole payload.
+ */
+export function validateSharedPayments(
+  value: unknown,
+  participantIds: Set<string>
+): SharedPayment[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const out: SharedPayment[] = [];
+  for (const raw of value.slice(0, MAX_PAYMENTS)) {
+    if (!raw || typeof raw !== "object") continue;
+    const p = raw as Record<string, unknown>;
+    const from = typeof p.from === "string" ? p.from : "";
+    const to = typeof p.to === "string" ? p.to : "";
+    if (!participantIds.has(from) || !participantIds.has(to) || from === to) continue;
+    const amount = typeof p.amount === "number" ? p.amount : parseFloat(String(p.amount ?? ""));
+    if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_AMOUNT) continue;
+    const id = typeof p.id === "string" && p.id ? p.id.slice(0, MAX_ID) : `${from}>${to}:${out.length}`;
+    const note =
+      p.note != null && p.note !== "" ? asString(p.note, "payment.note", MAX_NAME) : undefined;
+    out.push({ id, from, to, amount, ...(note ? { note } : {}) });
+  }
+  return out.length > 0 ? out : undefined;
 }
 
 /**
@@ -280,6 +360,11 @@ export function validateSharedReceipts(
         throw new ValidationError(`receipts[${ri}].items[${ii}]`, "must be an object");
       }
       const it = rawItem as Record<string, unknown>;
+      const assignments = validateAssignments(
+        it.assignments,
+        `receipts[${ri}].items[${ii}].assignments`,
+        participantIds
+      );
       return {
         id: asString(it.id, `receipts[${ri}].items[${ii}].id`, MAX_ID),
         name: asString(it.name, `receipts[${ri}].items[${ii}].name`, MAX_NAME),
@@ -291,6 +376,7 @@ export function validateSharedReceipts(
           `receipts[${ri}].items[${ii}].assignedToIds`,
           participantIds
         ),
+        ...(assignments ? { assignments } : {}),
       };
     });
 

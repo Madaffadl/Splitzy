@@ -57,3 +57,47 @@ export function validateTripReceiptPayload(
 ): SharedReceipt {
   return validateSharedReceipts([payload], participantIds, { requireAtLeastOne: true })[0];
 }
+
+const MAX_PAYMENT_NOTE = 200;
+const MAX_PAYMENT_AMOUNT = 1_000_000_000; // 1 billion rupiah ceiling
+
+export interface ValidatedTripPayment {
+  from: string;
+  to: string;
+  amount: number;
+  note?: string;
+}
+
+/**
+ * Validate a settle-up payment body: `from`/`to` must be distinct participants
+ * of the trip and `amount` a positive, bounded number. `note` is optional.
+ */
+export function validateTripPaymentInput(
+  body: unknown,
+  participantIds: Set<string>
+): ValidatedTripPayment {
+  if (!body || typeof body !== "object") {
+    throw new ValidationError("body", "must be an object");
+  }
+  const b = body as Record<string, unknown>;
+
+  const from = typeof b.from === "string" ? b.from : "";
+  const to = typeof b.to === "string" ? b.to : "";
+  if (!participantIds.has(from)) throw new ValidationError("from", "must be a participant");
+  if (!participantIds.has(to)) throw new ValidationError("to", "must be a participant");
+  if (from === to) throw new ValidationError("to", "must differ from the payer");
+
+  const amount = typeof b.amount === "number" ? b.amount : parseFloat(String(b.amount ?? ""));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new ValidationError("amount", "must be a positive number");
+  }
+  if (amount > MAX_PAYMENT_AMOUNT) throw new ValidationError("amount", "exceeds maximum amount");
+
+  let note: string | undefined;
+  if (b.note != null && b.note !== "") {
+    if (typeof b.note !== "string") throw new ValidationError("note", "must be a string");
+    note = b.note.trim().slice(0, MAX_PAYMENT_NOTE) || undefined;
+  }
+
+  return { from, to, amount, ...(note ? { note } : {}) };
+}

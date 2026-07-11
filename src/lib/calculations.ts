@@ -8,9 +8,31 @@ import {
     ReceiptSummary,
     SettlementTransfer,
     TripSummary,
+    TripPayment,
     Trip,
 } from "@/types";
 import { roundTo2 } from "./utils";
+
+/**
+ * Apply recorded settle-up payments to a set of net balances (mutating a copy).
+ * A payment `from → to` means `from` handed cash to `to`, so it reduces `from`'s
+ * debt (moves toward 0 from negative) and reduces `to`'s credit (toward 0 from
+ * positive). Returns a new Map; the input is not modified.
+ */
+export function applyPaymentsToBalances(
+    balances: Map<string, number>,
+    payments: TripPayment[]
+): Map<string, number> {
+    const next = new Map(balances);
+    for (const p of payments) {
+        if (!p || p.from === p.to) continue;
+        const amount = roundTo2(p.amount);
+        if (!(amount > 0)) continue;
+        if (next.has(p.from)) next.set(p.from, roundTo2((next.get(p.from) ?? 0) + amount));
+        if (next.has(p.to)) next.set(p.to, roundTo2((next.get(p.to) ?? 0) - amount));
+    }
+    return next;
+}
 
 /**
  * Calculate the share of a single item for each assigned participant.
@@ -508,9 +530,9 @@ export function buildSettlementTrace(
 /**
  * Calculate trip summary with aggregated balances and minimized settlements.
  */
-export function getTripSummary(trip: Trip): TripSummary {
+export function getTripSummary(trip: Trip, payments: TripPayment[] = []): TripSummary {
     const participantIds = trip.participants.map((p) => p.id);
-    const aggregateBalances = new Map<string, number>();
+    let aggregateBalances = new Map<string, number>();
 
     // Initialize all participants with 0
     for (const id of participantIds) {
@@ -533,6 +555,9 @@ export function getTripSummary(trip: Trip): TripSummary {
             aggregateBalances.set(id, roundTo2(current + balance));
         }
     }
+
+    // Recorded settle-up payments further reduce the outstanding balances.
+    aggregateBalances = applyPaymentsToBalances(aggregateBalances, payments);
 
     const settlements = minimizeTransactions(aggregateBalances);
 

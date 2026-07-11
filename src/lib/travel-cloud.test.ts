@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { validateTravelTripInput, validateBudget, validateTripReceiptPayload } from "./travel-cloud";
+import {
+  validateTravelTripInput,
+  validateBudget,
+  validateTripReceiptPayload,
+  validateTripPaymentInput,
+} from "./travel-cloud";
 
 const participants = [
   { id: "p1", name: "Alex" },
@@ -119,5 +124,45 @@ describe("validateTripReceiptPayload", () => {
   it("omits paidBy when it ends up empty", () => {
     const out = validateTripReceiptPayload({ ...receipt, paidBy: ["p1", "ghost"] }, new Set(["p1", "p2"]));
     expect(out.paidBy).toBeUndefined();
+  });
+  it("preserves item qty-per-person assignments through a round-trip", () => {
+    const withAssign = {
+      ...receipt,
+      items: [{ ...receipt.items[0], assignments: [{ participantId: "p1", qty: 2 }, { participantId: "p2", qty: 1 }] }],
+    };
+    const out = validateTripReceiptPayload(withAssign, new Set(["p1", "p2"]));
+    expect(out.items[0].assignments).toEqual([{ participantId: "p1", qty: 2 }, { participantId: "p2", qty: 1 }]);
+  });
+  it("drops assignments referencing unknown participants or non-positive qty", () => {
+    const bad = {
+      ...receipt,
+      items: [{ ...receipt.items[0], assignments: [{ participantId: "ghost", qty: 2 }, { participantId: "p2", qty: 0 }] }],
+    };
+    const out = validateTripReceiptPayload(bad, new Set(["p1", "p2"]));
+    expect(out.items[0].assignments).toBeUndefined();
+  });
+});
+
+describe("validateTripPaymentInput", () => {
+  const ids = new Set(["p1", "p2"]);
+
+  it("accepts a valid payment", () => {
+    const out = validateTripPaymentInput({ from: "p2", to: "p1", amount: 150000, note: " lunas " }, ids);
+    expect(out).toEqual({ from: "p2", to: "p1", amount: 150000, note: "lunas" });
+  });
+
+  it("rejects unknown participants", () => {
+    expect(() => validateTripPaymentInput({ from: "ghost", to: "p1", amount: 10 }, ids)).toThrow(/participant/i);
+    expect(() => validateTripPaymentInput({ from: "p1", to: "ghost", amount: 10 }, ids)).toThrow(/participant/i);
+  });
+
+  it("rejects from === to", () => {
+    expect(() => validateTripPaymentInput({ from: "p1", to: "p1", amount: 10 }, ids)).toThrow(/differ/i);
+  });
+
+  it("rejects non-positive or absurd amounts", () => {
+    expect(() => validateTripPaymentInput({ from: "p1", to: "p2", amount: 0 }, ids)).toThrow(/positive/i);
+    expect(() => validateTripPaymentInput({ from: "p1", to: "p2", amount: -5 }, ids)).toThrow(/positive/i);
+    expect(() => validateTripPaymentInput({ from: "p1", to: "p2", amount: 2_000_000_000 }, ids)).toThrow(/maximum/i);
   });
 });

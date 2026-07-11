@@ -99,6 +99,16 @@ export interface TripMember {
     joinedAt: string;
 }
 
+/** A recorded settle-up: participant `from` paid participant `to` `amount`. */
+export interface TripPayment {
+    id: string;
+    from: string; // participant id who paid
+    to: string;   // participant id who received
+    amount: number;
+    note?: string;
+    createdAt?: string;
+}
+
 export interface TravelTrip {
     id: string;
     name: string;
@@ -109,6 +119,8 @@ export interface TravelTrip {
     version?: number;
     /** Account-level members who can view/edit this trip (cloud only). */
     members?: TripMember[];
+    /** Recorded settle-up payments between participants (adjust the settlement). */
+    payments?: TripPayment[];
 }
 
 // Calculation result types

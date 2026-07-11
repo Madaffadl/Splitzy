@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember } from "@/types";
+import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
 import { useTravelData } from "@/hooks/useTravelData";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals } from "@/lib/calculations";
@@ -46,6 +46,11 @@ import {
   X,
   Crown,
   UserPlus,
+  Wallet,
+  ArrowRightLeft,
+  RefreshCw,
+  AlertTriangle,
+  CloudOff,
 } from "lucide-react";
 import { AppFooter } from "@/components/AppFooter";
 
@@ -243,6 +248,139 @@ function IndividualBudgets({
               </div>
             );
           })
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Settle-up payments card ────────────────────────────────────────────────
+// Records money paid directly between travelers (e.g. "C paid E Rp 150,000"),
+// including partial amounts. Each payment reduces the final settlement.
+function SettleUpCard({
+  participants,
+  payments,
+  onAdd,
+  onDelete,
+}: {
+  participants: Participant[];
+  payments: TripPayment[];
+  onAdd: (input: { from: string; to: string; amount: number; note?: string }) => void;
+  onDelete: (paymentId: string) => void;
+}) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+
+  const nameOf = (id: string) => participants.find((p) => p.id === id)?.name ?? "Unknown";
+
+  const submit = () => {
+    const value = parseAmount(amount);
+    if (!from || !to || from === to || value <= 0) return;
+    onAdd({ from, to, amount: value, note: note.trim() || undefined });
+    setAmount("");
+    setNote("");
+  };
+
+  const canSubmit = from && to && from !== to && parseAmount(amount) > 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          Settle-up payments
+        </CardTitle>
+        <CardDescription>Record money paid directly between travelers (partial is fine).</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Existing payments */}
+        {payments.length > 0 && (
+          <ul className="space-y-1.5">
+            {payments.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="font-medium">{nameOf(p.from)}</span>
+                  <ArrowRightLeft className="mx-1 inline h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium">{nameOf(p.to)}</span>
+                  {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
+                </span>
+                <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
+                  Rp {formatCurrency(p.amount)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onDelete(p.id)}
+                  aria-label="Delete payment"
+                  className="shrink-0 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Add form */}
+        {participants.length >= 2 ? (
+          <div className="space-y-2 rounded-lg border border-dashed p-3">
+            <div className="flex items-center gap-2">
+              <select
+                aria-label="Payer"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
+              >
+                <option value="">From…</option>
+                {participants.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <ArrowRightLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <select
+                aria-label="Recipient"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
+              >
+                <option value="">To…</option>
+                {participants.map((p) => (
+                  <option key={p.id} value={p.id} disabled={p.id === from}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">Rp</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  className="pl-8 h-9"
+                  placeholder="Amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                />
+              </div>
+              <Input
+                className="flex-1 h-9"
+                placeholder="Note (optional)"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submit()}
+              />
+            </div>
+            <Button size="sm" className="w-full gap-2" onClick={submit} disabled={!canSubmit}>
+              <Plus className="h-4 w-4" />
+              Record payment
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Add at least 2 travelers to record payments.</p>
         )}
       </CardContent>
     </Card>
@@ -588,6 +726,22 @@ export default function TravelPage() {
     await travel.updateReceipt(activeTrip.id, { ...receipt, paidBy });
   };
 
+  // Record / remove a direct settle-up payment between two travelers.
+  const addSettleUp = (input: { from: string; to: string; amount: number; note?: string }) => {
+    if (!activeTrip) return;
+    void travel.addPayment(activeTrip.id, input);
+    const nameOf = (id: string) => activeTrip.participants.find((p) => p.id === id)?.name ?? "?";
+    toast({
+      title: "Payment recorded",
+      description: `${nameOf(input.from)} → ${nameOf(input.to)}: Rp ${formatCurrency(input.amount)}`,
+      variant: "success",
+    });
+  };
+  const deleteSettleUp = (paymentId: string) => {
+    if (!activeTrip) return;
+    void travel.deletePayment(activeTrip.id, paymentId);
+  };
+
   const canAddReceipt = (activeTrip?.participants.length ?? 0) >= 2;
 
   // ── Trip name sync on blur ────────────────────────────────────────────────
@@ -652,12 +806,40 @@ export default function TravelPage() {
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             <p className="text-muted-foreground">Loading your trips…</p>
           </div>
+        ) : travel.cloudMode && travel.syncStatus === "conflict" ? (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+            <p className="flex-1 text-foreground/90">
+              <span className="font-semibold text-red-700 dark:text-red-300">This trip changed elsewhere.</span>{" "}
+              Reload to get the latest — unsaved local changes will be discarded.
+            </p>
+            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
+              <RefreshCw className="h-3.5 w-3.5" /> Reload
+            </Button>
+          </div>
+        ) : travel.cloudMode && travel.syncStatus === "error" ? (
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+            <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="flex-1 text-foreground/90">
+              <span className="font-semibold text-amber-700 dark:text-amber-300">Changes may not be saved.</span>{" "}
+              {travel.syncError}
+            </p>
+            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
+              <RefreshCw className="h-3.5 w-3.5" /> Reload
+            </Button>
+          </div>
         ) : travel.cloudMode ? (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-            <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            {travel.syncStatus === "saving" ? (
+              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            )}
             <p className="text-foreground/90">
-              <span className="font-semibold text-emerald-700 dark:text-emerald-300">Saved to your account.</span>{" "}
-              Trips sync across devices automatically.
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                {travel.syncStatus === "saving" ? "Saving…" : "Saved to your account."}
+              </span>{" "}
+              {travel.syncStatus === "saving" ? "Syncing your changes." : "Trips sync across devices automatically."}
             </p>
           </div>
         ) : (
@@ -872,6 +1054,14 @@ export default function TravelPage() {
                 </CardContent>
               </Card>
 
+              {/* Settle-up payments */}
+              <SettleUpCard
+                participants={activeTrip.participants}
+                payments={activeTrip.payments ?? []}
+                onAdd={addSettleUp}
+                onDelete={deleteSettleUp}
+              />
+
               <div className="flex justify-end">
                 <Button
                   variant="ghost"
@@ -894,6 +1084,7 @@ export default function TravelPage() {
                   splitName={activeTrip.name}
                   splitId={activeTrip.id}
                   budget={activeTrip.budget}
+                  payments={activeTrip.payments}
                   compact
                   onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
                 />
@@ -930,7 +1121,18 @@ export default function TravelPage() {
                 splitName={activeTrip.name}
                 splitId={activeTrip.id}
                 budget={activeTrip.budget}
+                payments={activeTrip.payments}
                 onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
+                onToggleReceiptSettled={(rid) => {
+                  const r = activeTrip.receipts.find((x) => x.id === rid);
+                  if (r) void toggleSettled(r);
+                }}
+                onTogglePaidShare={(rid, pid) => {
+                  const r = activeTrip.receipts.find((x) => x.id === rid);
+                  if (r) void togglePaidShare(r, pid);
+                }}
+                onRecordPayment={(from, to, amount) => addSettleUp({ from, to, amount })}
+                onDeletePayment={deleteSettleUp}
               />
             </ErrorBoundary>
           </div>
@@ -947,6 +1149,13 @@ export default function TravelPage() {
             onCancel={() => { setEditingReceipt(null); setViewMode("overview"); }}
             isSaving={isSaving}
             onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
+            onTogglePaidShare={(pid) => {
+              const current = editingReceipt.receipt.paidBy ?? [];
+              const paidBy = current.includes(pid)
+                ? current.filter((id) => id !== pid)
+                : [...current, pid];
+              updateEditingReceipt({ paidBy });
+            }}
           />
         )}
       </div>

@@ -479,6 +479,64 @@ describe("getTripSummary", () => {
         expect(summary.settlements).toEqual([{ from: "b", to: "a", amount: 50 }]);
     });
 
+    it("should apply a partial settle-up payment (C paid E 150k of a 300k share)", () => {
+        const trip: Trip = {
+            id: "trip1",
+            name: "Trip",
+            participants: [
+                { id: "c", name: "Carol" },
+                { id: "e", name: "Erin" },
+            ],
+            receipts: [
+                {
+                    id: "r2",
+                    title: "Receipt 2",
+                    payerId: "e",
+                    items: [
+                        { id: "1", name: "Stay", qty: 1, unitPrice: 600, total: 600, assignedToIds: ["c", "e"] },
+                    ],
+                    tax: 0,
+                    service: 0,
+                },
+            ],
+        };
+
+        // Each share 300. Carol owes Erin 300. Carol paid Erin 150 directly.
+        const summary = getTripSummary(trip, [
+            { id: "p1", from: "c", to: "e", amount: 150 },
+        ]);
+
+        // Carol still owes 150; Erin is owed 150.
+        expect(summary.aggregateBalances.get("c")).toBe(-150);
+        expect(summary.aggregateBalances.get("e")).toBe(150);
+        expect(summary.settlements).toEqual([{ from: "c", to: "e", amount: 150 }]);
+    });
+
+    it("should settle to zero when a payment covers the full outstanding debt", () => {
+        const trip: Trip = {
+            id: "trip1",
+            name: "Trip",
+            participants: [{ id: "a", name: "A" }, { id: "b", name: "B" }],
+            receipts: [
+                {
+                    id: "r1",
+                    title: "Meal",
+                    payerId: "a",
+                    items: [
+                        { id: "1", name: "Item", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] },
+                    ],
+                    tax: 0,
+                    service: 0,
+                },
+            ],
+        };
+
+        const summary = getTripSummary(trip, [{ id: "p1", from: "b", to: "a", amount: 50 }]);
+        expect(summary.aggregateBalances.get("a")).toBe(0);
+        expect(summary.aggregateBalances.get("b")).toBe(0);
+        expect(summary.settlements.length).toBe(0);
+    });
+
     it("should settle to zero when every receipt is marked settled", () => {
         const trip: Trip = {
             id: "trip1",
