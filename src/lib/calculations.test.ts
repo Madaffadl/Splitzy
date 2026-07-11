@@ -9,6 +9,7 @@ import {
     minimizeTransactions,
     getReceiptSummary,
     getTripSummary,
+    computeTripTotals,
 } from "./calculations";
 import { Receipt, ReceiptItem, Trip } from "@/types";
 
@@ -468,5 +469,59 @@ describe("getTripSummary", () => {
         expect(summary.aggregateBalances.get("a")).toBe(0);
         expect(summary.aggregateBalances.get("b")).toBe(0);
         expect(summary.settlements.length).toBe(0);
+    });
+});
+
+describe("computeTripTotals", () => {
+    const receipts: Receipt[] = [
+        {
+            id: "r1",
+            title: "Meal 1",
+            payerId: "a",
+            items: [{ id: "1", name: "Food", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] }],
+            tax: 0,
+            service: 0,
+        },
+        {
+            id: "r2",
+            title: "Meal 2",
+            payerId: "b",
+            items: [{ id: "2", name: "Food", qty: 1, unitPrice: 60, total: 60, assignedToIds: ["a", "b"] }],
+            tax: 0,
+            service: 0,
+        },
+    ];
+
+    it("returns balances/settlements consistent with getTripSummary", () => {
+        const trip: Trip = {
+            id: "t",
+            name: "T",
+            participants: [{ id: "a", name: "A" }, { id: "b", name: "B" }],
+            receipts,
+        };
+        const totals = computeTripTotals(receipts, ["a", "b"]);
+        const summary = getTripSummary(trip);
+        expect(totals.aggregateBalances).toEqual(summary.aggregateBalances);
+        expect(totals.settlements).toEqual(summary.settlements);
+        expect(totals.totalGrandTotal).toBe(summary.totalGrandTotal);
+    });
+
+    it("computes headline totals across receipts", () => {
+        const totals = computeTripTotals(receipts, ["a", "b"]);
+        expect(totals.totalGrandTotal).toBe(160);
+        expect(totals.totalPaid).toBe(160);
+        expect(totals.totalDiscount).toBe(0);
+        // a fronted 100 (owes 50) → +50; b fronted 60 (owes 30) → net a is owed 20.
+        expect(totals.aggregateBalances.get("a")).toBe(20);
+        expect(totals.aggregateBalances.get("b")).toBe(-20);
+    });
+
+    it("applies settle-up payments to the balances", () => {
+        const totals = computeTripTotals(receipts, ["a", "b"], [
+            { id: "p", from: "b", to: "a", amount: 20 },
+        ]);
+        expect(totals.aggregateBalances.get("a")).toBe(0);
+        expect(totals.aggregateBalances.get("b")).toBe(0);
+        expect(totals.settlements.length).toBe(0);
     });
 });

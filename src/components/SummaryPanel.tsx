@@ -1,7 +1,7 @@
 "use client";
 
 import { Receipt, Participant, PersonShareDetail, PaymentInfo, TripPayment } from "@/types";
-import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, getWalletStats, buildSettlementTrace, applyPaymentsToBalances } from "@/lib/calculations";
+import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, buildSettlementTrace, computeTripTotals } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   formatPaymentInfoText,
@@ -1141,39 +1141,12 @@ export function MultipleReceiptSummaryPanel({
     [participants]
   );
 
-  // Aggregate balances across all receipts
-  const { aggregateBalances, totalGrandTotal, totalDiscount, totalPaid } = useMemo(() => {
-    const balances = new Map<string, number>();
-    participantIds.forEach((id) => balances.set(id, 0));
-
-    let total = 0;
-    let discount = 0;
-    let paid = 0;
-
-    for (const receipt of receipts) {
-      const summary = getReceiptSummary(receipt, participantIds);
-      total += summary.grandTotal;
-      discount += summary.totalDiscount;
-      paid += summary.amountPaid;
-
-      for (const [id, balance] of summary.balances) {
-        balances.set(id, (balances.get(id) || 0) + balance);
-      }
-    }
-
-    // Round balances
-    balances.forEach((v, k) => balances.set(k, Math.round(v * 100) / 100));
-
-    // Recorded settle-up payments further reduce the outstanding balances.
-    const settled = applyPaymentsToBalances(balances, payments ?? []);
-
-    return {
-      aggregateBalances: settled,
-      totalGrandTotal: Math.round(total * 100) / 100,
-      totalDiscount: Math.round(discount * 100) / 100,
-      totalPaid: Math.round(paid * 100) / 100,
-    };
-  }, [receipts, participantIds, payments]);
+  // Balances, settlements and totals — one shared calc (see computeTripTotals)
+  // so the UI can never diverge from getTripSummary.
+  const { aggregateBalances, settlements, totalGrandTotal, totalDiscount, totalPaid } = useMemo(
+    () => computeTripTotals(receipts, participantIds, payments ?? []),
+    [receipts, participantIds, payments]
+  );
 
   // Wallet stats (paid vs consumed)
   const walletStats = useMemo(() => {
@@ -1243,11 +1216,6 @@ export function MultipleReceiptSummaryPanel({
 
     return map;
   }, [receipts, participantIds]);
-
-  const settlements = useMemo(
-    () => minimizeTransactions(aggregateBalances),
-    [aggregateBalances]
-  );
 
   // Everything that has been paid — the payment ledger (single source of truth).
   // Share payments are labelled by their receipt; manual ones show from → to.

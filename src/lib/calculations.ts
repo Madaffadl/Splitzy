@@ -511,42 +511,64 @@ export function buildSettlementTrace(
     });
 }
 
-/**
- * Calculate trip summary with aggregated balances and minimized settlements.
- */
-export function getTripSummary(trip: Trip, payments: TripPayment[] = []): TripSummary {
-    const participantIds = trip.participants.map((p) => p.id);
-    let aggregateBalances = new Map<string, number>();
+/** Everything a trip-level summary needs, computed in one place. */
+export interface TripTotals {
+    aggregateBalances: Map<string, number>;
+    settlements: SettlementTransfer[];
+    totalGrandTotal: number; // printed bill face value across all receipts
+    totalDiscount: number;   // discount credits applied across all receipts
+    totalPaid: number;       // actual cash fronted (grandTotal − discount)
+}
 
-    // Initialize all participants with 0
-    for (const id of participantIds) {
-        aggregateBalances.set(id, 0);
-    }
+/**
+ * Single source of truth for trip-level money math: gross per-receipt balances,
+ * minus recorded settle-up payments, then minimized into transfers — plus the
+ * headline totals. Both getTripSummary and the summary UI use this so they can
+ * never diverge.
+ */
+export function computeTripTotals(
+    receipts: Receipt[],
+    participantIds: string[],
+    payments: TripPayment[] = []
+): TripTotals {
+    const balances = new Map<string, number>();
+    for (const id of participantIds) balances.set(id, 0);
 
     let totalGrandTotal = 0;
+    let totalDiscount = 0;
+    let totalPaid = 0;
 
-    // Sum gross per-receipt balances; settle-ups are applied once below.
-    for (const receipt of trip.receipts) {
+    // Gross per-receipt balances; settle-ups are applied once below.
+    for (const receipt of receipts) {
         const summary = getReceiptSummary(receipt, participantIds);
-        totalGrandTotal += summary.grandTotal;
+        totalGrandTotal = roundTo2(totalGrandTotal + summary.grandTotal);
+        totalDiscount = roundTo2(totalDiscount + summary.totalDiscount);
+        totalPaid = roundTo2(totalPaid + summary.amountPaid);
 
         for (const [id, balance] of summary.balances) {
-            const current = aggregateBalances.get(id) || 0;
-            aggregateBalances.set(id, roundTo2(current + balance));
+            balances.set(id, roundTo2((balances.get(id) || 0) + balance));
         }
     }
 
     // Recorded settle-up payments (the single source of truth for what has been
     // paid) reduce the outstanding balances.
-    aggregateBalances = applyPaymentsToBalances(aggregateBalances, payments);
-
+    const aggregateBalances = applyPaymentsToBalances(balances, payments);
     const settlements = minimizeTransactions(aggregateBalances);
 
-    return {
-        totalGrandTotal: roundTo2(totalGrandTotal),
-        aggregateBalances,
-        settlements,
-    };
+    return { aggregateBalances, settlements, totalGrandTotal, totalDiscount, totalPaid };
+}
+
+/**
+ * Calculate trip summary with aggregated balances and minimized settlements.
+ */
+export function getTripSummary(trip: Trip, payments: TripPayment[] = []): TripSummary {
+    const participantIds = trip.participants.map((p) => p.id);
+    const { aggregateBalances, settlements, totalGrandTotal } = computeTripTotals(
+        trip.receipts,
+        participantIds,
+        payments
+    );
+    return { totalGrandTotal, aggregateBalances, settlements };
 }
 
 /**
