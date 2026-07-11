@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Copy, Check, CheckCircle2, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2, X } from "lucide-react";
+import { Copy, Check, CheckCircle2, Circle, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2, X } from "lucide-react";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
@@ -299,25 +299,9 @@ function PersonBreakdown({
 
   return (
     <div className={cn("rounded-md border overflow-hidden", paid && "border-emerald-500/30 bg-emerald-500/[0.04]")}>
-      {/* Main row - clickable, with an optional paid toggle beside it */}
+      {/* Main row: tap the name area to expand; a labelled chip on the right
+          marks the share paid (so the control is self-explanatory). */}
       <div className="flex items-center">
-        {showPaidToggle && (
-          <button
-            type="button"
-            onClick={onTogglePaid}
-            aria-pressed={paid}
-            aria-label={paid ? `Mark ${name}'s share unpaid` : `Mark ${name}'s share paid`}
-            title={paid ? "Paid their share — excluded from settlement" : "Mark this person's share as paid"}
-            className={cn(
-              "ml-2 h-5 w-5 shrink-0 rounded-md border flex items-center justify-center transition-colors",
-              paid
-                ? "bg-emerald-500 border-emerald-500 text-white"
-                : "border-muted-foreground/40 text-transparent hover:border-emerald-500"
-            )}
-          >
-            <Check className="h-3.5 w-3.5" />
-          </button>
-        )}
         <button
           onClick={() => setExpanded(!expanded)}
           className="flex-1 min-w-0 flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
@@ -328,11 +312,6 @@ function PersonBreakdown({
               <Badge variant="outline" className="text-xs py-0 shrink-0">
                 Payer
               </Badge>
-            )}
-            {paid && (
-              <span className="flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
-                Paid
-              </span>
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -346,6 +325,23 @@ function PersonBreakdown({
             )}
           </div>
         </button>
+        {showPaidToggle && (
+          <button
+            type="button"
+            onClick={onTogglePaid}
+            aria-pressed={paid}
+            aria-label={paid ? `${name} has paid their share — tap to undo` : `Mark ${name}'s share as paid`}
+            className={cn(
+              "mr-2 shrink-0 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors",
+              paid
+                ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                : "border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
+            )}
+          >
+            <Check className="h-3 w-3 shrink-0" />
+            {paid ? "Paid" : "Mark paid"}
+          </button>
+        )}
       </div>
 
       {/* Expanded breakdown */}
@@ -459,10 +455,6 @@ export function ReceiptBreakdown({
     () => participants.map((p) => p.id),
     [participants]
   );
-  // "Whole receipt paid" = every non-payer has settled their share.
-  const nonPayerIds = participantIds.filter((id) => id !== receipt.payerId);
-  const allPaid = nonPayerIds.length > 0 && nonPayerIds.every((id) => paidBy.has(id));
-  const settled = allPaid;
   const summary = useMemo(
     () => getReceiptSummary(receipt, participantIds),
     [receipt, participantIds]
@@ -477,6 +469,19 @@ export function ReceiptBreakdown({
     return map;
   }, [participants]);
   const getParticipantName = (id: string) => participantNames.get(id) || "Unknown";
+
+  // Non-payers who actually owe something on this receipt (share > 0). These are
+  // the people who can be marked paid; a whole receipt is "paid" once they all are.
+  const owing = useMemo(
+    () =>
+      summary.shares
+        .filter((s) => s.participantId !== receipt.payerId && s.total > 0)
+        .map((s) => ({ id: s.participantId, name: getParticipantName(s.participantId) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [summary, receipt.payerId, participantNames]
+  );
+  const allPaid = owing.length > 0 && owing.every((p) => paidBy.has(p.id));
+  const settled = allPaid;
 
   return (
     <div className={cn("rounded-md border overflow-hidden", settled && "bg-emerald-500/[0.04] border-emerald-500/30")}>
@@ -496,14 +501,6 @@ export function ReceiptBreakdown({
               <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
                 <Check className="h-3 w-3" />
                 Paid
-              </span>
-            )}
-            {!settled && paidBy.size > 0 && (
-              <span
-                className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0"
-                title="People who have paid their share"
-              >
-                {paidBy.size} paid
               </span>
             )}
           </div>
@@ -561,6 +558,37 @@ export function ReceiptBreakdown({
         )}
       </div>
 
+      {/* Inline paid tracker — tap a person to mark their share paid, right from
+          the receipt row (no need to expand). Green = paid back the payer. */}
+      {onTogglePaidShare && owing.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2 -mt-0.5">
+          {paidBy.size === 0 && (
+            <span className="text-[10px] text-muted-foreground mr-0.5">Tap to mark paid:</span>
+          )}
+          {owing.map((p) => {
+            const isPaid = paidBy.has(p.id);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onTogglePaidShare(p.id)}
+                aria-pressed={isPaid}
+                aria-label={isPaid ? `${p.name} has paid — tap to undo` : `Mark ${p.name}'s share as paid`}
+                className={cn(
+                  "flex items-center gap-1 rounded-full border py-0.5 pl-1.5 pr-2 text-[11px] font-medium transition-colors",
+                  isPaid
+                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    : "border-dashed border-muted-foreground/40 text-muted-foreground hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
+                )}
+              >
+                {isPaid ? <Check className="h-3 w-3 shrink-0" /> : <Circle className="h-3 w-3 shrink-0" />}
+                <span className="truncate max-w-[90px]">{p.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {expanded && (
         <div className="px-3 pb-3 pt-2 bg-muted/30 border-t space-y-2 animate-fade-in">
           <p className="text-xs text-muted-foreground">
@@ -569,6 +597,12 @@ export function ReceiptBreakdown({
               {getParticipantName(receipt.payerId)}
             </span>
           </p>
+          {onTogglePaidShare && (
+            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Check className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              Tap <span className="font-medium text-foreground">Mark paid</span> when someone has settled their share.
+            </p>
+          )}
           {summary.totalDiscount > 0 && (
             <p className="text-xs text-emerald-600 dark:text-emerald-400">
               Includes − Rp {formatCurrency(summary.totalDiscount)} discount

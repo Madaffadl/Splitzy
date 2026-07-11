@@ -733,23 +733,24 @@ export default function TravelPage() {
     if (!activeTrip) return;
     const receipt = activeTrip.receipts.find((r) => r.id === receiptId);
     if (!receipt) return;
-    const nonPayers = activeTrip.participants.filter((p) => p.id !== receipt.payerId);
+    // Only non-payers who actually owe something (share > 0) can be settled.
+    const owing = activeTrip.participants
+      .filter((p) => p.id !== receipt.payerId)
+      .map((p) => ({ id: p.id, amount: shareOf(receipt, p.id) }))
+      .filter((p) => p.amount > 0);
     const paidSet = paidShareParticipants(activeTrip.payments, receiptId);
-    const allPaid = nonPayers.length > 0 && nonPayers.every((p) => paidSet.has(p.id));
-    for (const p of nonPayers) {
+    const allPaid = owing.length > 0 && owing.every((p) => paidSet.has(p.id));
+    for (const p of owing) {
       const existing = findSharePayment(activeTrip.payments, receiptId, p.id);
       if (allPaid && existing) {
         void travel.deletePayment(activeTrip.id, existing.id);
       } else if (!allPaid && !existing) {
-        const amount = shareOf(receipt, p.id);
-        if (amount > 0) {
-          void travel.addPayment(activeTrip.id, {
-            from: p.id,
-            to: receipt.payerId,
-            amount,
-            source: sharePaymentSource(receiptId, p.id),
-          });
-        }
+        void travel.addPayment(activeTrip.id, {
+          from: p.id,
+          to: receipt.payerId,
+          amount: p.amount,
+          source: sharePaymentSource(receiptId, p.id),
+        });
       }
     }
   };
