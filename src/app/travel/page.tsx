@@ -6,6 +6,7 @@ import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment 
 import { useTravelData } from "@/hooks/useTravelData";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals } from "@/lib/calculations";
+import { findSharePayment, paidShareParticipants, sharePaymentSource } from "@/lib/settle-up";
 import { formatCurrency, cn } from "@/lib/utils";
 import { generateId } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -698,36 +699,63 @@ export default function TravelPage() {
     toast({ title: "Receipt deleted", description: removed?.title, variant: "success" });
   };
 
-  // Mark a whole receipt as already settled (or undo). Settled receipts still
-  // count toward Total Spent / Budget but drop out of the final settlement.
-  const toggleSettled = async (receipt: Receipt) => {
-    if (!activeTrip) return;
-    const next = !receipt.settled;
-    await travel.updateReceipt(activeTrip.id, { ...receipt, settled: next });
-    toast({
-      title: next ? "Marked as paid" : "Marked as unpaid",
-      description: next
-        ? `${receipt.title} is excluded from the settlement.`
-        : `${receipt.title} is back in the settlement.`,
-      variant: "success",
-    });
+  // Effective share of a receipt for one participant (used to size the payment
+  // recorded when their share is marked paid).
+  const shareOf = (receipt: Receipt, participantId: string): number => {
+    const ids = (activeTrip?.participants ?? []).map((p) => p.id);
+    return calculatePersonTotals(receipt, ids).find((s) => s.participantId === participantId)?.total ?? 0;
   };
 
-  // Toggle a single person's share of a receipt as paid (per-person settle-up).
-  // Only that person's share leaves the settlement; the rest of the receipt
-  // still settles normally.
-  const togglePaidShare = async (receipt: Receipt, participantId: string) => {
+  // Toggle one person's share of a receipt as paid. This is a ledger payment
+  // (from → payer) — the single source of truth — not a flag on the receipt.
+  const togglePaidShare = (receiptId: string, participantId: string) => {
     if (!activeTrip) return;
-    const current = receipt.paidBy ?? [];
-    const has = current.includes(participantId);
-    const paidBy = has
-      ? current.filter((id) => id !== participantId)
-      : [...current, participantId];
-    await travel.updateReceipt(activeTrip.id, { ...receipt, paidBy });
+    const receipt = activeTrip.receipts.find((r) => r.id === receiptId);
+    if (!receipt || participantId === receipt.payerId) return;
+    const existing = findSharePayment(activeTrip.payments, receiptId, participantId);
+    if (existing) {
+      void travel.deletePayment(activeTrip.id, existing.id);
+    } else {
+      const amount = shareOf(receipt, participantId);
+      if (amount <= 0) return;
+      void travel.addPayment(activeTrip.id, {
+        from: participantId,
+        to: receipt.payerId,
+        amount,
+        source: sharePaymentSource(receiptId, participantId),
+      });
+    }
+  };
+
+  // Whole-receipt shortcut: mark every non-payer's share paid (or, if all are
+  // already paid, undo them). Each is a ledger payment.
+  const toggleReceiptPaid = (receiptId: string) => {
+    if (!activeTrip) return;
+    const receipt = activeTrip.receipts.find((r) => r.id === receiptId);
+    if (!receipt) return;
+    const nonPayers = activeTrip.participants.filter((p) => p.id !== receipt.payerId);
+    const paidSet = paidShareParticipants(activeTrip.payments, receiptId);
+    const allPaid = nonPayers.length > 0 && nonPayers.every((p) => paidSet.has(p.id));
+    for (const p of nonPayers) {
+      const existing = findSharePayment(activeTrip.payments, receiptId, p.id);
+      if (allPaid && existing) {
+        void travel.deletePayment(activeTrip.id, existing.id);
+      } else if (!allPaid && !existing) {
+        const amount = shareOf(receipt, p.id);
+        if (amount > 0) {
+          void travel.addPayment(activeTrip.id, {
+            from: p.id,
+            to: receipt.payerId,
+            amount,
+            source: sharePaymentSource(receiptId, p.id),
+          });
+        }
+      }
+    }
   };
 
   // Record / remove a direct settle-up payment between two travelers.
-  const addSettleUp = (input: { from: string; to: string; amount: number; note?: string }) => {
+  const addSettleUp = (input: { from: string; to: string; amount: number; note?: string; source?: string }) => {
     if (!activeTrip) return;
     void travel.addPayment(activeTrip.id, input);
     const nameOf = (id: string) => activeTrip.participants.find((p) => p.id === id)?.name ?? "?";
@@ -1045,8 +1073,9 @@ export default function TravelPage() {
                           index={i}
                           onEdit={() => editReceipt(r.id)}
                           onDelete={() => setDeleteReceiptId(r.id)}
-                          onToggleSettled={() => void toggleSettled(r)}
-                          onTogglePaidShare={(pid) => void togglePaidShare(r, pid)}
+                          paidParticipantIds={paidShareParticipants(activeTrip.payments, r.id)}
+                          onToggleAllPaid={() => toggleReceiptPaid(r.id)}
+                          onTogglePaidShare={(pid) => togglePaidShare(r.id, pid)}
                         />
                       ))}
                     </div>
@@ -1123,14 +1152,8 @@ export default function TravelPage() {
                 budget={activeTrip.budget}
                 payments={activeTrip.payments}
                 onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
-                onToggleReceiptSettled={(rid) => {
-                  const r = activeTrip.receipts.find((x) => x.id === rid);
-                  if (r) void toggleSettled(r);
-                }}
-                onTogglePaidShare={(rid, pid) => {
-                  const r = activeTrip.receipts.find((x) => x.id === rid);
-                  if (r) void togglePaidShare(r, pid);
-                }}
+                onToggleReceiptPaid={(rid) => toggleReceiptPaid(rid)}
+                onTogglePaidShare={(rid, pid) => togglePaidShare(rid, pid)}
                 onRecordPayment={(from, to, amount) => addSettleUp({ from, to, amount })}
                 onDeletePayment={deleteSettleUp}
               />
@@ -1149,13 +1172,6 @@ export default function TravelPage() {
             onCancel={() => { setEditingReceipt(null); setViewMode("overview"); }}
             isSaving={isSaving}
             onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
-            onTogglePaidShare={(pid) => {
-              const current = editingReceipt.receipt.paidBy ?? [];
-              const paidBy = current.includes(pid)
-                ? current.filter((id) => id !== pid)
-                : [...current, pid];
-              updateEditingReceipt({ paidBy });
-            }}
           />
         )}
       </div>

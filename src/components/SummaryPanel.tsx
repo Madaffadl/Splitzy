@@ -27,6 +27,10 @@ import { Copy, Check, CheckCircle2, ArrowRight, Wallet, Calculator, ChevronDown,
 import { useState, useMemo, useEffect } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
+import { parseShareSource, paidShareParticipants } from "@/lib/settle-up";
+
+// Shared empty set so ReceiptBreakdown's default doesn't allocate each render.
+const EMPTY_PAID: ReadonlySet<string> = new Set<string>();
 
 // Attribution + light promo appended to every copied summary. This is often
 // the first time a non-user sees Splitzy (a friend gets billed, opens the
@@ -47,15 +51,9 @@ interface SummaryPanelProps {
   // views, where payment info is shown but not editable.
   onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
   // When true, the Settlements list is static (no mark-as-paid toggle). Used by
-  // the ReceiptEditor live preview: settle-up belongs to the trip level, not to
-  // an in-progress single-receipt edit, so the cosmetic per-receipt toggle
-  // (which synced nowhere) is suppressed there.
+  // the ReceiptEditor live preview: settle-up is a trip-level action, so the
+  // single-receipt settlement here is informational only.
   settlementReadOnly?: boolean;
-  // Travel Spend: when provided, each non-payer in the "Per Person" breakdown
-  // gets a mark-as-paid checkbox bound to the receipt's `paidBy`. This is the
-  // real, synced settle-up (persisted with the receipt) — not the cosmetic
-  // per-receipt toggle. Only Travel passes this; single/multiple leave it off.
-  onTogglePaidShare?: (participantId: string) => void;
 }
 
 // One recipient's payment details as a card row inside the "Rekening Tujuan"
@@ -405,29 +403,35 @@ export function ReceiptBreakdown({
   index,
   onEdit,
   onDelete,
-  onToggleSettled,
+  onToggleAllPaid,
   onTogglePaidShare,
+  paidParticipantIds,
 }: {
   receipt: Receipt;
   participants: Participant[];
   index: number;
   onEdit?: () => void;
   onDelete?: () => void;
-  // Travel Spend: mark the whole receipt as already settled. When provided, a
-  // toggle is shown; a settled receipt is dimmed and excluded from settlement.
-  onToggleSettled?: () => void;
-  // Travel Spend: toggle a single person's share as paid (per-person settle-up).
-  // When provided, each non-payer row in the expanded breakdown gets a checkbox.
+  // Travel Spend: which non-payers have settled their share of this receipt
+  // (derived from the payment ledger, the single source of truth).
+  paidParticipantIds?: Set<string>;
+  // Travel Spend: toggle a single person's share as paid (records/removes a
+  // ledger payment). When provided, each non-payer row gets a checkbox.
   onTogglePaidShare?: (participantId: string) => void;
+  // Travel Spend: toggle every non-payer's share at once (whole-receipt shortcut).
+  onToggleAllPaid?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const settled = receipt.settled === true;
-  const paidBy = useMemo(() => new Set(receipt.paidBy ?? []), [receipt.paidBy]);
+  const paidBy = paidParticipantIds ?? EMPTY_PAID;
 
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
     [participants]
   );
+  // "Whole receipt paid" = every non-payer has settled their share.
+  const nonPayerIds = participantIds.filter((id) => id !== receipt.payerId);
+  const allPaid = nonPayerIds.length > 0 && nonPayerIds.every((id) => paidBy.has(id));
+  const settled = allPaid;
   const summary = useMemo(
     () => getReceiptSummary(receipt, participantIds),
     [receipt, participantIds]
@@ -483,18 +487,18 @@ export function ReceiptBreakdown({
             )}
           </div>
         </button>
-        {(onEdit || onDelete || onToggleSettled) && (
+        {(onEdit || onDelete || onToggleAllPaid) && (
           <div className="flex items-center gap-0.5 pr-1 shrink-0">
-            {onToggleSettled && (
+            {onToggleAllPaid && (
               <button
                 type="button"
-                onClick={onToggleSettled}
-                aria-pressed={settled}
-                aria-label={settled ? `Mark ${receipt.title} as unpaid` : `Mark ${receipt.title} as paid`}
-                title={settled ? "Marked as paid — excluded from settlement" : "Mark as paid (exclude from settlement)"}
+                onClick={onToggleAllPaid}
+                aria-pressed={allPaid}
+                aria-label={allPaid ? `Mark ${receipt.title} as unpaid` : `Mark everyone's share of ${receipt.title} as paid`}
+                title={allPaid ? "Everyone has paid — click to undo" : "Mark everyone's share as paid"}
                 className={cn(
                   "h-8 w-8 flex items-center justify-center rounded-md transition-colors",
-                  settled
+                  allPaid
                     ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
                     : "text-muted-foreground hover:bg-muted hover:text-emerald-600"
                 )}
@@ -546,9 +550,9 @@ export function ReceiptBreakdown({
               detail={detail}
               name={getParticipantName(detail.participantId)}
               isPayer={detail.participantId === receipt.payerId}
-              paid={settled || paidBy.has(detail.participantId)}
+              paid={paidBy.has(detail.participantId)}
               onTogglePaid={
-                onTogglePaidShare && !settled
+                onTogglePaidShare && detail.participantId !== receipt.payerId
                   ? () => onTogglePaidShare(detail.participantId)
                   : undefined
               }
@@ -560,12 +564,10 @@ export function ReceiptBreakdown({
   );
 }
 
-export function SummaryPanel({ receipt, participants, title, readOnly = false, onUpdatePaymentInfo, settlementReadOnly = false, onTogglePaidShare }: SummaryPanelProps) {
+export function SummaryPanel({ receipt, participants, title, readOnly = false, onUpdatePaymentInfo, settlementReadOnly = false }: SummaryPanelProps) {
   // Settle-up is a trip-level action; suppress the cosmetic per-receipt toggle
   // in read-only and editor-preview contexts (render static rows instead).
   const settleStatic = readOnly || settlementReadOnly;
-  // Which non-payers have already paid their share (Travel Spend paidBy).
-  const paidBySet = useMemo(() => new Set(receipt.paidBy ?? []), [receipt.paidBy]);
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session.
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -898,12 +900,6 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
                 detail={detail}
                 name={getParticipantName(detail.participantId)}
                 isPayer={detail.participantId === receipt.payerId}
-                paid={paidBySet.has(detail.participantId)}
-                onTogglePaid={
-                  onTogglePaidShare && detail.participantId !== receipt.payerId
-                    ? () => onTogglePaidShare(detail.participantId)
-                    : undefined
-                }
               />
             ))}
           </div>
@@ -1025,14 +1021,14 @@ interface MultipleReceiptSummaryPanelProps {
   // listed in the "already paid" note.
   payments?: TripPayment[];
   // Travel Spend: when provided, the Receipt Details rows become interactive —
-  // the same mark-as-paid controls as the overview receipts list, so paid state
-  // can be toggled from the summary and reflects here immediately.
-  onToggleReceiptSettled?: (receiptId: string) => void;
+  // the same mark-as-paid controls as the overview receipts list. Toggling a
+  // share records/removes a ledger payment (the single source of truth).
+  onToggleReceiptPaid?: (receiptId: string) => void;
   onTogglePaidShare?: (receiptId: string, participantId: string) => void;
   // Travel Spend: when provided, "Final Settlements" becomes a real checklist —
   // marking a transfer paid records a synced settle-up payment (moving it into
   // "Already paid"), instead of the cosmetic localStorage strike-through.
-  onRecordPayment?: (from: string, to: string, amount: number) => void;
+  onRecordPayment?: (from: string, to: string, amount: number, source?: string) => void;
   onDeletePayment?: (paymentId: string) => void;
 }
 
@@ -1047,7 +1043,7 @@ export function MultipleReceiptSummaryPanel({
   readOnly = false,
   onUpdatePaymentInfo,
   payments,
-  onToggleReceiptSettled,
+  onToggleReceiptPaid,
   onTogglePaidShare,
   onRecordPayment,
   onDeletePayment,
@@ -1089,10 +1085,6 @@ export function MultipleReceiptSummaryPanel({
       discount += summary.totalDiscount;
       paid += summary.amountPaid;
 
-      // Settled receipts still count toward totals above, but are excluded
-      // from the balances that drive the final settlement.
-      if (receipt.settled) continue;
-
       for (const [id, balance] of summary.balances) {
         balances.set(id, (balances.get(id) || 0) + balance);
       }
@@ -1121,10 +1113,8 @@ export function MultipleReceiptSummaryPanel({
       stats.set(id, { paid: 0, consumed: 0 });
     }
     
-    // Calculate — settled receipts are excluded so the wallet net matches the
-    // (settled-excluded) balances that drive the settlement.
+    // Total spending per person (settle-ups don't change what was spent).
     for (const receipt of receipts) {
-      if (receipt.settled) continue;
       const summary = getReceiptSummary(receipt, participantIds);
 
       // Add to payer's paid total — the actual cash fronted after discounts.
@@ -1156,7 +1146,6 @@ export function MultipleReceiptSummaryPanel({
     for (const id of participantIds) map.set(id, { paid: [], consumed: [] });
 
     for (const receipt of receipts) {
-      if (receipt.settled) continue;
       const title = receipt.title || "Untitled";
       const details = getPersonShareDetails(receipt, participantIds);
       const receiptSubtotal = receipt.items.reduce((s, i) => s + i.total, 0);
@@ -1189,51 +1178,34 @@ export function MultipleReceiptSummaryPanel({
     [aggregateBalances]
   );
 
-  // Receipts already squared up outside the app — excluded from the settlement
-  // above, listed separately (with who fronted it + how much) so it's clear why
-  // they aren't in the balances.
-  const settledReceipts = useMemo(
+  // Everything that has been paid — the payment ledger (single source of truth).
+  // Share payments are labelled by their receipt; manual ones show from → to.
+  const receiptTitleById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const r of receipts) m.set(r.id, r.title || "Untitled");
+    return m;
+  }, [receipts]);
+
+  const alreadyPaid = useMemo(
     () =>
-      receipts
-        .filter((r) => r.settled)
-        .map((r) => ({
-          id: r.id,
-          title: r.title || "Untitled",
-          payerId: r.payerId,
-          amountPaid: getReceiptSummary(r, participantIds).amountPaid,
-        })),
-    [receipts, participantIds]
+      (payments ?? [])
+        .filter((p) => p.amount > 0)
+        .map((p) => {
+          const share = parseShareSource(p.source);
+          return {
+            id: p.id,
+            from: p.from,
+            to: p.to,
+            amount: p.amount,
+            note: p.note,
+            receiptTitle: share ? receiptTitleById.get(share.receiptId) ?? "a receipt" : null,
+          };
+        }),
+    [payments, receiptTitleById]
   );
 
-  // Per-person shares already settled directly with the payer (per-receipt
-  // paidBy), on receipts that aren't wholly settled. Listed in the settlement
-  // note so it's clear whose share was removed and by how much.
-  const paidShares = useMemo(() => {
-    const out: { key: string; receiptTitle: string; participantId: string; amount: number }[] = [];
-    for (const receipt of receipts) {
-      if (receipt.settled || !receipt.paidBy?.length) continue;
-      const shareByPerson = new Map(
-        getReceiptSummary(receipt, participantIds).shares.map((s) => [s.participantId, s.total])
-      );
-      for (const pid of receipt.paidBy) {
-        if (pid === receipt.payerId) continue;
-        const amount = shareByPerson.get(pid) ?? 0;
-        if (amount > 0) {
-          out.push({
-            key: `${receipt.id}:${pid}`,
-            receiptTitle: receipt.title || "Untitled",
-            participantId: pid,
-            amount,
-          });
-        }
-      }
-    }
-    return out;
-  }, [receipts, participantIds]);
-
-  // Per-person total spend across ALL receipts (settled included) — feeds the
-  // individual budget progress. Deliberately different from walletStats.consumed
-  // (which excludes settled receipts because it drives the outstanding settlement).
+  // Per-person total spend across ALL receipts — feeds the individual budget
+  // progress. Independent of settle-ups (spending doesn't change when paid off).
   const spentByPerson = useMemo(() => {
     const map = new Map<string, number>();
     participantIds.forEach((id) => map.set(id, 0));
@@ -1325,17 +1297,13 @@ export function MultipleReceiptSummaryPanel({
       text += `✅ Everyone is settled!\n`;
     }
 
-    const recordedPayments = (payments ?? []).filter((p) => p.amount > 0);
-    if (settledReceipts.length > 0 || paidShares.length > 0 || recordedPayments.length > 0) {
+    if (alreadyPaid.length > 0) {
       text += `\n✔️ Already paid (excluded from settlement):\n`;
-      for (const r of settledReceipts) {
-        text += `• ${getParticipantName(r.payerId)} paid ${r.title}: Rp ${formatCurrency(r.amountPaid)}\n`;
-      }
-      for (const s of paidShares) {
-        text += `• ${getParticipantName(s.participantId)} paid their share of ${s.receiptTitle}: Rp ${formatCurrency(s.amount)}\n`;
-      }
-      for (const p of recordedPayments) {
-        text += `• ${getParticipantName(p.from)} paid ${getParticipantName(p.to)}${p.note ? ` (${p.note})` : ""}: Rp ${formatCurrency(p.amount)}\n`;
+      for (const p of alreadyPaid) {
+        const label = p.receiptTitle
+          ? `${getParticipantName(p.from)} paid their share of ${p.receiptTitle}`
+          : `${getParticipantName(p.from)} paid ${getParticipantName(p.to)}${p.note ? ` (${p.note})` : ""}`;
+        text += `• ${label}: Rp ${formatCurrency(p.amount)}\n`;
       }
     }
 
@@ -1632,8 +1600,9 @@ export function MultipleReceiptSummaryPanel({
                   receipt={r}
                   participants={participants}
                   index={i}
-                  onToggleSettled={
-                    onToggleReceiptSettled ? () => onToggleReceiptSettled(r.id) : undefined
+                  paidParticipantIds={paidShareParticipants(payments, r.id)}
+                  onToggleAllPaid={
+                    onToggleReceiptPaid ? () => onToggleReceiptPaid(r.id) : undefined
                   }
                   onTogglePaidShare={
                     onTogglePaidShare ? (pid) => onTogglePaidShare(r.id, pid) : undefined
@@ -1798,63 +1767,48 @@ export function MultipleReceiptSummaryPanel({
             )}
           </div>
 
-          {/* Already-paid — receipts + individual shares + recorded settle-ups */}
-          {(settledReceipts.length > 0 || paidShares.length > 0 || (payments?.length ?? 0) > 0) && (
+          {/* Already-paid — the payment ledger (share settle-ups + manual) */}
+          {alreadyPaid.length > 0 && (
             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs space-y-2">
               <p className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
                 <Check className="h-3.5 w-3.5 shrink-0" />
                 Already paid — not included in settlement
               </p>
               <ul className="space-y-1.5">
-                {settledReceipts.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between gap-2">
+                {alreadyPaid.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-foreground/90">
-                      <span className="font-semibold">{getParticipantName(r.payerId)}</span> paid{" "}
-                      <span className="font-medium">{r.title}</span>
+                      {p.receiptTitle ? (
+                        <>
+                          <span className="font-semibold">{getParticipantName(p.from)}</span> paid their share of{" "}
+                          <span className="font-medium">{p.receiptTitle}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-semibold">{getParticipantName(p.from)}</span> paid{" "}
+                          <span className="font-semibold">{getParticipantName(p.to)}</span>
+                          {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
+                        </>
+                      )}
                     </span>
-                    <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
-                      Rp {formatCurrency(r.amountPaid)}
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                        Rp {formatCurrency(p.amount)}
+                      </span>
+                      {onDeletePayment && (
+                        <button
+                          type="button"
+                          onClick={() => onDeletePayment(p.id)}
+                          aria-label="Undo this payment"
+                          title="Undo — move back to settlement"
+                          className="h-5 w-5 flex items-center justify-center rounded text-emerald-700/70 hover:text-destructive hover:bg-background/60 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </span>
                   </li>
                 ))}
-                {paidShares.map((s) => (
-                  <li key={s.key} className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-foreground/90">
-                      <span className="font-semibold">{getParticipantName(s.participantId)}</span> paid their share of{" "}
-                      <span className="font-medium">{s.receiptTitle}</span>
-                    </span>
-                    <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
-                      Rp {formatCurrency(s.amount)}
-                    </span>
-                  </li>
-                ))}
-                {(payments ?? [])
-                  .filter((p) => p.amount > 0)
-                  .map((p) => (
-                    <li key={p.id} className="flex items-center justify-between gap-2">
-                      <span className="min-w-0 truncate text-foreground/90">
-                        <span className="font-semibold">{getParticipantName(p.from)}</span> paid{" "}
-                        <span className="font-semibold">{getParticipantName(p.to)}</span>
-                        {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
-                      </span>
-                      <span className="flex items-center gap-1.5 shrink-0">
-                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                          Rp {formatCurrency(p.amount)}
-                        </span>
-                        {onDeletePayment && (
-                          <button
-                            type="button"
-                            onClick={() => onDeletePayment(p.id)}
-                            aria-label="Undo this payment"
-                            title="Undo — move back to settlement"
-                            className="h-5 w-5 flex items-center justify-center rounded text-emerald-700/70 hover:text-destructive hover:bg-background/60 transition-colors"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </span>
-                    </li>
-                  ))}
               </ul>
             </div>
           )}

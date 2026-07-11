@@ -42,9 +42,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       toParticipantId: input.to,
       amount: input.amount,
       note: input.note ?? null,
+      source: input.source ?? null,
       createdById: user.id,
     },
-    select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, note: true, createdAt: true },
+    select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, note: true, source: true, createdAt: true },
   });
 
   return NextResponse.json(
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       to: payment.toParticipantId,
       amount: payment.amount,
       note: payment.note ?? undefined,
+      source: payment.source ?? undefined,
       createdAt: payment.createdAt.toISOString(),
     },
     { status: 201 }

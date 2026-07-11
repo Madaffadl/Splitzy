@@ -66,16 +66,6 @@ export interface Receipt {
     tax: number;
     service: number;
     discounts?: Discount[];
-    // Travel Spend only: when true, this receipt has already been squared up
-    // between the payer and everyone else (e.g. cash on the spot). It still
-    // counts toward Total Spent / Budget, but is excluded from the final
-    // settlement so it isn't double-counted in who-owes-whom.
-    settled?: boolean;
-    // Travel Spend only: participant ids (non-payer) who have already paid their
-    // individual share of this receipt directly to the payer. Their share is
-    // removed from the final settlement and the payer's credit reduced by it,
-    // while the rest of the receipt still settles normally.
-    paidBy?: string[];
 }
 
 export interface Trip {
@@ -106,6 +96,10 @@ export interface TripPayment {
     to: string;   // participant id who received
     amount: number;
     note?: string;
+    // Origin: undefined = manual settle-up; "share:<receiptId>:<participantId>"
+    // = a per-receipt "mark my share paid" checkbox. The ledger is the single
+    // source of truth for what has been settled.
+    source?: string;
     createdAt?: string;
 }
 

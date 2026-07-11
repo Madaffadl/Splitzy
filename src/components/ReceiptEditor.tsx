@@ -22,10 +22,6 @@ interface ReceiptEditorProps {
   onCancel: () => void;
   isSaving?: boolean;
   onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
-  // Travel Spend only: when provided, the preview's per-person breakdown gets a
-  // real mark-as-paid checkbox (bound to receipt.paidBy, persisted on save so it
-  // syncs to the trip settlement). Single/Multiple don't pass this.
-  onTogglePaidShare?: (participantId: string) => void;
 }
 
 // Full itemized receipt editor shared by Multiple Receipts and Travel Spend:
@@ -41,7 +37,6 @@ export function ReceiptEditor({
   onCancel,
   isSaving = false,
   onUpdatePaymentInfo,
-  onTogglePaidShare,
 }: ReceiptEditorProps) {
   const hasItems = receipt.items.length > 0;
   const allAssigned = receipt.items.every(
@@ -151,12 +146,10 @@ export function ReceiptEditor({
             participants={participants}
             title={receipt.title}
             onUpdatePaymentInfo={onUpdatePaymentInfo}
-            // Travel only (onTogglePaidShare provided): real mark-as-paid lives on
-            // the per-person rows (persisted with the receipt → syncs to the trip
-            // settlement), so the minimized "Settlements" list is kept static to
-            // avoid a second, cosmetic toggle. Single/Multiple are untouched.
-            settlementReadOnly={!!onTogglePaidShare}
-            onTogglePaidShare={onTogglePaidShare}
+            // Live edit preview: the single-receipt settlement is informational —
+            // settle-up is a trip-level action (the ledger), done from the trip
+            // summary, not while editing a receipt.
+            settlementReadOnly
           />
         </ErrorBoundary>
       </div>

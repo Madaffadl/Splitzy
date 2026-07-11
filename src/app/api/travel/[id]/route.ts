@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         },
       },
       tripPayments: {
-        select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, note: true, createdAt: true },
+        select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, note: true, source: true, createdAt: true },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -67,6 +67,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       to: p.toParticipantId,
       amount: p.amount,
       note: p.note ?? undefined,
+      source: p.source ?? undefined,
       createdAt: p.createdAt.toISOString(),
     })),
   });

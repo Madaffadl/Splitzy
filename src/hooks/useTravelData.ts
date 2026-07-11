@@ -290,7 +290,7 @@ export function useTravelData() {
 
   // ── Mutations: settle-up payments ─────────────────────────────────────────
   const addPayment = useCallback(
-    async (tripId: string, input: { from: string; to: string; amount: number; note?: string }) => {
+    async (tripId: string, input: { from: string; to: string; amount: number; note?: string; source?: string }) => {
       const optimistic: TripPayment = {
         id: generateId(),
         createdAt: new Date().toISOString(),

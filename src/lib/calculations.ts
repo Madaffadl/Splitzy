@@ -368,33 +368,17 @@ export function calculateReceiptBalances(
     // rather than crediting the payer.
     const amountPaid = roundTo2(shares.reduce((sum, s) => sum + s.total, 0));
 
-    // Non-payer members who already settled their share directly with the payer.
-    const paidBy = new Set((receipt.paidBy ?? []).filter((id) => id !== receipt.payerId));
-
-    // Cash the payer has already been repaid directly — reduces their credit so
-    // those shares drop out of the settlement without unbalancing the ledger.
-    let directlySettled = 0;
-    for (const share of shares) {
-        if (paidBy.has(share.participantId)) {
-            directlySettled = roundTo2(directlySettled + share.total);
-        }
-    }
-
+    // Gross per-receipt balances only. Settle-ups (who has paid whom) live in the
+    // TripPayment ledger and are applied once, at the trip level, via
+    // applyPaymentsToBalances — so there is a single source of truth and no way
+    // to double-count a payment.
     const balances = new Map<string, number>();
-
     for (const share of shares) {
         if (share.participantId === receipt.payerId) {
-            // Payer: fronted amountPaid, owes their own share, and has already
-            // been repaid `directlySettled` by members who settled directly.
-            balances.set(
-                share.participantId,
-                roundTo2(amountPaid - share.total - directlySettled)
-            );
-        } else if (paidBy.has(share.participantId)) {
-            // Already paid their share directly to the payer — fully settled.
-            balances.set(share.participantId, 0);
+            // Payer: fronted amountPaid, owes their own share.
+            balances.set(share.participantId, roundTo2(amountPaid - share.total));
         } else {
-            // Others: paid 0, owes share.total
+            // Others: paid 0, owe share.total
             balances.set(share.participantId, roundTo2(0 - share.total));
         }
     }
@@ -541,14 +525,10 @@ export function getTripSummary(trip: Trip, payments: TripPayment[] = []): TripSu
 
     let totalGrandTotal = 0;
 
-    // Sum up balances across all receipts. A receipt marked "settled" was
-    // already squared up outside the app, so it still counts toward the trip
-    // total but is excluded from the balances that drive the final settlement.
+    // Sum gross per-receipt balances; settle-ups are applied once below.
     for (const receipt of trip.receipts) {
         const summary = getReceiptSummary(receipt, participantIds);
         totalGrandTotal += summary.grandTotal;
-
-        if (receipt.settled) continue;
 
         for (const [id, balance] of summary.balances) {
             const current = aggregateBalances.get(id) || 0;
@@ -556,7 +536,8 @@ export function getTripSummary(trip: Trip, payments: TripPayment[] = []): TripSu
         }
     }
 
-    // Recorded settle-up payments further reduce the outstanding balances.
+    // Recorded settle-up payments (the single source of truth for what has been
+    // paid) reduce the outstanding balances.
     aggregateBalances = applyPaymentsToBalances(aggregateBalances, payments);
 
     const settlements = minimizeTransactions(aggregateBalances);

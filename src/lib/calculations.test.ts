@@ -376,49 +376,7 @@ describe("getTripSummary", () => {
         expect(summary.settlements.every((t) => t.amount === 30)).toBe(true);
     });
 
-    it("should exclude a settled receipt from balances but keep it in the total", () => {
-        const trip: Trip = {
-            id: "trip1",
-            name: "Trip",
-            participants: [{ id: "a", name: "Alice" }, { id: "b", name: "Bob" }],
-            receipts: [
-                {
-                    id: "r1",
-                    title: "Meal 1",
-                    payerId: "a",
-                    items: [
-                        { id: "1", name: "Item", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] },
-                    ],
-                    tax: 0,
-                    service: 0,
-                },
-                {
-                    // Already settled outside the app — should not affect balances.
-                    id: "r2",
-                    title: "Meal 2",
-                    payerId: "b",
-                    settled: true,
-                    items: [
-                        { id: "2", name: "Item", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] },
-                    ],
-                    tax: 0,
-                    service: 0,
-                },
-            ],
-        };
-
-        const summary = getTripSummary(trip);
-
-        // Only receipt 1 counts toward balances: a paid 100, each owes 50.
-        expect(summary.aggregateBalances.get("a")).toBe(50);
-        expect(summary.aggregateBalances.get("b")).toBe(-50);
-        // b owes a 50 (receipt 2 is excluded even though b fronted it).
-        expect(summary.settlements).toEqual([{ from: "b", to: "a", amount: 50 }]);
-        // But the settled receipt still counts toward total spend.
-        expect(summary.totalGrandTotal).toBe(200);
-    });
-
-    it("should remove only a person's own share when they paid it directly (paidBy)", () => {
+    it("treats a receipt-share settle-up payment like a direct reimbursement", () => {
         const trip: Trip = {
             id: "trip1",
             name: "Trip",
@@ -432,7 +390,6 @@ describe("getTripSummary", () => {
                     id: "r1",
                     title: "Dinner",
                     payerId: "a",
-                    paidBy: ["b"], // Bob already reimbursed Alice for his share.
                     items: [
                         { id: "1", name: "Food", qty: 1, unitPrice: 90, total: 90, assignedToIds: ["a", "b", "c"] },
                     ],
@@ -442,41 +399,17 @@ describe("getTripSummary", () => {
             ],
         };
 
-        const summary = getTripSummary(trip);
+        // Bob marked his 30 share paid — recorded as a ledger payment (the single
+        // source of truth), not a flag on the receipt.
+        const summary = getTripSummary(trip, [
+            { id: "p1", from: "b", to: "a", amount: 30, source: "share:r1:b" },
+        ]);
 
-        // Each share 30. Alice fronted 90, owes 30, already got Bob's 30 back → +30.
         expect(summary.aggregateBalances.get("a")).toBe(30);
         expect(summary.aggregateBalances.get("b")).toBe(0);
         expect(summary.aggregateBalances.get("c")).toBe(-30);
-        // Only Carol still owes Alice; Bob is out of the settlement.
         expect(summary.settlements).toEqual([{ from: "c", to: "a", amount: 30 }]);
         expect(summary.totalGrandTotal).toBe(90);
-    });
-
-    it("should ignore the payer appearing in paidBy", () => {
-        const trip: Trip = {
-            id: "trip1",
-            name: "Trip",
-            participants: [{ id: "a", name: "Alice" }, { id: "b", name: "Bob" }],
-            receipts: [
-                {
-                    id: "r1",
-                    title: "Meal",
-                    payerId: "a",
-                    paidBy: ["a"], // Payer can't pay their own share — no effect.
-                    items: [
-                        { id: "1", name: "Item", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] },
-                    ],
-                    tax: 0,
-                    service: 0,
-                },
-            ],
-        };
-
-        const summary = getTripSummary(trip);
-        expect(summary.aggregateBalances.get("a")).toBe(50);
-        expect(summary.aggregateBalances.get("b")).toBe(-50);
-        expect(summary.settlements).toEqual([{ from: "b", to: "a", amount: 50 }]);
     });
 
     it("should apply a partial settle-up payment (C paid E 150k of a 300k share)", () => {
@@ -535,33 +468,5 @@ describe("getTripSummary", () => {
         expect(summary.aggregateBalances.get("a")).toBe(0);
         expect(summary.aggregateBalances.get("b")).toBe(0);
         expect(summary.settlements.length).toBe(0);
-    });
-
-    it("should settle to zero when every receipt is marked settled", () => {
-        const trip: Trip = {
-            id: "trip1",
-            name: "Trip",
-            participants: [{ id: "a", name: "Alice" }, { id: "b", name: "Bob" }],
-            receipts: [
-                {
-                    id: "r1",
-                    title: "Meal 1",
-                    payerId: "a",
-                    settled: true,
-                    items: [
-                        { id: "1", name: "Item", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] },
-                    ],
-                    tax: 0,
-                    service: 0,
-                },
-            ],
-        };
-
-        const summary = getTripSummary(trip);
-
-        expect(summary.aggregateBalances.get("a")).toBe(0);
-        expect(summary.aggregateBalances.get("b")).toBe(0);
-        expect(summary.settlements.length).toBe(0);
-        expect(summary.totalGrandTotal).toBe(100);
     });
 });

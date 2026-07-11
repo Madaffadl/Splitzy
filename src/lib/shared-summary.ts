@@ -63,13 +63,6 @@ export interface SharedReceipt {
   service: number;
   items: SharedItem[];
   discounts?: SharedDiscount[];
-  // Travel Spend: receipt already settled outside the app; excluded from the
-  // final settlement but still counted in totals. Carried through so cloud
-  // sync and read-only share links reflect the same settled state.
-  settled?: boolean;
-  // Travel Spend: participant ids who already paid their individual share of
-  // this receipt directly to the payer. Carried through cloud sync + shares.
-  paidBy?: string[];
 }
 
 export interface SharedPaymentInfo {
@@ -95,6 +88,7 @@ export interface SharedPayment {
   to: string;
   amount: number;
   note?: string;
+  source?: string;
 }
 
 export interface SharedSummaryPayload {
@@ -314,7 +308,9 @@ export function validateSharedPayments(
     const id = typeof p.id === "string" && p.id ? p.id.slice(0, MAX_ID) : `${from}>${to}:${out.length}`;
     const note =
       p.note != null && p.note !== "" ? asString(p.note, "payment.note", MAX_NAME) : undefined;
-    out.push({ id, from, to, amount, ...(note ? { note } : {}) });
+    const source =
+      typeof p.source === "string" && p.source ? p.source.slice(0, MAX_TITLE) : undefined;
+    out.push({ id, from, to, amount, ...(note ? { note } : {}), ...(source ? { source } : {}) });
   }
   return out.length > 0 ? out : undefined;
 }
@@ -402,23 +398,6 @@ export function validateSharedReceipts(
       participantIds
     );
 
-    // paidBy: keep only ids of current participants who are not the payer, and
-    // dedupe. Unknown ids (e.g. a removed traveler) are dropped rather than
-    // throwing, so a stale entry never invalidates the whole payload.
-    let paidBy: string[] | undefined;
-    if (Array.isArray(r.paidBy)) {
-      const seen = new Set<string>();
-      const valid = r.paidBy.filter(
-        (id): id is string =>
-          typeof id === "string" &&
-          id !== payerId &&
-          participantIds.has(id) &&
-          !seen.has(id) &&
-          (seen.add(id), true)
-      );
-      if (valid.length > 0) paidBy = valid;
-    }
-
     return {
       id: asString(r.id, `receipts[${ri}].id`, MAX_ID),
       title: asString(r.title, `receipts[${ri}].title`, MAX_TITLE),
@@ -428,8 +407,6 @@ export function validateSharedReceipts(
       service: asMoney(r.service ?? 0, `receipts[${ri}].service`),
       items,
       ...(discounts ? { discounts } : {}),
-      ...(r.settled === true ? { settled: true } : {}),
-      ...(paidBy ? { paidBy } : {}),
     };
   });
 }
