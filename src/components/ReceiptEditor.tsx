@@ -146,10 +146,10 @@ export function ReceiptEditor({
             participants={participants}
             title={receipt.title}
             onUpdatePaymentInfo={onUpdatePaymentInfo}
-            // Live edit preview: the single-receipt settlement is informational —
-            // settle-up is a trip-level action (the ledger), done from the trip
-            // summary, not while editing a receipt.
-            settlementReadOnly
+            // Live edit preview: show only the split (totals + per-person
+            // breakdown). Hide Share/Copy and the settlement/payment-destination
+            // sections — settling up is a trip-level action, not part of editing.
+            preview
           />
         </ErrorBoundary>
       </div>

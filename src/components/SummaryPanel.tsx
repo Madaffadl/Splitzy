@@ -81,10 +81,11 @@ interface SummaryPanelProps {
   // add/edit affordance for their bank/e-wallet details. Omitted in read-only
   // views, where payment info is shown but not editable.
   onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
-  // When true, the Settlements list is static (no mark-as-paid toggle). Used by
-  // the ReceiptEditor live preview: settle-up is a trip-level action, so the
-  // single-receipt settlement here is informational only.
-  settlementReadOnly?: boolean;
+  // When true (the ReceiptEditor live preview): hide the Share/Copy actions and
+  // the settlement + payment-destination sections. The preview only needs to
+  // show the split (totals + per-person breakdown); settling up is a trip-level
+  // action done from the trip summary, not while editing one receipt.
+  preview?: boolean;
 }
 
 // One recipient's payment details as a card row inside the "Rekening Tujuan"
@@ -629,10 +630,10 @@ export function ReceiptBreakdown({
   );
 }
 
-export function SummaryPanel({ receipt, participants, title, readOnly = false, onUpdatePaymentInfo, settlementReadOnly = false }: SummaryPanelProps) {
-  // Settle-up is a trip-level action; suppress the cosmetic per-receipt toggle
-  // in read-only and editor-preview contexts (render static rows instead).
-  const settleStatic = readOnly || settlementReadOnly;
+export function SummaryPanel({ receipt, participants, title, readOnly = false, onUpdatePaymentInfo, preview = false }: SummaryPanelProps) {
+  // The read-only shared view shows settlements but not interactively; the
+  // editor preview hides them entirely (see `preview`).
+  const settleStatic = readOnly;
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session.
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -847,7 +848,7 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
             </div>
             <span className="gradient-text font-bold">Summary</span>
           </CardTitle>
-          {!readOnly && (
+          {!readOnly && !preview && (
             <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"
@@ -970,7 +971,10 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
           </div>
         </div>
 
-        {/* Settlements */}
+        {/* Settlement + payment destinations — hidden in the editor preview
+            (settle-up is a trip-level action, not part of editing a receipt). */}
+        {!preview && (
+          <>
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">
             Settlements
@@ -1054,6 +1058,8 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
           readOnly={readOnly}
           onUpdatePaymentInfo={onUpdatePaymentInfo}
         />
+          </>
+        )}
       </CardContent>
     </Card>
   );
