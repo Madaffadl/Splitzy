@@ -575,6 +575,19 @@ export default function TravelPage() {
     });
   };
 
+  // Toggle a single person's share of a receipt as paid (per-person settle-up).
+  // Only that person's share leaves the settlement; the rest of the receipt
+  // still settles normally.
+  const togglePaidShare = async (receipt: Receipt, participantId: string) => {
+    if (!activeTrip) return;
+    const current = receipt.paidBy ?? [];
+    const has = current.includes(participantId);
+    const paidBy = has
+      ? current.filter((id) => id !== participantId)
+      : [...current, participantId];
+    await travel.updateReceipt(activeTrip.id, { ...receipt, paidBy });
+  };
+
   const canAddReceipt = (activeTrip?.participants.length ?? 0) >= 2;
 
   // ── Trip name sync on blur ────────────────────────────────────────────────
@@ -851,6 +864,7 @@ export default function TravelPage() {
                           onEdit={() => editReceipt(r.id)}
                           onDelete={() => setDeleteReceiptId(r.id)}
                           onToggleSettled={() => void toggleSettled(r)}
+                          onTogglePaidShare={(pid) => void togglePaidShare(r, pid)}
                         />
                       ))}
                     </div>

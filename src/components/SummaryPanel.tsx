@@ -244,39 +244,70 @@ function PersonBreakdown({
   detail,
   name,
   isPayer,
+  paid = false,
+  onTogglePaid,
 }: {
   detail: PersonShareDetail;
   name: string;
   isPayer: boolean;
+  // Travel Spend: this person has already paid their share of the receipt.
+  paid?: boolean;
+  // When provided (and not the payer), renders a checkbox to toggle `paid`.
+  onTogglePaid?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const showPaidToggle = !!onTogglePaid && !isPayer;
 
   return (
-    <div className="rounded-md border overflow-hidden">
-      {/* Main row - clickable */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{name}</span>
-          {isPayer && (
-            <Badge variant="outline" className="text-xs py-0">
-              Payer
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-primary">
-            Rp {formatCurrency(detail.total)}
-          </span>
-          {expanded ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
-        </div>
-      </button>
+    <div className={cn("rounded-md border overflow-hidden", paid && "border-emerald-500/30 bg-emerald-500/[0.04]")}>
+      {/* Main row - clickable, with an optional paid toggle beside it */}
+      <div className="flex items-center">
+        {showPaidToggle && (
+          <button
+            type="button"
+            onClick={onTogglePaid}
+            aria-pressed={paid}
+            aria-label={paid ? `Mark ${name}'s share unpaid` : `Mark ${name}'s share paid`}
+            title={paid ? "Paid their share — excluded from settlement" : "Mark this person's share as paid"}
+            className={cn(
+              "ml-2 h-5 w-5 shrink-0 rounded-md border flex items-center justify-center transition-colors",
+              paid
+                ? "bg-emerald-500 border-emerald-500 text-white"
+                : "border-muted-foreground/40 text-transparent hover:border-emerald-500"
+            )}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex-1 min-w-0 flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={cn("font-medium truncate", paid && "text-muted-foreground line-through")}>{name}</span>
+            {isPayer && (
+              <Badge variant="outline" className="text-xs py-0 shrink-0">
+                Payer
+              </Badge>
+            )}
+            {paid && (
+              <span className="flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
+                Paid
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={cn("font-semibold", paid ? "text-muted-foreground" : "text-primary")}>
+              Rp {formatCurrency(detail.total)}
+            </span>
+            {expanded ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+        </button>
+      </div>
 
       {/* Expanded breakdown */}
       {expanded && (
@@ -365,6 +396,7 @@ export function ReceiptBreakdown({
   onEdit,
   onDelete,
   onToggleSettled,
+  onTogglePaidShare,
 }: {
   receipt: Receipt;
   participants: Participant[];
@@ -374,9 +406,13 @@ export function ReceiptBreakdown({
   // Travel Spend: mark the whole receipt as already settled. When provided, a
   // toggle is shown; a settled receipt is dimmed and excluded from settlement.
   onToggleSettled?: () => void;
+  // Travel Spend: toggle a single person's share as paid (per-person settle-up).
+  // When provided, each non-payer row in the expanded breakdown gets a checkbox.
+  onTogglePaidShare?: (participantId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const settled = receipt.settled === true;
+  const paidBy = useMemo(() => new Set(receipt.paidBy ?? []), [receipt.paidBy]);
 
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
@@ -415,6 +451,14 @@ export function ReceiptBreakdown({
               <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
                 <Check className="h-3 w-3" />
                 Paid
+              </span>
+            )}
+            {!settled && paidBy.size > 0 && (
+              <span
+                className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0"
+                title="People who have paid their share"
+              >
+                {paidBy.size} paid
               </span>
             )}
           </div>
@@ -492,6 +536,12 @@ export function ReceiptBreakdown({
               detail={detail}
               name={getParticipantName(detail.participantId)}
               isPayer={detail.participantId === receipt.payerId}
+              paid={settled || paidBy.has(detail.participantId)}
+              onTogglePaid={
+                onTogglePaidShare && !settled
+                  ? () => onTogglePaidShare(detail.participantId)
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -1095,6 +1145,32 @@ export function MultipleReceiptSummaryPanel({
     [receipts, participantIds]
   );
 
+  // Per-person shares already settled directly with the payer (per-receipt
+  // paidBy), on receipts that aren't wholly settled. Listed in the settlement
+  // note so it's clear whose share was removed and by how much.
+  const paidShares = useMemo(() => {
+    const out: { key: string; receiptTitle: string; participantId: string; amount: number }[] = [];
+    for (const receipt of receipts) {
+      if (receipt.settled || !receipt.paidBy?.length) continue;
+      const shareByPerson = new Map(
+        getReceiptSummary(receipt, participantIds).shares.map((s) => [s.participantId, s.total])
+      );
+      for (const pid of receipt.paidBy) {
+        if (pid === receipt.payerId) continue;
+        const amount = shareByPerson.get(pid) ?? 0;
+        if (amount > 0) {
+          out.push({
+            key: `${receipt.id}:${pid}`,
+            receiptTitle: receipt.title || "Untitled",
+            participantId: pid,
+            amount,
+          });
+        }
+      }
+    }
+    return out;
+  }, [receipts, participantIds]);
+
   // Per-person total spend across ALL receipts (settled included) — feeds the
   // individual budget progress. Deliberately different from walletStats.consumed
   // (which excludes settled receipts because it drives the outstanding settlement).
@@ -1189,10 +1265,13 @@ export function MultipleReceiptSummaryPanel({
       text += `✅ Everyone is settled!\n`;
     }
 
-    if (settledReceipts.length > 0) {
+    if (settledReceipts.length > 0 || paidShares.length > 0) {
       text += `\n✔️ Already paid (excluded from settlement):\n`;
       for (const r of settledReceipts) {
         text += `• ${getParticipantName(r.payerId)} paid ${r.title}: Rp ${formatCurrency(r.amountPaid)}\n`;
+      }
+      for (const s of paidShares) {
+        text += `• ${getParticipantName(s.participantId)} paid their share of ${s.receiptTitle}: Rp ${formatCurrency(s.amount)}\n`;
       }
     }
 
@@ -1504,7 +1583,10 @@ export function MultipleReceiptSummaryPanel({
               const stat = walletStats.get(id);
               const paid = stat?.paid || 0;
               const consumed = stat?.consumed || 0;
-              const net = Math.round((paid - consumed) * 100) / 100;
+              // Net comes from the authoritative settlement balances so it stays
+              // consistent with Final Settlements when receipts/shares are marked
+              // paid (equals paid − consumed when there are no settle-ups).
+              const net = aggregateBalances.get(id) ?? 0;
               const breakdown = walletBreakdowns.get(id);
               const isOpen = openWallet[id] ?? false;
               const hasDetails = (breakdown?.paid.length || 0) + (breakdown?.consumed.length || 0) > 0;
@@ -1645,8 +1727,8 @@ export function MultipleReceiptSummaryPanel({
             )}
           </div>
 
-          {/* Already-paid receipts — excluded from the settlement above */}
-          {settledReceipts.length > 0 && (
+          {/* Already-paid — receipts + individual shares excluded from settlement */}
+          {(settledReceipts.length > 0 || paidShares.length > 0) && (
             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs space-y-2">
               <p className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
                 <Check className="h-3.5 w-3.5 shrink-0" />
@@ -1661,6 +1743,17 @@ export function MultipleReceiptSummaryPanel({
                     </span>
                     <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
                       Rp {formatCurrency(r.amountPaid)}
+                    </span>
+                  </li>
+                ))}
+                {paidShares.map((s) => (
+                  <li key={s.key} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-foreground/90">
+                      <span className="font-semibold">{getParticipantName(s.participantId)}</span> paid their share of{" "}
+                      <span className="font-medium">{s.receiptTitle}</span>
+                    </span>
+                    <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
+                      Rp {formatCurrency(s.amount)}
                     </span>
                   </li>
                 ))}

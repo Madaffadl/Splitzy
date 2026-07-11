@@ -71,6 +71,11 @@ export interface Receipt {
     // counts toward Total Spent / Budget, but is excluded from the final
     // settlement so it isn't double-counted in who-owes-whom.
     settled?: boolean;
+    // Travel Spend only: participant ids (non-payer) who have already paid their
+    // individual share of this receipt directly to the payer. Their share is
+    // removed from the final settlement and the payer's credit reduced by it,
+    // while the rest of the receipt still settles normally.
+    paidBy?: string[];
 }
 
 export interface Trip {

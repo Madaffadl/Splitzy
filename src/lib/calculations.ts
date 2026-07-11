@@ -346,12 +346,31 @@ export function calculateReceiptBalances(
     // rather than crediting the payer.
     const amountPaid = roundTo2(shares.reduce((sum, s) => sum + s.total, 0));
 
+    // Non-payer members who already settled their share directly with the payer.
+    const paidBy = new Set((receipt.paidBy ?? []).filter((id) => id !== receipt.payerId));
+
+    // Cash the payer has already been repaid directly — reduces their credit so
+    // those shares drop out of the settlement without unbalancing the ledger.
+    let directlySettled = 0;
+    for (const share of shares) {
+        if (paidBy.has(share.participantId)) {
+            directlySettled = roundTo2(directlySettled + share.total);
+        }
+    }
+
     const balances = new Map<string, number>();
 
     for (const share of shares) {
         if (share.participantId === receipt.payerId) {
-            // Payer: paid amountPaid, owes share.total
-            balances.set(share.participantId, roundTo2(amountPaid - share.total));
+            // Payer: fronted amountPaid, owes their own share, and has already
+            // been repaid `directlySettled` by members who settled directly.
+            balances.set(
+                share.participantId,
+                roundTo2(amountPaid - share.total - directlySettled)
+            );
+        } else if (paidBy.has(share.participantId)) {
+            // Already paid their share directly to the payer — fully settled.
+            balances.set(share.participantId, 0);
         } else {
             // Others: paid 0, owes share.total
             balances.set(share.participantId, roundTo2(0 - share.total));

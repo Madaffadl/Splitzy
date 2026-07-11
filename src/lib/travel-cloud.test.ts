@@ -104,4 +104,20 @@ describe("validateTripReceiptPayload", () => {
       validateTripReceiptPayload({ ...receipt, settled: false }, new Set(["p1", "p2"])).settled
     ).toBeUndefined();
   });
+  it("preserves valid paidBy ids", () => {
+    const out = validateTripReceiptPayload({ ...receipt, paidBy: ["p2"] }, new Set(["p1", "p2"]));
+    expect(out.paidBy).toEqual(["p2"]);
+  });
+  it("drops the payer and unknown ids from paidBy, deduping the rest", () => {
+    const out = validateTripReceiptPayload(
+      { ...receipt, paidBy: ["p1", "ghost", "p2", "p2"] },
+      new Set(["p1", "p2"])
+    );
+    // p1 is the payer, ghost is unknown, p2 deduped → ["p2"].
+    expect(out.paidBy).toEqual(["p2"]);
+  });
+  it("omits paidBy when it ends up empty", () => {
+    const out = validateTripReceiptPayload({ ...receipt, paidBy: ["p1", "ghost"] }, new Set(["p1", "p2"]));
+    expect(out.paidBy).toBeUndefined();
+  });
 });
