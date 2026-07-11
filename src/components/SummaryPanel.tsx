@@ -1080,10 +1080,41 @@ export function MultipleReceiptSummaryPanel({
   );
 
   // Receipts already squared up outside the app — excluded from the settlement
-  // above, listed separately so it's clear why they aren't in the balances.
+  // above, listed separately (with who fronted it + how much) so it's clear why
+  // they aren't in the balances.
   const settledReceipts = useMemo(
-    () => receipts.filter((r) => r.settled),
-    [receipts]
+    () =>
+      receipts
+        .filter((r) => r.settled)
+        .map((r) => ({
+          id: r.id,
+          title: r.title || "Untitled",
+          payerId: r.payerId,
+          amountPaid: getReceiptSummary(r, participantIds).amountPaid,
+        })),
+    [receipts, participantIds]
+  );
+
+  // Per-person total spend across ALL receipts (settled included) — feeds the
+  // individual budget progress. Deliberately different from walletStats.consumed
+  // (which excludes settled receipts because it drives the outstanding settlement).
+  const spentByPerson = useMemo(() => {
+    const map = new Map<string, number>();
+    participantIds.forEach((id) => map.set(id, 0));
+    for (const receipt of receipts) {
+      for (const share of getReceiptSummary(receipt, participantIds).shares) {
+        map.set(
+          share.participantId,
+          Math.round(((map.get(share.participantId) ?? 0) + share.total) * 100) / 100
+        );
+      }
+    }
+    return map;
+  }, [receipts, participantIds]);
+
+  const participantsWithBudget = useMemo(
+    () => participants.filter((p) => (p.budget ?? 0) > 0),
+    [participants]
   );
 
   // Unique recipients (settlement "to" side), in settlement order. Payment
@@ -1161,7 +1192,7 @@ export function MultipleReceiptSummaryPanel({
     if (settledReceipts.length > 0) {
       text += `\n✔️ Already paid (excluded from settlement):\n`;
       for (const r of settledReceipts) {
-        text += `• ${r.title || "Untitled"}\n`;
+        text += `• ${getParticipantName(r.payerId)} paid ${r.title}: Rp ${formatCurrency(r.amountPaid)}\n`;
       }
     }
 
@@ -1558,6 +1589,43 @@ export function MultipleReceiptSummaryPanel({
           </div>
         </div>
 
+        {/* Individual budgets — only shown when at least one traveler set one */}
+        {participantsWithBudget.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              <Target className="h-4 w-4" />
+              Individual budgets
+            </h4>
+            <div className="space-y-2">
+              {participantsWithBudget.map((p) => {
+                const budget = p.budget as number;
+                const spent = spentByPerson.get(p.id) ?? 0;
+                const over = spent > budget;
+                const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+                return (
+                  <div key={p.id} className="rounded-lg border bg-card px-3 py-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium truncate">{getParticipantName(p.id)}</span>
+                      <span className={cn("text-xs font-medium whitespace-nowrap", over ? "text-red-500" : "text-muted-foreground")}>
+                        Rp {formatCurrency(spent)} / Rp {formatCurrency(budget)}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn("h-full rounded-full transition-all", over ? "bg-red-500" : "bg-emerald-500")}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <p className={cn("text-[11px]", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                      {over ? `Over by Rp ${formatCurrency(spent - budget)}` : `Rp ${formatCurrency(budget - spent)} left`}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Final Settlements */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -1579,14 +1647,22 @@ export function MultipleReceiptSummaryPanel({
 
           {/* Already-paid receipts — excluded from the settlement above */}
           {settledReceipts.length > 0 && (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs space-y-1">
+            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs space-y-2">
               <p className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
-                <Check className="h-3.5 w-3.5" />
+                <Check className="h-3.5 w-3.5 shrink-0" />
                 Already paid — not included in settlement
               </p>
-              <ul className="space-y-0.5 pl-5 text-emerald-800/80 dark:text-emerald-200/80">
+              <ul className="space-y-1.5">
                 {settledReceipts.map((r) => (
-                  <li key={r.id} className="list-disc">{r.title || "Untitled"}</li>
+                  <li key={r.id} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0 truncate text-foreground/90">
+                      <span className="font-semibold">{getParticipantName(r.payerId)}</span> paid{" "}
+                      <span className="font-medium">{r.title}</span>
+                    </span>
+                    <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
+                      Rp {formatCurrency(r.amountPaid)}
+                    </span>
+                  </li>
                 ))}
               </ul>
             </div>
