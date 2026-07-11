@@ -24,13 +24,44 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Copy, Check, CheckCircle2, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2, X } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
 import { parseShareSource, paidShareParticipants } from "@/lib/settle-up";
 
 // Shared empty set so ReceiptBreakdown's default doesn't allocate each render.
 const EMPTY_PAID: ReadonlySet<string> = new Set<string>();
+
+// A titled, collapsible section — used to keep secondary detail (spending
+// breakdown, receipt details) out of the way so the primary answer (the
+// settlement) isn't buried in a wall of information.
+function CollapsibleSection({
+  title,
+  defaultOpen = false,
+  badge,
+  children,
+}: {
+  title: ReactNode;
+  defaultOpen?: boolean;
+  badge?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <span className="flex items-center gap-2">{title}{badge}</span>
+        {open ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+      </button>
+      {open && <div className="space-y-2 animate-fade-in">{children}</div>}
+    </div>
+  );
+}
 
 // Attribution + light promo appended to every copied summary. This is often
 // the first time a non-user sees Splitzy (a friend gets billed, opens the
@@ -1588,36 +1619,42 @@ export function MultipleReceiptSummaryPanel({
             the same breakdown as the single-receipt view. Hidden when the host
             (Travel Spend) surfaces these in its own Receipts list. */}
         {showReceiptDetails && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              Receipt Details
-              <span className="text-xs font-normal">(tap to expand)</span>
-            </h4>
-            <div className="space-y-2">
-              {receipts.map((r, i) => (
-                <ReceiptBreakdown
-                  key={r.id}
-                  receipt={r}
-                  participants={participants}
-                  index={i}
-                  paidParticipantIds={paidShareParticipants(payments, r.id)}
-                  onToggleAllPaid={
-                    onToggleReceiptPaid ? () => onToggleReceiptPaid(r.id) : undefined
-                  }
-                  onTogglePaidShare={
-                    onTogglePaidShare ? (pid) => onTogglePaidShare(r.id, pid) : undefined
-                  }
-                />
-              ))}
-            </div>
-          </div>
+          <CollapsibleSection
+            title="Receipt details"
+            badge={
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                {receipts.length}
+              </span>
+            }
+          >
+            {receipts.map((r, i) => (
+              <ReceiptBreakdown
+                key={r.id}
+                receipt={r}
+                participants={participants}
+                index={i}
+                paidParticipantIds={paidShareParticipants(payments, r.id)}
+                onToggleAllPaid={
+                  onToggleReceiptPaid ? () => onToggleReceiptPaid(r.id) : undefined
+                }
+                onTogglePaidShare={
+                  onTogglePaidShare ? (pid) => onTogglePaidShare(r.id, pid) : undefined
+                }
+              />
+            ))}
+          </CollapsibleSection>
         )}
 
-        {/* Wallet Tracking */}
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground">
-            💰 Wallet Tracking
-          </h4>
+        {/* Spending breakdown — secondary detail; the settlement below is the
+            primary "who owes whom" answer, so this stays collapsed by default. */}
+        <CollapsibleSection
+          title={
+            <span className="flex items-center gap-1.5">
+              <Wallet className="h-4 w-4" />
+              Spending breakdown
+            </span>
+          }
+        >
           <div className="space-y-2">
             {participantIds.map((id) => {
               const stat = walletStats.get(id);
@@ -1709,7 +1746,7 @@ export function MultipleReceiptSummaryPanel({
               );
             })}
           </div>
-        </div>
+        </CollapsibleSection>
 
         {/* Individual budgets — only shown when at least one traveler set one */}
         {participantsWithBudget.length > 0 && (
