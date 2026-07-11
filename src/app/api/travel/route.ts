@@ -46,6 +46,11 @@ export async function GET(request: NextRequest) {
       },
     },
     orderBy: { updatedAt: "desc" },
+    // Defensive bound on the single-request payload. The most-recent 200 trips
+    // is far beyond any real personal/group use; combined with the per-trip
+    // receipt cap this keeps the response size bounded. If genuinely large
+    // accounts appear, switch to summary list + lazy per-trip detail loading.
+    take: 200,
   });
 
   return NextResponse.json({
