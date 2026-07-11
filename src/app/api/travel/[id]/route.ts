@@ -6,8 +6,13 @@ import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse, validateParticipantsJson } from "@/lib/validation";
 import { validateBudget } from "@/lib/travel-cloud";
 import { getTripAccess } from "@/lib/trip-access";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+// Per-user write budget for travel mutations — generous enough to never hit in
+// normal editing, but bounds runaway loops / abuse.
+const WRITE_RL = { limit: 120, windowMs: 60_000 };
 
 // GET /api/travel/[id] — full trip: name, budget, participants, receipts.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -79,6 +84,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (csrf) return csrf;
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+  const limited = enforceRateLimit(request, "travel:trip", { userId: user.id, ...WRITE_RL });
+  if (limited) return limited;
   const { id } = await params;
 
   const access = await getTripAccess(id, user.id);
@@ -127,6 +134,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (csrf) return csrf;
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+  const limited = enforceRateLimit(request, "travel:trip", { userId: user.id, ...WRITE_RL });
+  if (limited) return limited;
   const { id } = await params;
 
   const access = await getTripAccess(id, user.id);

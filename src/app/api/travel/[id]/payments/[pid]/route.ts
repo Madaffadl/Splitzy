@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api-auth";
 import { getTripAccess } from "@/lib/trip-access";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,8 @@ export async function DELETE(
   if (csrf) return csrf;
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+  const limited = enforceRateLimit(request, "travel:payment", { userId: user.id, limit: 120, windowMs: 60_000 });
+  if (limited) return limited;
   const { id, pid } = await params;
 
   const access = await getTripAccess(id, user.id);

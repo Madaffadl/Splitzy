@@ -5,6 +5,7 @@ import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { validateTripPaymentInput } from "@/lib/travel-cloud";
 import { getTripAccess } from "@/lib/trip-access";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (csrf) return csrf;
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+  const limited = enforceRateLimit(request, "travel:payment", { userId: user.id, limit: 120, windowMs: 60_000 });
+  if (limited) return limited;
   const { id } = await params;
 
   const access = await getTripAccess(id, user.id);

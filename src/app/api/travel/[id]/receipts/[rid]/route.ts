@@ -6,8 +6,11 @@ import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { validateTripReceiptPayload } from "@/lib/travel-cloud";
 import { getTripAccess } from "@/lib/trip-access";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+const WRITE_RL = { limit: 120, windowMs: 60_000 };
 
 // PUT /api/travel/[id]/receipts/[rid] — replace a receipt's payload.
 export async function PUT(
@@ -18,6 +21,8 @@ export async function PUT(
   if (csrf) return csrf;
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+  const limited = enforceRateLimit(request, "travel:receipt", { userId: user.id, ...WRITE_RL });
+  if (limited) return limited;
   const { id, rid } = await params;
 
   const access = await getTripAccess(id, user.id);
@@ -57,6 +62,8 @@ export async function DELETE(
   if (csrf) return csrf;
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+  const limited = enforceRateLimit(request, "travel:receipt", { userId: user.id, ...WRITE_RL });
+  if (limited) return limited;
   const { id, rid } = await params;
 
   const access = await getTripAccess(id, user.id);

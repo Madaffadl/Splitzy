@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, forbidden, assertSameOrigin } from "@/lib/api-auth";
 import { getTripAccess } from "@/lib/trip-access";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
+  const limited = enforceRateLimit(request, "travel:invite", { userId: user.id, limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
   const { id } = await params;
 
   const access = await getTripAccess(id, user.id);
