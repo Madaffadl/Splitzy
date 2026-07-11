@@ -6,16 +6,24 @@ import { cn } from "@/lib/utils";
 
 export type ToastVariant = "success" | "error" | "info";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastOptions {
   title: string;
   description?: string;
   variant?: ToastVariant;
   duration?: number;
+  // Optional single action button (e.g. "Undo"). Running it dismisses the toast.
+  action?: ToastAction;
 }
 
-interface ToastRecord extends Required<Omit<ToastOptions, "description">> {
+interface ToastRecord extends Required<Omit<ToastOptions, "description" | "action">> {
   id: number;
   description?: string;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
@@ -43,9 +51,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toast = React.useCallback(
-    ({ title, description, variant = "info", duration = 3500 }: ToastOptions) => {
+    ({ title, description, variant = "info", duration = 3500, action }: ToastOptions) => {
       const id = ++idCounter;
-      setToasts((prev) => [...prev, { id, title, description, variant, duration }]);
+      setToasts((prev) => [...prev, { id, title, description, variant, duration, action }]);
       if (duration > 0) {
         window.setTimeout(() => dismiss(id), duration);
       }
@@ -120,6 +128,18 @@ function ToastItem({
           <p className="mt-0.5 text-xs text-muted-foreground">{toast.description}</p>
         )}
       </div>
+      {toast.action && (
+        <button
+          type="button"
+          onClick={() => {
+            toast.action!.onClick();
+            onDismiss();
+          }}
+          className="shrink-0 self-center rounded-md border border-current/20 px-2 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-foreground/10"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         type="button"
         onClick={onDismiss}

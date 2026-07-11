@@ -167,6 +167,25 @@ describe("useTravelData — cloud", () => {
     expect(result.current.syncStatus).toBe("error");
   });
 
+  it("restoreTrip: re-adds the trip and calls the restore endpoint", async () => {
+    asAuthed();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ trips: [] })) // loadCloud
+      .mockResolvedValueOnce(jsonRes({ ok: true })); // restore
+    global.fetch = fetchMock;
+
+    const { result } = renderHook(() => useTravelData());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.restoreTrip(cloudTrip("t9", { name: "Recovered" }));
+    });
+
+    expect(result.current.trips.map((t) => t.id)).toContain("t9");
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/travel/t9/restore", { method: "POST" });
+  });
+
   it("addPayment: success replaces the optimistic row with the server payment", async () => {
     asAuthed();
     global.fetch = vi

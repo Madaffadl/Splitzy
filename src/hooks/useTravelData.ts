@@ -243,6 +243,22 @@ export function useTravelData() {
     [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
   );
 
+  // Undo a trip deletion: re-add the captured trip and (cloud) un-soft-delete it.
+  const restoreTrip = useCallback(
+    async (trip: TravelTrip) => {
+      if (isAuthenticated) {
+        setCloudTrips((prev) => (prev.some((t) => t.id === trip.id) ? prev : [trip, ...prev]));
+        await trackedFetch(`/api/travel/${trip.id}/restore`, { method: "POST" });
+      } else {
+        setLocal((prev) => ({
+          ...prev,
+          trips: prev.trips.some((t) => t.id === trip.id) ? prev.trips : [trip, ...prev.trips],
+        }));
+      }
+    },
+    [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
+  );
+
   // ── Mutations: receipts ───────────────────────────────────────────────────
   const addReceipt = useCallback(
     async (tripId: string, receipt: Receipt) => {
@@ -430,6 +446,7 @@ export function useTravelData() {
     updateTrip,
     updateParticipants,
     deleteTrip,
+    restoreTrip,
     addReceipt,
     updateReceipt,
     deleteReceipt,

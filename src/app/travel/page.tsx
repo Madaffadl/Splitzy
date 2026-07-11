@@ -584,9 +584,16 @@ export default function TravelPage() {
   };
 
   const deleteTrip = async (id: string) => {
+    const removed = trips.find((t) => t.id === id);
     await travel.deleteTrip(id);
     setDeleteTripId(null);
-    toast({ title: "Trip deleted", variant: "success" });
+    toast({
+      title: "Trip deleted",
+      description: removed?.name,
+      variant: "success",
+      duration: 6000,
+      action: removed ? { label: "Undo", onClick: () => void travel.restoreTrip(removed) } : undefined,
+    });
   };
 
   const openTrip = (id: string) => {
@@ -693,10 +700,17 @@ export default function TravelPage() {
 
   const deleteReceipt = async (id: string) => {
     if (!activeTrip) return;
+    const tripId = activeTrip.id;
     const removed = activeTrip.receipts.find((r) => r.id === id);
-    await travel.deleteReceipt(activeTrip.id, id);
+    await travel.deleteReceipt(tripId, id);
     setDeleteReceiptId(null);
-    toast({ title: "Receipt deleted", description: removed?.title, variant: "success" });
+    toast({
+      title: "Receipt deleted",
+      description: removed?.title,
+      variant: "success",
+      duration: 6000,
+      action: removed ? { label: "Undo", onClick: () => void travel.addReceipt(tripId, removed) } : undefined,
+    });
   };
 
   // Effective share of a receipt for one participant (used to size the payment
