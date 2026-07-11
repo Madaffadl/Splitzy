@@ -18,6 +18,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -922,7 +923,21 @@ export default function TravelPage() {
               </CardContent>
             </Card>
 
-            {trips.length === 0 ? (
+            {travel.isLoading ? (
+              // Skeleton trip cards while cloud trips load (avoids a flash of the
+              // "No trips yet" empty state before data arrives).
+              <div className="grid sm:grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 p-4 rounded-xl border">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                ))}
+              </div>
+            ) : trips.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
                 <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
                   <Plane className="h-6 w-6 text-emerald-600 dark:text-emerald-400 opacity-80" />
