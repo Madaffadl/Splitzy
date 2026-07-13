@@ -8,6 +8,8 @@ export interface ParseResult {
     items: ReceiptItem[];
     tax: number;
     service: number;
+    /** ISO 4217 code detected by Gemini scan; undefined = IDR (default). */
+    currency?: string;
 }
 
 /**

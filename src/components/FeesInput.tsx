@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Participant } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { getCurrencyMeta } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,6 +23,8 @@ interface FeesInputProps {
   onTaxChange: (tax: number) => void;
   onServiceChange: (service: number) => void;
   onPayerChange: (payerId: string) => void;
+  // Receipt's native currency (Travel Spend). Undefined = IDR → "Rp" prefix.
+  currency?: string;
 }
 
 export function FeesInput({
@@ -32,7 +35,12 @@ export function FeesInput({
   onTaxChange,
   onServiceChange,
   onPayerChange,
+  currency,
 }: FeesInputProps) {
+  // Tax/service are entered in the receipt's native currency, so the input
+  // prefix must match it (₫, ฿, …) — not a hardcoded "Rp". The stored value is
+  // native; conversion to IDR happens at the trip level (receiptInBaseCurrency).
+  const symbol = getCurrencyMeta(currency).symbol;
   const [draftTax, setDraftTax] = useState<string | null>(null);
   const [draftService, setDraftService] = useState<string | null>(null);
 
@@ -52,7 +60,7 @@ export function FeesInput({
           </Label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
-              Rp
+              {symbol}
             </span>
             <Input
               type="text"
@@ -79,7 +87,7 @@ export function FeesInput({
           </Label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
-              Rp
+              {symbol}
             </span>
             <Input
               type="text"

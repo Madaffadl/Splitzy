@@ -33,6 +33,8 @@ describe("drift guard — validators preserve every field", () => {
       payerId: "p1",
       tax: 5,
       service: 3,
+      currency: "VND",
+      fxRate: 0.67,
       items: [
         {
           id: "i1",
@@ -53,6 +55,8 @@ describe("drift guard — validators preserve every field", () => {
     expect(out.payerId).toBe("p1");
     expect(out.tax).toBe(5);
     expect(out.service).toBe(3);
+    expect(out.currency).toBe("VND");
+    expect(out.fxRate).toBe(0.67);
     expect(out.items[0]).toMatchObject({
       id: "i1",
       name: "Pizza",
@@ -70,6 +74,15 @@ describe("drift guard — validators preserve every field", () => {
       label: "Promo",
       targetId: "i1",
     });
+  });
+
+  it("strips currency/fxRate when currency is IDR (IDR is the implicit default)", () => {
+    const out = validateTripReceiptPayload(
+      { ...receipt, currency: "IDR", fxRate: 1 },
+      ids
+    );
+    expect(out.currency).toBeUndefined();
+    expect(out.fxRate).toBeUndefined();
   });
 
   it("preserves every participant field (paymentInfo + budget)", () => {

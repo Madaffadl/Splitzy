@@ -10,6 +10,7 @@ import {
 } from "@/types";
 import { cn, generateId } from "@/lib/utils";
 import { formatDiscountValue, describeDiscountTarget } from "@/lib/discounts";
+import { getCurrencyMeta } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,8 @@ interface DiscountsInputProps {
   items: ReceiptItem[];
   participants: Participant[];
   onChange: (discounts: Discount[]) => void;
+  // Receipt's native currency (Travel Spend). Undefined = IDR → "Rp".
+  currency?: string;
 }
 
 export function DiscountsInput({
@@ -34,7 +37,11 @@ export function DiscountsInput({
   items,
   participants,
   onChange,
+  currency,
 }: DiscountsInputProps) {
+  // Amount discounts are entered in the receipt's native currency, so the
+  // "amount" toggle shows that symbol (₫, ฿, …) instead of a hardcoded "Rp".
+  const symbol = getCurrencyMeta(currency).symbol;
   // Progressive disclosure: discounts are an edge case, so keep the panel
   // collapsed behind a lightweight trigger by default. Force it open whenever
   // discounts already exist so we never hide data the user entered.
@@ -130,7 +137,7 @@ export function DiscountsInput({
                 </p>
               </div>
               <span className="shrink-0 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                − {formatDiscountValue(d)}
+                − {formatDiscountValue(d, currency)}
               </span>
               <Button
                 variant="ghost"
@@ -220,7 +227,7 @@ export function DiscountsInput({
                     : "bg-background hover:bg-muted"
                 )}
               >
-                Rp
+                {symbol}
               </button>
               <button
                 type="button"

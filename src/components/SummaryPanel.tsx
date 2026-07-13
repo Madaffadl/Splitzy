@@ -1,8 +1,9 @@
 "use client";
 
 import { Receipt, Participant, PersonShareDetail, PaymentInfo, TripPayment } from "@/types";
-import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, buildSettlementTrace, computeTripTotals } from "@/lib/calculations";
+import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, buildSettlementTrace, computeTripTotals, receiptInBaseCurrency } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
+import { formatMoney } from "@/lib/currencies";
 import {
   formatPaymentInfoText,
   normalizePaymentInfo,
@@ -286,6 +287,7 @@ function PersonBreakdown({
   isPayer,
   paid = false,
   onTogglePaid,
+  currency,
 }: {
   detail: PersonShareDetail;
   name: string;
@@ -294,9 +296,12 @@ function PersonBreakdown({
   paid?: boolean;
   // When provided (and not the payer), renders a checkbox to toggle `paid`.
   onTogglePaid?: () => void;
+  // Native currency of the receipt this breakdown belongs to (undefined = IDR).
+  currency?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const showPaidToggle = !!onTogglePaid && !isPayer;
+  const money = (n: number) => formatMoney(n, currency);
 
   return (
     <div className={cn("rounded-md border overflow-hidden", paid && "border-emerald-500/30 bg-emerald-500/[0.04]")}>
@@ -317,7 +322,7 @@ function PersonBreakdown({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className={cn("font-semibold", paid ? "text-muted-foreground" : "text-primary")}>
-              Rp {formatCurrency(detail.total)}
+              {money(detail.total)}
             </span>
             {expanded ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -372,7 +377,7 @@ function PersonBreakdown({
                     ) : null}
                   </div>
                   <span className="font-medium">
-                    Rp {formatCurrency(item.shareAmount)}
+                    {money(item.shareAmount)}
                   </span>
                 </div>
               ))}
@@ -382,14 +387,14 @@ function PersonBreakdown({
           {/* Subtotal */}
           <div className="flex justify-between text-xs pt-1 border-t">
             <span className="text-muted-foreground">Subtotal</span>
-            <span>Rp {formatCurrency(detail.subtotal)}</span>
+            <span>{money(detail.subtotal)}</span>
           </div>
 
           {/* Tax allocation */}
           {detail.taxAllocation > 0 && (
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">+ Tax share</span>
-              <span>Rp {formatCurrency(detail.taxAllocation)}</span>
+              <span>{money(detail.taxAllocation)}</span>
             </div>
           )}
 
@@ -397,7 +402,7 @@ function PersonBreakdown({
           {detail.serviceAllocation > 0 && (
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">+ Service share</span>
-              <span>Rp {formatCurrency(detail.serviceAllocation)}</span>
+              <span>{money(detail.serviceAllocation)}</span>
             </div>
           )}
 
@@ -405,14 +410,14 @@ function PersonBreakdown({
           {detail.discount > 0 && (
             <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
               <span>− Discount</span>
-              <span>− Rp {formatCurrency(detail.discount)}</span>
+              <span>− {money(detail.discount)}</span>
             </div>
           )}
 
           {/* Final total */}
           <div className="flex justify-between text-sm pt-1 border-t font-medium">
             <span>Total</span>
-            <span className="text-primary">Rp {formatCurrency(detail.total)}</span>
+            <span className="text-primary">{money(detail.total)}</span>
           </div>
         </div>
       )}
@@ -452,12 +457,23 @@ export function ReceiptBreakdown({
   const [expanded, setExpanded] = useState(false);
   const paidBy = paidParticipantIds ?? EMPTY_PAID;
 
+  // This receipt's native currency (undefined = IDR). Per-receipt amounts are
+  // shown in the native currency; a "≈ Rp" hint shows the converted total.
+  const currency = receipt.currency;
+  const isForeign = !!currency && currency !== "IDR";
+  const money = (n: number) => formatMoney(n, currency);
+
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
     [participants]
   );
   const summary = useMemo(
     () => getReceiptSummary(receipt, participantIds),
+    [receipt, participantIds]
+  );
+  // Converted total (IDR) for the hint shown beside a foreign-currency receipt.
+  const baseAmountPaid = useMemo(
+    () => getReceiptSummary(receiptInBaseCurrency(receipt), participantIds).amountPaid,
     [receipt, participantIds]
   );
   const shareDetails = useMemo(
@@ -506,9 +522,16 @@ export function ReceiptBreakdown({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className={cn("font-semibold", settled ? "text-muted-foreground" : "text-primary")}>
-              Rp {formatCurrency(summary.amountPaid)}
-            </span>
+            <div className="flex flex-col items-end leading-tight">
+              <span className={cn("font-semibold", settled ? "text-muted-foreground" : "text-primary")}>
+                {money(summary.amountPaid)}
+              </span>
+              {isForeign && (
+                <span className="text-[10px] text-muted-foreground">
+                  ≈ Rp {formatCurrency(baseAmountPaid)}
+                </span>
+              )}
+            </div>
             {expanded ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
             ) : (
@@ -604,10 +627,17 @@ export function ReceiptBreakdown({
               Tap <span className="font-medium text-foreground">Mark paid</span> when someone has settled their share.
             </p>
           )}
+          {isForeign && (
+            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Wallet className="h-3 w-3 shrink-0" />
+              Amounts in {currency} · converts to Rp at the trip level (1 {currency} = Rp{" "}
+              {receipt.fxRate?.toLocaleString("id-ID", { maximumFractionDigits: 4 })})
+            </p>
+          )}
           {summary.totalDiscount > 0 && (
             <p className="text-xs text-emerald-600 dark:text-emerald-400">
-              Includes − Rp {formatCurrency(summary.totalDiscount)} discount
-              (bill Rp {formatCurrency(summary.grandTotal)})
+              Includes − {money(summary.totalDiscount)} discount
+              (bill {money(summary.grandTotal)})
             </p>
           )}
           {shareDetails.map((detail) => (
@@ -617,6 +647,7 @@ export function ReceiptBreakdown({
               name={getParticipantName(detail.participantId)}
               isPayer={detail.participantId === receipt.payerId}
               paid={paidBy.has(detail.participantId)}
+              currency={currency}
               onTogglePaid={
                 onTogglePaidShare && detail.participantId !== receipt.payerId
                   ? () => onTogglePaidShare(detail.participantId)
@@ -655,6 +686,11 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
     () => getReceiptSummary(receipt, participantIds),
     [receipt, participantIds]
   );
+
+  // Per-receipt amounts display in the receipt's native currency (undefined =
+  // IDR, so Single/Multiple mode is unchanged). Travel foreign receipts show
+  // e.g. "₫ 450.000" instead of a misleading "Rp".
+  const money = (n: number) => formatMoney(n, receipt.currency);
 
   const shareDetails = useMemo(
     () => getPersonShareDetails(receipt, participantIds),
@@ -893,33 +929,50 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="text-muted-foreground">Subtotal</div>
           <div className="text-right font-medium">
-            Rp {formatCurrency(summary.receiptSubtotal)}
+            {money(summary.receiptSubtotal)}
           </div>
           <div className="text-muted-foreground">Tax</div>
-          <div className="text-right">Rp {formatCurrency(receipt.tax)}</div>
+          <div className="text-right">{money(receipt.tax)}</div>
           <div className="text-muted-foreground">Service</div>
-          <div className="text-right">Rp {formatCurrency(receipt.service)}</div>
+          <div className="text-right">{money(receipt.service)}</div>
           <div className="text-muted-foreground font-medium pt-2 border-t">
             Grand Total
           </div>
           <div className={cn("text-right pt-2 border-t", summary.totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
-            Rp {formatCurrency(summary.grandTotal)}
+            {money(summary.grandTotal)}
           </div>
           {summary.totalDiscount > 0 && (
             <>
               <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
               <div className="text-right text-emerald-600 dark:text-emerald-400">
-                − Rp {formatCurrency(summary.totalDiscount)}
+                − {money(summary.totalDiscount)}
               </div>
               <div className="text-muted-foreground font-medium pt-2 border-t">
                 Amount to Pay
               </div>
               <div className="text-right font-bold pt-2 border-t text-primary">
-                Rp {formatCurrency(summary.amountPaid)}
+                {money(summary.amountPaid)}
               </div>
             </>
           )}
         </div>
+
+        {/* Foreign-currency note — the amounts above are native; settlement
+            happens in Rp at the trip level using the locked rate. */}
+        {receipt.currency && receipt.currency !== "IDR" && (
+          <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+            <Wallet className="h-3 w-3 shrink-0" />
+            Amounts in {receipt.currency}
+            {receipt.fxRate ? (
+              <>
+                {" · "}≈ Rp {formatCurrency(summary.amountPaid * receipt.fxRate)} at 1 {receipt.currency} = Rp{" "}
+                {receipt.fxRate.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
+              </>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400">· set an exchange rate to convert</span>
+            )}
+          </div>
+        )}
 
         <div className="text-xs text-muted-foreground">
           Paid by:{" "}
@@ -945,7 +998,7 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
                     </span>
                   </span>
                   <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">
-                    − {formatDiscountValue(d)}
+                    − {formatDiscountValue(d, receipt.currency)}
                   </span>
                 </div>
               ))}
@@ -966,6 +1019,7 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
                 detail={detail}
                 name={getParticipantName(detail.participantId)}
                 isPayer={detail.participantId === receipt.payerId}
+                currency={receipt.currency}
               />
             ))}
           </div>
@@ -1141,6 +1195,78 @@ export function MultipleReceiptSummaryPanel({
     [participants]
   );
 
+  // All aggregation is done in the base currency (IDR): foreign-currency
+  // receipts are converted once here so wallet/spend/net figures below can't
+  // sum ₫ and Rp together. Per-receipt native display stays on the raw receipts.
+  const baseReceipts = useMemo(
+    () => receipts.map(receiptInBaseCurrency),
+    [receipts]
+  );
+
+  // Per-currency spend breakdown (Travel Spend, multi-currency trips). Groups
+  // receipts by native currency; for each, the native total + its IDR value.
+  // Only surfaced when a foreign currency is present — a pure-IDR trip needs no
+  // breakdown. Makes the "converted to IDR" total auditable and builds trust.
+  const currencyBreakdown = useMemo(() => {
+    const groups = new Map<string, { native: number; base: number; rate?: number }>();
+    for (const r of receipts) {
+      const code = r.currency && r.currency !== "IDR" ? r.currency : "IDR";
+      const native = getReceiptSummary(r, participantIds).amountPaid;
+      const base = getReceiptSummary(receiptInBaseCurrency(r), participantIds).amountPaid;
+      const g = groups.get(code) ?? { native: 0, base: 0, rate: r.fxRate };
+      g.native = Math.round((g.native + native) * 100) / 100;
+      g.base = Math.round((g.base + base) * 100) / 100;
+      groups.set(code, g);
+    }
+    return groups;
+  }, [receipts, participantIds]);
+
+  const hasForeignCurrency = useMemo(
+    () => Array.from(currencyBreakdown.keys()).some((c) => c !== "IDR"),
+    [currencyBreakdown]
+  );
+
+  // Rendered under the Total in both compact + full views when the trip mixes
+  // currencies — one row per currency (native amount, and IDR value for foreign).
+  const currencyBreakdownBlock = hasForeignCurrency ? (
+    <div className="rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/20 px-3 py-2.5 space-y-1.5">
+      <p className="flex items-center gap-1.5 text-xs font-medium text-blue-800 dark:text-blue-300">
+        <Wallet className="h-3.5 w-3.5" />
+        By currency
+      </p>
+      <div className="space-y-1">
+        {Array.from(currencyBreakdown.entries())
+          // IDR last so foreign lines (the ones needing conversion) read first.
+          .sort((a, b) => (a[0] === "IDR" ? 1 : b[0] === "IDR" ? -1 : a[0].localeCompare(b[0])))
+          .map(([code, g]) => (
+            <div key={code} className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">
+                {code === "IDR" ? "IDR receipts" : `${code} receipts`}
+                {code !== "IDR" && g.rate ? (
+                  <span className="text-muted-foreground/60">
+                    {" "}· 1 {code} = Rp {g.rate.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
+                  </span>
+                ) : null}
+              </span>
+              <span className="shrink-0 font-medium text-foreground whitespace-nowrap">
+                {code === "IDR" ? (
+                  formatMoney(g.native, "IDR")
+                ) : (
+                  <>
+                    {formatMoney(g.native, code)}{" "}
+                    <span className="text-muted-foreground">≈ Rp {formatCurrency(g.base)}</span>
+                  </>
+                )}
+              </span>
+            </div>
+          ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground/70 pt-0.5 border-t border-blue-200/50 dark:border-blue-900/40">
+        Rates locked per receipt at scan time · settlement is in Rp
+      </p>
+    </div>
+  ) : null;
+
   // Balances, settlements and totals — one shared calc (see computeTripTotals)
   // so the UI can never diverge from getTripSummary.
   const { aggregateBalances, settlements, totalGrandTotal, totalDiscount, totalPaid } = useMemo(
@@ -1151,14 +1277,14 @@ export function MultipleReceiptSummaryPanel({
   // Wallet stats (paid vs consumed)
   const walletStats = useMemo(() => {
     const stats = new Map<string, { paid: number; consumed: number }>();
-    
+
     // Initialize
     for (const id of participantIds) {
       stats.set(id, { paid: 0, consumed: 0 });
     }
-    
+
     // Total spending per person (settle-ups don't change what was spent).
-    for (const receipt of receipts) {
+    for (const receipt of baseReceipts) {
       const summary = getReceiptSummary(receipt, participantIds);
 
       // Add to payer's paid total — the actual cash fronted after discounts.
@@ -1177,7 +1303,7 @@ export function MultipleReceiptSummaryPanel({
     }
     
     return stats;
-  }, [receipts, participantIds]);
+  }, [baseReceipts, participantIds]);
 
   // Per-person breakdown: which receipts they paid, which items they consumed
   const walletBreakdowns = useMemo(() => {
@@ -1189,7 +1315,7 @@ export function MultipleReceiptSummaryPanel({
     const map = new Map<string, Breakdown>();
     for (const id of participantIds) map.set(id, { paid: [], consumed: [] });
 
-    for (const receipt of receipts) {
+    for (const receipt of baseReceipts) {
       const title = receipt.title || "Untitled";
       const details = getPersonShareDetails(receipt, participantIds);
       const receiptSubtotal = receipt.items.reduce((s, i) => s + i.total, 0);
@@ -1215,7 +1341,7 @@ export function MultipleReceiptSummaryPanel({
     }
 
     return map;
-  }, [receipts, participantIds]);
+  }, [baseReceipts, participantIds]);
 
   // Everything that has been paid — the payment ledger (single source of truth).
   // Share payments are labelled by their receipt; manual ones show from → to.
@@ -1248,7 +1374,7 @@ export function MultipleReceiptSummaryPanel({
   const spentByPerson = useMemo(() => {
     const map = new Map<string, number>();
     participantIds.forEach((id) => map.set(id, 0));
-    for (const receipt of receipts) {
+    for (const receipt of baseReceipts) {
       for (const share of getReceiptSummary(receipt, participantIds).shares) {
         map.set(
           share.participantId,
@@ -1257,7 +1383,7 @@ export function MultipleReceiptSummaryPanel({
       }
     }
     return map;
-  }, [receipts, participantIds]);
+  }, [baseReceipts, participantIds]);
 
   const participantsWithBudget = useMemo(
     () => participants.filter((p) => (p.budget ?? 0) > 0),
@@ -1470,6 +1596,8 @@ export function MultipleReceiptSummaryPanel({
             <span className="text-lg font-bold text-primary">Rp {formatCurrency(totalGrandTotal)}</span>
           </div>
 
+          {currencyBreakdownBlock}
+
           {budget != null && budget > 0 && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-sm">
@@ -1592,6 +1720,8 @@ export function MultipleReceiptSummaryPanel({
             </>
           )}
         </div>
+
+        {currencyBreakdownBlock}
 
         {/* Budget vs Spent (Travel Spend) */}
         {budget != null && budget > 0 && (() => {

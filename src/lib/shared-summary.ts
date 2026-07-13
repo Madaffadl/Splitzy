@@ -350,6 +350,22 @@ export function validateSharedReceipts(
       participantIds
     );
 
+    // Preserve foreign currency metadata (ISO 4217 code + locked rate).
+    // Only stored when the receipt is in a non-IDR currency — undefined = IDR.
+    const MAX_CURRENCY_CODE = 10;
+    const MAX_FX_RATE = 1_000_000; // sanity cap (1 unit of currency = max 1M IDR)
+    let currency: string | undefined;
+    let fxRate: number | undefined;
+    if (typeof r.currency === "string" && r.currency.trim().length > 0) {
+      const code = r.currency.trim().toUpperCase().slice(0, MAX_CURRENCY_CODE);
+      if (code !== "IDR") {
+        currency = code;
+        if (typeof r.fxRate === "number" && r.fxRate > 0 && r.fxRate <= MAX_FX_RATE) {
+          fxRate = r.fxRate;
+        }
+      }
+    }
+
     return {
       id: asString(r.id, `receipts[${ri}].id`, MAX_ID),
       title: asString(r.title, `receipts[${ri}].title`, MAX_TITLE),
@@ -359,6 +375,7 @@ export function validateSharedReceipts(
       service: asMoney(r.service ?? 0, `receipts[${ri}].service`),
       items,
       ...(discounts ? { discounts } : {}),
+      ...(currency ? { currency, ...(fxRate !== undefined ? { fxRate } : {}) } : {}),
     };
   });
 }

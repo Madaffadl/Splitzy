@@ -10,6 +10,7 @@ import {
     getReceiptSummary,
     getTripSummary,
     computeTripTotals,
+    receiptInBaseCurrency,
 } from "./calculations";
 import { Receipt, ReceiptItem, Trip } from "@/types";
 
@@ -519,6 +520,89 @@ describe("computeTripTotals", () => {
     it("applies settle-up payments to the balances", () => {
         const totals = computeTripTotals(receipts, ["a", "b"], [
             { id: "p", from: "b", to: "a", amount: 20 },
+        ]);
+        expect(totals.aggregateBalances.get("a")).toBe(0);
+        expect(totals.aggregateBalances.get("b")).toBe(0);
+        expect(totals.settlements.length).toBe(0);
+    });
+});
+
+describe("multi-currency (receiptInBaseCurrency + computeTripTotals)", () => {
+    it("leaves IDR / no-currency receipts unchanged (identity)", () => {
+        const r: Receipt = {
+            id: "r", title: "X", payerId: "a", tax: 5, service: 3,
+            items: [{ id: "1", name: "F", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] }],
+        };
+        expect(receiptInBaseCurrency(r)).toBe(r);
+        // Explicit IDR also unchanged.
+        expect(receiptInBaseCurrency({ ...r, currency: "IDR", fxRate: 1 }).items[0].total).toBe(100);
+    });
+
+    it("converts every monetary field by the locked fxRate and clears currency", () => {
+        const vnd: Receipt = {
+            id: "r", title: "Pho", payerId: "a", currency: "VND", fxRate: 0.6,
+            tax: 100, service: 50,
+            items: [{ id: "1", name: "Pho", qty: 1, unitPrice: 1000, total: 1000, assignedToIds: ["a", "b"] }],
+            discounts: [
+                { id: "d1", scope: "receipt", type: "amount", value: 200 },
+                { id: "d2", scope: "receipt", type: "percent", value: 10 },
+            ],
+        };
+        const base = receiptInBaseCurrency(vnd);
+        expect(base.items[0].total).toBe(600);
+        expect(base.items[0].unitPrice).toBe(600);
+        expect(base.tax).toBe(60);
+        expect(base.service).toBe(30);
+        // Fixed-amount discount scales; percent stays.
+        expect(base.discounts?.[0]).toMatchObject({ type: "amount", value: 120 });
+        expect(base.discounts?.[1]).toMatchObject({ type: "percent", value: 10 });
+        // Native metadata removed so downstream aggregation won't re-convert.
+        expect(base.currency).toBeUndefined();
+        expect(base.fxRate).toBeUndefined();
+    });
+
+    it("does not convert when a foreign currency has no valid rate", () => {
+        const noRate: Receipt = {
+            id: "r", title: "X", payerId: "a", currency: "VND", tax: 0, service: 0,
+            items: [{ id: "1", name: "F", qty: 1, unitPrice: 500, total: 500, assignedToIds: ["a"] }],
+        };
+        expect(receiptInBaseCurrency(noRate).items[0].total).toBe(500);
+    });
+
+    it("aggregates a mixed-currency trip in the base currency (IDR)", () => {
+        // Receipt 1: IDR 100 split a/b. Receipt 2: VND 1000 @ 0.6 = IDR 600 split a/b.
+        const mixed: Receipt[] = [
+            {
+                id: "r1", title: "IDR meal", payerId: "a", tax: 0, service: 0,
+                items: [{ id: "1", name: "F", qty: 1, unitPrice: 100, total: 100, assignedToIds: ["a", "b"] }],
+            },
+            {
+                id: "r2", title: "VND meal", payerId: "b", currency: "VND", fxRate: 0.6, tax: 0, service: 0,
+                items: [{ id: "2", name: "F", qty: 1, unitPrice: 1000, total: 1000, assignedToIds: ["a", "b"] }],
+            },
+        ];
+        const totals = computeTripTotals(mixed, ["a", "b"]);
+        // Grand total = 100 + 600 = 700 (NOT 1100 from mixing native amounts).
+        expect(totals.totalGrandTotal).toBe(700);
+        // a fronted 100 (owes 50) → +50; b fronted 600 (owes 300) → net.
+        // a: paid 100, consumed 50 + 300 = 350 → -250... let's compute:
+        //  balances r1: a +50, b -50 ; r2: a -300, b +300 → a -250, b +250.
+        expect(totals.aggregateBalances.get("a")).toBe(-250);
+        expect(totals.aggregateBalances.get("b")).toBe(250);
+        expect(totals.settlements).toEqual([{ from: "a", to: "b", amount: 250 }]);
+    });
+
+    it("a base-currency settle-up fully clears a foreign receipt's debt", () => {
+        // Single VND receipt @0.6: total 1000 → IDR 600, split a/b, b paid.
+        const vndReceipt: Receipt[] = [
+            {
+                id: "r", title: "VND", payerId: "b", currency: "VND", fxRate: 0.6, tax: 0, service: 0,
+                items: [{ id: "1", name: "F", qty: 1, unitPrice: 1000, total: 1000, assignedToIds: ["a", "b"] }],
+            },
+        ];
+        // a owes their IDR share = 300. A settle-up of 300 (base currency) clears it.
+        const totals = computeTripTotals(vndReceipt, ["a", "b"], [
+            { id: "p", from: "a", to: "b", amount: 300, source: "share:r:a" },
         ]);
         expect(totals.aggregateBalances.get("a")).toBe(0);
         expect(totals.aggregateBalances.get("b")).toBe(0);

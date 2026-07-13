@@ -66,6 +66,10 @@ export interface Receipt {
     tax: number;
     service: number;
     discounts?: Discount[];
+    // Multi-currency (Travel Spend). Undefined = IDR (base currency).
+    // fxRate is locked at creation time: 1 unit of currency → IDR.
+    currency?: string;
+    fxRate?: number;
 }
 
 export interface Trip {
@@ -107,6 +111,9 @@ export interface TravelTrip {
     id: string;
     name: string;
     budget?: number;
+    /** ISO 4217 default currency for new receipts on this trip (default "IDR").
+     *  All settlement totals are expressed in this currency after FX conversion. */
+    defaultCurrency?: string;
     participants: Participant[];
     receipts: Receipt[];
     /** Server-side optimistic-lock version (cloud mode only). */

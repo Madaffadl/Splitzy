@@ -15,6 +15,7 @@ import {
   replacePaymentInTrips,
   removePaymentFromTrips,
 } from "@/lib/travel-sync";
+import { mergePrefs } from "@/lib/trip-prefs";
 
 export interface TravelStore {
   trips: TravelTrip[];
@@ -83,7 +84,8 @@ export function useTravelData() {
       if (!res.ok) return;
       const { trips } = (await res.json()) as { trips: TravelTrip[] };
       // Drop a stale response (e.g. a sync bumped the sequence while in flight).
-      if (seq === loadSeqRef.current) setCloudTrips(trips);
+      // Merge device-local prefs (e.g. defaultCurrency) into server trips.
+      if (seq === loadSeqRef.current) setCloudTrips(mergePrefs(trips));
     } catch {
       // Network failure — cloud list stays empty; user can still work locally.
     } finally {

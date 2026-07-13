@@ -521,10 +521,46 @@ export interface TripTotals {
 }
 
 /**
+ * Convert a receipt's monetary fields into the trip's base currency (IDR) using
+ * its locked fxRate, returning a new receipt whose `currency`/`fxRate` are
+ * cleared. Non-foreign receipts (IDR, or missing/invalid rate) are returned
+ * unchanged.
+ *
+ * ANY aggregation across multiple receipts MUST run each receipt through this
+ * first — otherwise native amounts of different currencies get summed together
+ * (mixing e.g. ₫ and Rp). This is the single conversion point so every
+ * trip-level view converts identically and can't drift.
+ */
+export function receiptInBaseCurrency(receipt: Receipt): Receipt {
+    const rate =
+        receipt.currency && receipt.currency !== "IDR" && receipt.fxRate && receipt.fxRate > 0
+            ? receipt.fxRate
+            : 1;
+    if (rate === 1) return receipt;
+    return {
+        ...receipt,
+        items: receipt.items.map((it) => ({
+            ...it,
+            unitPrice: roundTo2(it.unitPrice * rate),
+            total: roundTo2(it.total * rate),
+        })),
+        tax: roundTo2(receipt.tax * rate),
+        service: roundTo2(receipt.service * rate),
+        // Only fixed-amount discounts scale with FX; percentages are rate-invariant.
+        discounts: receipt.discounts?.map((d) =>
+            d.type === "amount" ? { ...d, value: roundTo2(d.value * rate) } : d
+        ),
+        currency: undefined,
+        fxRate: undefined,
+    };
+}
+
+/**
  * Single source of truth for trip-level money math: gross per-receipt balances,
  * minus recorded settle-up payments, then minimized into transfers — plus the
  * headline totals. Both getTripSummary and the summary UI use this so they can
- * never diverge.
+ * never diverge. Foreign-currency receipts are converted to the base currency
+ * (IDR) via receiptInBaseCurrency before accumulation.
  */
 export function computeTripTotals(
     receipts: Receipt[],
@@ -538,9 +574,9 @@ export function computeTripTotals(
     let totalDiscount = 0;
     let totalPaid = 0;
 
-    // Gross per-receipt balances; settle-ups are applied once below.
+    // Gross per-receipt balances (in base currency); settle-ups applied below.
     for (const receipt of receipts) {
-        const summary = getReceiptSummary(receipt, participantIds);
+        const summary = getReceiptSummary(receiptInBaseCurrency(receipt), participantIds);
         totalGrandTotal = roundTo2(totalGrandTotal + summary.grandTotal);
         totalDiscount = roundTo2(totalDiscount + summary.totalDiscount);
         totalPaid = roundTo2(totalPaid + summary.amountPaid);

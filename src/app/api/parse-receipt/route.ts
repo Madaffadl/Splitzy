@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
 
 Return ONLY a JSON object in this exact format, no other text:
 {
+  "currency": "IDR",
   "items": [
     {"name": "Item Name", "qty": 1, "price": 25000}
   ],
@@ -137,13 +138,28 @@ Return ONLY a JSON object in this exact format, no other text:
 
 Rules:
 1. Extract ALL food/drink items from the receipt
-2. "price" should be the TOTAL price for that line item (after qty multiplication if shown)
-3. "qty" should be the quantity if shown (e.g., "2x Nasi Goreng" = qty:2), default to 1
-4. "tax" is the tax amount if shown (may be labeled as Tax, PB1, PPN, Pajak)
-5. "service" is the service charge if shown (may be labeled as Service, SC, Service Charge)
-6. Prices use Indonesian formatting: "." is the THOUSANDS separator and "," is the DECIMAL separator. Return the whole-Rupiah integer value: drop the cents/decimal part, and NEVER merge the cents digits into the number. Examples: "700.000,00" -> 700000 (NOT 70000000, NOT 700); "Rp 1.234.567" -> 1234567; "25.000" -> 25000; "12.500,50" -> 12500
-7. Do NOT include subtotals, totals, payment methods, or change
-8. If you cannot read the receipt clearly, return {"items": [], "tax": 0, "service": 0}
+2. "currency" is the ISO 4217 code detected from symbols/text on the receipt:
+   - "Rp", "IDR", "Rupiah" → "IDR" (default)
+   - "₫", "VND", "đồng", "dong" → "VND"
+   - "฿", "THB", "บาท", "Baht" → "THB"
+   - "S$", "SGD", "Singapore" context → "SGD"
+   - "RM", "MYR", "Ringgit" → "MYR"
+   - "¥" in Japanese context, "JPY", "円", "yen" → "JPY"
+   - "₩", "KRW", "원", "Won" → "KRW"
+   - "$" (US context), "USD" → "USD"
+   - "€", "EUR" → "EUR"
+   - "£", "GBP" → "GBP"
+   - "A$", "AUD" → "AUD"
+   If unsure, default to "IDR".
+3. "price" should be the TOTAL price for that line item (after qty multiplication if shown)
+4. "qty" should be the quantity if shown (e.g., "2x Nasi Goreng" = qty:2), default to 1
+5. "tax" is the tax amount if shown (may be labeled as Tax, PB1, PPN, Pajak, VAT, GST)
+6. "service" is the service charge if shown (may be labeled as Service, SC, Service Charge)
+7. Return prices as plain decimal numbers — no thousand-separators, no currency symbols:
+   - IDR uses "." as thousands sep and "," as decimal: "700.000,00" → 700000; "25.000" → 25000
+   - Other currencies typically use "," as thousands sep and "." as decimal: "1,234.50" → 1234.50
+8. Do NOT include subtotals, totals, payment methods, or change
+9. If you cannot read the receipt clearly, return {"currency": "IDR", "items": [], "tax": 0, "service": 0}
 
 Extract the items now:`;
 
@@ -164,6 +180,7 @@ Extract the items now:`;
         if (!parsed) {
             console.error("Failed to extract JSON from Gemini response");
             return NextResponse.json({
+                currency: "IDR",
                 items: [],
                 tax: 0,
                 service: 0,
@@ -171,13 +188,26 @@ Extract the items now:`;
             });
         }
 
+        // Extract and normalise the detected currency code.
+        const CURRENCY_RE = /^[A-Z]{2,10}$/;
+        const detectedCurrency =
+            typeof parsed.currency === "string" && CURRENCY_RE.test(parsed.currency.trim().toUpperCase())
+                ? parsed.currency.trim().toUpperCase()
+                : "IDR";
+
         if (!parsed.items || !Array.isArray(parsed.items)) {
             return NextResponse.json({
+                currency: detectedCurrency,
                 items: [],
                 tax: 0,
                 service: 0,
             });
         }
+
+        // Non-IDR receipts typically use standard decimal notation (period as
+        // decimal separator). For IDR we keep the existing parseIndonesianPrice
+        // path; for everything else we fall back to parseFloat.
+        const isIDR = detectedCurrency === "IDR";
 
         // Bound the array — defensive against runaway model output.
         const rawItems = parsed.items.slice(0, 200);
@@ -189,12 +219,13 @@ Extract the items now:`;
                 const name = typeof item.name === "string" ? item.name.trim() : "";
                 if (!name) return null;
 
-                // Gemini usually returns a number, but when it returns a string
-                // it may still carry Indonesian separators — parse robustly so a
-                // stray "700.000,00" isn't deflated/inflated.
+                // Gemini usually returns a number; string fallback uses the
+                // appropriate parser for the detected currency.
                 const priceNum = typeof item.price === "number"
                     ? item.price
-                    : parseIndonesianPrice(String(item.price));
+                    : isIDR
+                        ? parseIndonesianPrice(String(item.price))
+                        : parseFloat(String(item.price));
                 if (!Number.isFinite(priceNum) || priceNum <= 0) return null;
 
                 const qtyNum = typeof item.qty === "number"
@@ -208,8 +239,10 @@ Extract the items now:`;
             })
             .filter((item): item is { name: string; qty: number; price: number } => item !== null);
 
-        const taxRaw = typeof parsed.tax === "number" ? parsed.tax : parseIndonesianPrice(String(parsed.tax));
-        const serviceRaw = typeof parsed.service === "number" ? parsed.service : parseIndonesianPrice(String(parsed.service));
+        const parseFee = (v: unknown) =>
+            typeof v === "number" ? v : isIDR ? parseIndonesianPrice(String(v)) : parseFloat(String(v ?? "0"));
+        const taxRaw = parseFee(parsed.tax);
+        const serviceRaw = parseFee(parsed.service);
 
         // Count successful scans against the user's monthly quota.
         if (authUser) {
@@ -219,6 +252,7 @@ Extract the items now:`;
         }
 
         return NextResponse.json({
+            currency: detectedCurrency,
             items: cleanedItems,
             tax: Number.isFinite(taxRaw) && taxRaw >= 0 ? taxRaw : 0,
             service: Number.isFinite(serviceRaw) && serviceRaw >= 0 ? serviceRaw : 0,

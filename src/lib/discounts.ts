@@ -2,11 +2,16 @@
 // summary/export views so wording stays consistent.
 
 import type { Discount, ReceiptItem, Participant } from "@/types";
-import { formatCurrency } from "./utils";
+import { formatMoney } from "./currencies";
 
-/** "Rp 50.000" for amount discounts, "10%" for percentage discounts. */
-export function formatDiscountValue(d: Discount): string {
-  return d.type === "percent" ? `${d.value}%` : `Rp ${formatCurrency(d.value)}`;
+/**
+ * "Rp 50.000" for amount discounts, "10%" for percentage discounts. `currency`
+ * is the receipt's native currency (Travel Spend) — an amount discount is
+ * entered/stored in that currency, so it displays with the matching symbol
+ * (undefined = IDR → "Rp").
+ */
+export function formatDiscountValue(d: Discount, currency?: string): string {
+  return d.type === "percent" ? `${d.value}%` : formatMoney(d.value, currency);
 }
 
 /** Human name of what a discount targets (person / item / whole bill). */

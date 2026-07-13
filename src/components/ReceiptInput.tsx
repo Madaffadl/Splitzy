@@ -34,6 +34,7 @@ interface GeminiResponse {
   items: GeminiItem[];
   tax: number;
   service: number;
+  currency?: string;
   error?: string;
 }
 
@@ -95,10 +96,16 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
         assignedToIds: [],
       }));
 
+      const detectedCurrency =
+        typeof geminiResult.currency === "string" && geminiResult.currency !== "IDR"
+          ? geminiResult.currency
+          : undefined;
+
       const parseResult: ParseResult = {
         items,
         tax: roundTo2(geminiResult.tax),
         service: roundTo2(geminiResult.service),
+        ...(detectedCurrency ? { currency: detectedCurrency } : {}),
       };
 
       setParsedResult(parseResult);

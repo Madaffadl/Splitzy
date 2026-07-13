@@ -5,7 +5,7 @@ import Link from "next/link";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
 import { useTravelData } from "@/hooks/useTravelData";
 import { useAuth } from "@/hooks/useAuth";
-import { calculatePersonTotals } from "@/lib/calculations";
+import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency } from "@/lib/calculations";
 import { findSharePayment, paidShareParticipants, sharePaymentSource } from "@/lib/settle-up";
 import { formatCurrency, cn } from "@/lib/utils";
 import { generateId } from "@/lib/utils";
@@ -53,7 +53,14 @@ import {
   RefreshCw,
   AlertTriangle,
   CloudOff,
+  Archive,
+  Globe,
+  PartyPopper,
+  Sparkles,
+  Camera,
 } from "lucide-react";
+import { TRAVEL_CURRENCIES } from "@/lib/currencies";
+import { setTripPref, archivedTripIds } from "@/lib/trip-prefs";
 import { AppFooter } from "@/components/AppFooter";
 
 type ViewMode = "overview" | "edit-receipt" | "summary";
@@ -565,9 +572,11 @@ export default function TravelPage() {
   const [deleteTripId, setDeleteTripId] = useState<string | null>(null);
   const [deleteReceiptId, setDeleteReceiptId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Archived trip IDs — stored in localStorage, filtered from the active list.
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(() => archivedTripIds());
   const { toast } = useToast();
 
-  const trips = travel.trips ?? [];
+  const trips = (travel.trips ?? []).filter((t) => !archivedIds.has(t.id));
   const rawActive = trips.find((t) => t.id === travel.activeId) ?? null;
   const activeTrip: TravelTrip | null = rawActive
     ? { ...rawActive, participants: rawActive.participants ?? [], receipts: rawActive.receipts ?? [] }
@@ -647,7 +656,9 @@ export default function TravelPage() {
     const ids = activeTrip.participants.map((p) => p.id);
     ids.forEach((id) => map.set(id, 0));
     for (const receipt of activeTrip.receipts) {
-      for (const share of calculatePersonTotals(receipt, ids)) {
+      // Convert to base currency so a person's spend across foreign + IDR
+      // receipts is comparable to their (IDR) individual budget.
+      for (const share of calculatePersonTotals(receiptInBaseCurrency(receipt), ids)) {
         map.set(
           share.participantId,
           Math.round(((map.get(share.participantId) ?? 0) + share.total) * 100) / 100
@@ -660,6 +671,8 @@ export default function TravelPage() {
   // ── Receipts ──────────────────────────────────────────────────────────────
   const startNewReceipt = () => {
     if (!activeTrip) return;
+    // Inherit the trip's default currency so the user doesn't pick it per-receipt.
+    const defaultCurrency = activeTrip.defaultCurrency;
     const receipt: Receipt = {
       id: generateId(),
       title: `Receipt ${activeTrip.receipts.length + 1}`,
@@ -667,6 +680,7 @@ export default function TravelPage() {
       items: [],
       tax: 0,
       service: 0,
+      ...(defaultCurrency && defaultCurrency !== "IDR" ? { currency: defaultCurrency } : {}),
     };
     setEditingReceipt({ receipt, isNew: true });
     setViewMode("edit-receipt");
@@ -715,10 +729,12 @@ export default function TravelPage() {
   };
 
   // Effective share of a receipt for one participant (used to size the payment
-  // recorded when their share is marked paid).
+  // recorded when their share is marked paid). Converted to the base currency
+  // (IDR) so the ledger payment matches the IDR settlement balances — recording
+  // a native foreign amount here would over/under-settle a foreign receipt.
   const shareOf = (receipt: Receipt, participantId: string): number => {
     const ids = (activeTrip?.participants ?? []).map((p) => p.id);
-    return calculatePersonTotals(receipt, ids).find((s) => s.participantId === participantId)?.total ?? 0;
+    return calculatePersonTotals(receiptInBaseCurrency(receipt), ids).find((s) => s.participantId === participantId)?.total ?? 0;
   };
 
   // Toggle one person's share of a receipt as paid. This is a ledger payment
@@ -794,6 +810,45 @@ export default function TravelPage() {
       await travel.updateTrip(activeTrip.id, { name: nameDraft.trim() || "My Trip" });
       setNameDraft(null);
     }
+  };
+
+  // ── Default currency ──────────────────────────────────────────────────────
+  const setDefaultCurrency = async (currency: string) => {
+    if (!activeTrip) return;
+    const value = currency === "IDR" ? undefined : currency;
+    await travel.updateTrip(activeTrip.id, { defaultCurrency: value });
+    setTripPref(activeTrip.id, { defaultCurrency: value });
+  };
+
+  // ── Settlement totals + "all settled" state ───────────────────────────────
+  const tripTotals = useMemo(() => {
+    if (!activeTrip || activeTrip.receipts.length === 0) return null;
+    return computeTripTotals(
+      activeTrip.receipts,
+      activeTrip.participants.map((p) => p.id),
+      activeTrip.payments ?? []
+    );
+  }, [activeTrip]);
+
+  const allSettled =
+    !!tripTotals &&
+    tripTotals.totalGrandTotal > 0 &&
+    tripTotals.settlements.length === 0;
+
+  // ── Archive ───────────────────────────────────────────────────────────────
+  const archiveTrip = (id: string) => {
+    const next = new Set(archivedIds).add(id);
+    setArchivedIds(next);
+    setTripPref(id, { archivedAt: new Date().toISOString() });
+    travel.setActiveId(null);
+    toast({ title: "Trip archived", description: "Find it again via 'Show archived'.", variant: "success" });
+  };
+
+  const unarchiveTrip = (id: string) => {
+    const next = new Set(archivedIds);
+    next.delete(id);
+    setArchivedIds(next);
+    setTripPref(id, { archivedAt: undefined });
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -899,6 +954,40 @@ export default function TravelPage() {
         {/* ── Trip list ── */}
         {!activeTrip && (
           <div className="space-y-6">
+            {/* First-impression hero — only when the user has no trips yet.
+                Communicates the differentiated value (why Travel Spend ≠ a plain
+                receipt splitter) before asking them to create anything. */}
+            {!travel.isLoading && trips.length === 0 && (
+              <div className="rounded-2xl border bg-gradient-to-br from-emerald-50 via-teal-50/60 to-background dark:from-emerald-950/30 dark:via-teal-950/20 dark:to-background p-6 sm:p-8 text-center">
+                <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                  <Plane className="h-7 w-7 text-white" />
+                </div>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Plan a group trip</h1>
+                <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+                  Track shared expenses across countries, split every bill fairly,
+                  and settle up in one tap at the end of the trip.
+                </p>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
+                    <Cloud className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Cloud sync
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
+                    <Camera className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                    AI receipt scan
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
+                    <Globe className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                    Multi-currency
+                  </span>
+                </div>
+                <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  Name your trip below to get started
+                </p>
+              </div>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -938,19 +1027,20 @@ export default function TravelPage() {
                 ))}
               </div>
             ) : trips.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
-                <div className="h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
-                  <Plane className="h-6 w-6 text-emerald-600 dark:text-emerald-400 opacity-80" />
-                </div>
-                <p className="font-semibold text-foreground mb-1">No trips yet</p>
-                <p className="text-sm text-muted-foreground max-w-sm">Create your first trip above to start tracking expenses.</p>
-              </div>
+              // Empty state is fully covered by the hero above — nothing here.
+              null
             ) : (
+              <>
               <div className="grid sm:grid-cols-2 gap-3">
                 {trips.map((t) => {
-                  const total = (t.receipts ?? []).reduce(
-                    (s, r) => s + r.items.reduce((x, i) => x + i.total, 0) + r.tax + r.service,
-                    0
+                  // Convert each receipt to base currency before summing so a
+                  // multi-currency trip's headline total isn't ₫ + Rp mixed.
+                  const total = (t.receipts ?? []).reduce((s, raw) => {
+                    const r = receiptInBaseCurrency(raw);
+                    return s + r.items.reduce((x, i) => x + i.total, 0) + r.tax + r.service;
+                  }, 0);
+                  const hasForeignCurrency = (t.receipts ?? []).some(
+                    (r) => r.currency && r.currency !== "IDR"
                   );
                   return (
                     <div
@@ -959,7 +1049,15 @@ export default function TravelPage() {
                       onClick={() => openTrip(t.id)}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-semibold truncate">{t.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold truncate">{t.name}</p>
+                          {hasForeignCurrency && (
+                            <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                              <Globe className="h-2.5 w-2.5" />
+                              multi-currency
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {t.participants.length} people · {(t.receipts ?? []).length} receipt(s)
                           {t.budget ? ` · budget Rp ${formatCurrency(t.budget)}` : ""}
@@ -981,6 +1079,26 @@ export default function TravelPage() {
                   );
                 })}
               </div>
+
+              {/* Archived trips count + unarchive */}
+              {archivedIds.size > 0 && (
+                <div className="flex items-center justify-between rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
+                  <span>
+                    <Archive className="inline h-3.5 w-3.5 mr-1.5 opacity-70" />
+                    {archivedIds.size} archived trip{archivedIds.size > 1 ? "s" : ""}
+                  </span>
+                  <button
+                    className="text-xs underline underline-offset-2 hover:text-foreground transition-colors"
+                    onClick={() => {
+                      const ids = [...archivedIds];
+                      ids.forEach((id) => unarchiveTrip(id));
+                    }}
+                  >
+                    Show all
+                  </button>
+                </div>
+              )}
+              </>
             )}
           </div>
         )}
@@ -994,7 +1112,8 @@ export default function TravelPage() {
                 <CardHeader>
                   <CardTitle>Trip details</CardTitle>
                 </CardHeader>
-                <CardContent className="grid sm:grid-cols-2 gap-4">
+                <CardContent className="space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Trip name</Label>
                     <Input
@@ -1029,6 +1148,33 @@ export default function TravelPage() {
                           }
                         }}
                       />
+                    </div>
+                  </div>
+                  </div>
+
+                  {/* Default currency — sets what new receipts inherit */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Default receipt currency</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={activeTrip.defaultCurrency ?? "IDR"}
+                        onChange={(e) => void setDefaultCurrency(e.target.value)}
+                        className="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        {TRAVEL_CURRENCIES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.symbol}  {c.code} — {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      {activeTrip.defaultCurrency && activeTrip.defaultCurrency !== "IDR" && (
+                        <p className="text-xs text-muted-foreground">
+                          New receipts will default to {activeTrip.defaultCurrency}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1121,6 +1267,42 @@ export default function TravelPage() {
                 onDelete={deleteSettleUp}
               />
 
+              {/* ── All Settled celebration ─────────────────────────────── */}
+              {allSettled && (
+                <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-6 text-center space-y-4">
+                  <div className="flex justify-center">
+                    <div className="h-14 w-14 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
+                      <PartyPopper className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-emerald-900 dark:text-emerald-100">
+                      All settled up! 🎉
+                    </h3>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                      {activeTrip.name} · {activeTrip.receipts.length} receipt{activeTrip.receipts.length !== 1 ? "s" : ""} ·{" "}
+                      Rp {formatCurrency(tripTotals!.totalGrandTotal)} total
+                    </p>
+                  </div>
+                  <div className="flex gap-3 justify-center flex-wrap">
+                    <Button variant="outline" className="border-emerald-300 dark:border-emerald-700" onClick={() => setViewMode("summary")}>
+                      <ArrowRight className="h-4 w-4 mr-2" />
+                      View summary
+                    </Button>
+                    <Button
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                      onClick={() => archiveTrip(activeTrip.id)}
+                    >
+                      <Archive className="h-4 w-4 mr-2" />
+                      Archive trip
+                    </Button>
+                  </div>
+                  <p className="text-xs text-emerald-600/70 dark:text-emerald-400/60 border-t border-emerald-200 dark:border-emerald-800 pt-3">
+                    💼 <span className="font-medium">Pro:</span> Export PDF · Unlimited trip history · Budget analytics
+                  </p>
+                </div>
+              )}
+
               <div className="flex justify-end">
                 <Button
                   variant="ghost"
@@ -1202,6 +1384,7 @@ export default function TravelPage() {
             onCancel={() => { setEditingReceipt(null); setViewMode("overview"); }}
             isSaving={isSaving}
             onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
+            isTravelMode
           />
         )}
       </div>
