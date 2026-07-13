@@ -29,12 +29,16 @@ export async function PATCH(
   if (limited) return limited;
 
   const { id } = await params;
-
-  // Prevent admin from modifying their own account (ban / role / etc.).
-  if (id === user.id) return forbidden("Cannot modify your own account");
+  const isSelf = id === user.id;
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return apiError("BAD_REQUEST", "Invalid request body");
+
+  // Lockout guards only: an admin MAY change their own plan/quota, but must not
+  // ban themselves or drop their own admin role (either would lock them out).
+  // Everything else on their own account is harmless and allowed.
+  if (isSelf && body.ban === true) return forbidden("You can't ban your own account");
+  if (isSelf && body.role === "user") return forbidden("You can't revoke your own admin role");
 
   // Load the current state up front so the audit trail can record before→after.
   const target = await prisma.user.findUnique({
@@ -112,7 +116,8 @@ export async function PATCH(
         bannedAt: true,
         role: true,
         createdAt: true,
-        _count: { select: { ownedTrips: true } },
+        // Active trips only — keep consistent with the list + drawer.
+        _count: { select: { ownedTrips: { where: { deletedAt: null } } } },
       },
     }),
     prisma.adminAuditLog.createMany({ data: audit }),

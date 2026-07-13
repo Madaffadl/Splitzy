@@ -191,6 +191,7 @@ function UserDrawer({
   );
   const [limitError, setLimitError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ConfirmCfg | null>(null);
 
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -248,6 +249,7 @@ function UserDrawer({
   const patch = useCallback(
     async (body: Record<string, unknown>, msg: string) => {
       setBusy(true);
+      setErrorMsg(null);
       try {
         const res = await fetch(`/api/admin/users/${user.id}`, {
           method: "PATCH",
@@ -259,7 +261,19 @@ function UserDrawer({
           setSuccessMsg(msg);
           setTimeout(() => setSuccessMsg(null), 2500);
           if (data.user) onMutated(user, data.user);
+        } else {
+          // Surface the real reason instead of silently leaving the value
+          // unchanged (e.g. session expired, CSRF, rate limit, server error).
+          const err = (await res.json().catch(() => null)) as { error?: string } | null;
+          setErrorMsg(
+            err?.error ??
+              (res.status === 401 || res.status === 403
+                ? "Not allowed — your admin session may have expired. Sign in again."
+                : `Update failed (HTTP ${res.status}). Please try again.`)
+          );
         }
+      } catch {
+        setErrorMsg("Network error — the change was not saved. Check your connection and retry.");
       } finally {
         setBusy(false);
       }
@@ -311,6 +325,14 @@ function UserDrawer({
             <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               {successMsg}
+            </div>
+          )}
+
+          {/* Error toast — a failed mutation must never look like success */}
+          {errorMsg && (
+            <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-700 dark:text-red-400">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
             </div>
           )}
 

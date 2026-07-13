@@ -69,7 +69,9 @@ export async function GET(request: NextRequest) {
       bannedAt: true,
       role: true,
       createdAt: true,
-      _count: { select: { ownedTrips: true } },
+      // Active trips only — must match the drawer's trip list (deletedAt: null),
+      // otherwise the "Trips" column overstates by counting soft-deleted rows.
+      _count: { select: { ownedTrips: { where: { deletedAt: null } } } },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
