@@ -44,11 +44,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       fromParticipantId: input.from,
       toParticipantId: input.to,
       amount: input.amount,
+      currency: input.currency ?? null,
+      fxRate: input.fxRate ?? null,
       note: input.note ?? null,
       source: input.source ?? null,
       createdById: user.id,
     },
-    select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, note: true, source: true, createdAt: true },
+    select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, currency: true, fxRate: true, note: true, source: true, createdAt: true },
   });
 
   return NextResponse.json(
@@ -57,6 +59,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       from: payment.fromParticipantId,
       to: payment.toParticipantId,
       amount: payment.amount,
+      ...(payment.currency ? { currency: payment.currency } : {}),
+      ...(payment.fxRate ? { fxRate: payment.fxRate } : {}),
       note: payment.note ?? undefined,
       source: payment.source ?? undefined,
       createdAt: payment.createdAt.toISOString(),

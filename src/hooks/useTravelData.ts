@@ -146,6 +146,11 @@ export function useTravelData() {
     if ((local.trips ?? []).length > 0) setShowSyncDialog(true);
   }, [isAuthenticated, authLoading, local.trips]);
 
+  // Reset the sync-check flag on sign-out so the dialog shows again next sign-in.
+  useEffect(() => {
+    if (!isAuthenticated) syncCheckedRef.current = false;
+  }, [isAuthenticated]);
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const trips = isAuthenticated ? cloudTrips : (local.trips ?? []);
   const activeId = isAuthenticated ? cloudActiveId : local.activeId;
@@ -404,7 +409,7 @@ export function useTravelData() {
                 const pres = await fetch(`/api/travel/${id}/payments`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ from: p.from, to: p.to, amount: p.amount, note: p.note }),
+                  body: JSON.stringify({ from: p.from, to: p.to, amount: p.amount, note: p.note, source: p.source }),
                 });
                 if (pres.ok) syncedPayments.push((await pres.json()) as TripPayment);
               } catch {

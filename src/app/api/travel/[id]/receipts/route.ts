@@ -40,7 +40,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const receiptId = (payload as { id: string }).id;
-  const sortOrder = await prisma.tripReceipt.count({ where: { tripId: id } });
 
   // Use the client-generated receipt.id as the DB row ID so the client can
   // address receipts for PUT/DELETE without a separate server-assigned rid.
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       id: receiptId,
       tripId: id,
       payload: payload as unknown as Prisma.InputJsonValue,
-      sortOrder,
       createdById: user.id,
     },
     select: { id: true },

@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       participantsJson: true,
       tripReceipts: {
         select: { payload: true },
-        orderBy: { sortOrder: "asc" },
+        orderBy: { createdAt: "asc" },
       },
       members: {
         select: {
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         },
       },
       tripPayments: {
-        select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, note: true, source: true, createdAt: true },
+        select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, currency: true, fxRate: true, note: true, source: true, createdAt: true },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -71,6 +71,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       from: p.fromParticipantId,
       to: p.toParticipantId,
       amount: p.amount,
+      ...(p.currency ? { currency: p.currency } : {}),
+      ...(p.fxRate ? { fxRate: p.fxRate } : {}),
       note: p.note ?? undefined,
       source: p.source ?? undefined,
       createdAt: p.createdAt.toISOString(),

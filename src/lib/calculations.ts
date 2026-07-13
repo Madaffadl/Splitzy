@@ -4,7 +4,6 @@ import {
     PersonShare,
     PersonShareDetail,
     ItemBreakdown,
-    WalletStats,
     ReceiptSummary,
     SettlementTransfer,
     TripSummary,
@@ -26,10 +25,13 @@ export function applyPaymentsToBalances(
     const next = new Map(balances);
     for (const p of payments) {
         if (!p || p.from === p.to) continue;
-        const amount = roundTo2(p.amount);
-        if (!(amount > 0)) continue;
-        if (next.has(p.from)) next.set(p.from, roundTo2((next.get(p.from) ?? 0) + amount));
-        if (next.has(p.to)) next.set(p.to, roundTo2((next.get(p.to) ?? 0) - amount));
+        // Convert to IDR: foreign payments multiply by fxRate; IDR payments use amount directly.
+        const idrAmount = p.currency && p.currency !== "IDR" && p.fxRate && p.fxRate > 0
+            ? roundTo2(p.amount * p.fxRate)
+            : roundTo2(p.amount);
+        if (!(idrAmount > 0)) continue;
+        if (next.has(p.from)) next.set(p.from, roundTo2((next.get(p.from) ?? 0) + idrAmount));
+        if (next.has(p.to)) next.set(p.to, roundTo2((next.get(p.to) ?? 0) - idrAmount));
     }
     return next;
 }
@@ -689,52 +691,4 @@ export function getPersonShareDetails(
     return details;
 }
 
-/**
- * Get wallet stats for all participants in a trip (paid vs consumed).
- */
-export function getWalletStats(
-    trip: Trip
-): WalletStats[] {
-    const participantIds = trip.participants.map((p) => p.id);
-    const stats = new Map<string, { paid: number; consumed: number }>();
-
-    // Initialize all participants
-    for (const id of participantIds) {
-        stats.set(id, { paid: 0, consumed: 0 });
-    }
-
-    // Calculate for each receipt
-    for (const receipt of trip.receipts) {
-        const summary = getReceiptSummary(receipt, participantIds);
-
-        // Add to payer's "paid" total — the actual cash fronted (after any
-        // discounts that acted like money at payment), not the printed total.
-        const payerStats = stats.get(receipt.payerId);
-        if (payerStats) {
-            payerStats.paid = roundTo2(payerStats.paid + summary.amountPaid);
-        }
-
-        // Add to each person's "consumed" total based on their share
-        for (const share of summary.shares) {
-            const personStats = stats.get(share.participantId);
-            if (personStats) {
-                personStats.consumed = roundTo2(personStats.consumed + share.total);
-            }
-        }
-    }
-
-    // Convert map to array
-    const result: WalletStats[] = [];
-    for (const id of participantIds) {
-        const s = stats.get(id)!;
-        result.push({
-            participantId: id,
-            totalPaid: s.paid,
-            totalConsumed: s.consumed,
-            netBalance: roundTo2(s.paid - s.consumed),
-        });
-    }
-
-    return result;
-}
 

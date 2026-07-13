@@ -98,7 +98,11 @@ export interface TripPayment {
     id: string;
     from: string; // participant id who paid
     to: string;   // participant id who received
+    // Native amount in `currency` (or IDR when currency is absent).
+    // Settlement math multiplies by fxRate to get IDR equivalent.
     amount: number;
+    currency?: string; // ISO 4217 code, e.g. "USD". undefined = IDR.
+    fxRate?: number;   // 1 unit of currency = fxRate IDR. undefined = IDR.
     note?: string;
     // Origin: undefined = manual settle-up; "share:<receiptId>:<participantId>"
     // = a per-receipt "mark my share paid" checkbox. The ledger is the single

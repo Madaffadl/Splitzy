@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
 import { useTravelData } from "@/hooks/useTravelData";
 import { useAuth } from "@/hooks/useAuth";
@@ -103,10 +104,12 @@ function TravelSyncDialog({
   open,
   onSync,
   onDismiss,
+  onKeepLocal,
 }: {
   open: boolean;
   onSync: () => Promise<number>;
   onDismiss: () => void;
+  onKeepLocal: () => void;
 }) {
   const [status, setStatus] = useState<"idle" | "syncing" | "done">("idle");
   const [count, setCount] = useState(0);
@@ -158,7 +161,7 @@ function TravelSyncDialog({
                 {status === "syncing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
                 {status === "syncing" ? "Syncing…" : "Sync to my account"}
               </Button>
-              <Button variant="ghost" onClick={handleClose} disabled={status === "syncing"} className="w-full">
+              <Button variant="ghost" onClick={() => { handleClose(); onKeepLocal(); }} disabled={status === "syncing"} className="w-full">
                 Keep local only
               </Button>
             </>
@@ -185,10 +188,10 @@ function IndividualBudgets({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const commit = (id: string) => {
+    if (!(id in drafts)) return;
+    const val = parseAmount(drafts[id]);
+    onSetBudget(id, val > 0 ? val : undefined);
     setDrafts((prev) => {
-      if (!(id in prev)) return prev;
-      const val = parseAmount(prev[id]);
-      onSetBudget(id, val > 0 ? val : undefined);
       const next = { ...prev };
       delete next[id];
       return next;
@@ -269,30 +272,85 @@ function IndividualBudgets({
 function SettleUpCard({
   participants,
   payments,
+  defaultCurrency,
   onAdd,
   onDelete,
 }: {
   participants: Participant[];
   payments: TripPayment[];
-  onAdd: (input: { from: string; to: string; amount: number; note?: string }) => void;
+  defaultCurrency?: string;
+  onAdd: (input: { from: string; to: string; amount: number; currency?: string; fxRate?: number; note?: string }) => void;
   onDelete: (paymentId: string) => void;
 }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [currency, setCurrency] = useState(defaultCurrency && defaultCurrency !== "IDR" ? defaultCurrency : "IDR");
+  const [fxRate, setFxRate] = useState("");
+  const [fetchingRate, setFetchingRate] = useState(false);
+  const [rateError, setRateError] = useState<string | null>(null);
 
+  const isForeign = currency !== "IDR";
+  const currencyMeta = TRAVEL_CURRENCIES.find((c) => c.code === currency);
   const nameOf = (id: string) => participants.find((p) => p.id === id)?.name ?? "Unknown";
+
+  const fetchRate = async (cur: string) => {
+    if (!cur || cur === "IDR") return;
+    setFetchingRate(true);
+    setRateError(null);
+    try {
+      const res = await fetch(`/api/fx-rate?from=${encodeURIComponent(cur)}`);
+      const data = (await res.json()) as { rate?: number; error?: string };
+      if (!res.ok || !data.rate) {
+        setRateError(data.error ?? "Could not fetch rate. Enter manually.");
+      } else {
+        setFxRate(String(data.rate));
+      }
+    } catch {
+      setRateError("Network error. Enter the rate manually.");
+    } finally {
+      setFetchingRate(false);
+    }
+  };
+
+  const handleCurrencyChange = (cur: string) => {
+    setCurrency(cur);
+    setFxRate("");
+    setRateError(null);
+    if (cur !== "IDR") void fetchRate(cur);
+  };
 
   const submit = () => {
     const value = parseAmount(amount);
     if (!from || !to || from === to || value <= 0) return;
-    onAdd({ from, to, amount: value, note: note.trim() || undefined });
+    if (isForeign && !parseFloat(fxRate)) return;
+    const rate = isForeign ? parseFloat(fxRate) : undefined;
+    onAdd({
+      from, to, amount: value,
+      ...(isForeign ? { currency, fxRate: rate } : {}),
+      note: note.trim() || undefined,
+    });
     setAmount("");
     setNote("");
   };
 
-  const canSubmit = from && to && from !== to && parseAmount(amount) > 0;
+  const rateOk = !isForeign || (parseFloat(fxRate) > 0);
+  const canSubmit = from && to && from !== to && parseAmount(amount) > 0 && rateOk;
+
+  const displayAmount = (p: TripPayment) => {
+    if (p.currency && p.currency !== "IDR" && p.fxRate) {
+      const idr = p.amount * p.fxRate;
+      const sym = TRAVEL_CURRENCIES.find((c) => c.code === p.currency)?.symbol ?? p.currency;
+      return (
+        <span>
+          {sym} {formatCurrency(p.amount)}
+          <span className="text-muted-foreground font-normal"> ≈ Rp {formatCurrency(Math.round(idr))}</span>
+        </span>
+      );
+    }
+    return <span>Rp {formatCurrency(p.amount)}</span>;
+  };
 
   return (
     <Card>
@@ -319,7 +377,7 @@ function SettleUpCard({
                   {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
                 </span>
                 <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
-                  Rp {formatCurrency(p.amount)}
+                  {displayAmount(p)}
                 </span>
                 <button
                   type="button"
@@ -337,6 +395,7 @@ function SettleUpCard({
         {/* Add form */}
         {participants.length >= 2 ? (
           <div className="space-y-2 rounded-lg border border-dashed p-3">
+            {/* From / To */}
             <div className="flex items-center gap-2">
               <select
                 aria-label="Payer"
@@ -362,9 +421,24 @@ function SettleUpCard({
                 ))}
               </select>
             </div>
+
+            {/* Currency + Amount */}
             <div className="flex items-center gap-2">
+              <select
+                aria-label="Currency"
+                value={currency}
+                onChange={(e) => handleCurrencyChange(e.target.value)}
+                className="h-9 rounded-md border bg-background px-2 text-sm w-24 shrink-0"
+              >
+                <option value="IDR">IDR</option>
+                {TRAVEL_CURRENCIES.filter((c) => c.code !== "IDR").map((c) => (
+                  <option key={c.code} value={c.code}>{c.code}</option>
+                ))}
+              </select>
               <div className="relative flex-1">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">Rp</span>
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+                  {isForeign ? (currencyMeta?.symbol ?? currency) : "Rp"}
+                </span>
                 <Input
                   type="text"
                   inputMode="numeric"
@@ -383,6 +457,44 @@ function SettleUpCard({
                 onKeyDown={(e) => e.key === "Enter" && submit()}
               />
             </div>
+
+            {/* FX rate row (foreign currency only) */}
+            {isForeign && (
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-medium leading-none">
+                    1 {currencyMeta?.symbol ?? currency} =
+                  </span>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    className="pl-14 h-9 text-sm"
+                    placeholder="rate in Rp"
+                    value={fxRate}
+                    onChange={(e) => { setFxRate(e.target.value); setRateError(null); }}
+                    onKeyDown={(e) => e.key === "Enter" && submit()}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 shrink-0 gap-1.5"
+                  onClick={() => void fetchRate(currency)}
+                  disabled={fetchingRate}
+                >
+                  {fetchingRate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Auto
+                </Button>
+              </div>
+            )}
+            {rateError && <p className="text-xs text-amber-600 dark:text-amber-400">{rateError}</p>}
+            {isForeign && parseFloat(fxRate) > 0 && parseAmount(amount) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                ≈ Rp {formatCurrency(Math.round(parseAmount(amount) * parseFloat(fxRate)))}
+              </p>
+            )}
+
             <Button size="sm" className="w-full gap-2" onClick={submit} disabled={!canSubmit}>
               <Plus className="h-4 w-4" />
               Record payment
@@ -475,7 +587,7 @@ function MembersCard({
           {members.map((m) => (
             <li key={m.userId} className="flex items-center gap-2">
               {m.avatarUrl ? (
-                <img src={m.avatarUrl} alt={m.name ?? m.email} className="h-7 w-7 rounded-full object-cover" />
+                <Image src={m.avatarUrl} alt={m.name ?? m.email} width={28} height={28} className="rounded-full object-cover" />
               ) : (
                 <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold">
                   {(m.name ?? m.email)[0].toUpperCase()}
@@ -563,7 +675,7 @@ function MembersCard({
 // ── Main page ────────────────────────────────────────────────────────────────
 export default function TravelPage() {
   const travel = useTravelData();
-  const { dbUser } = useAuth();
+  const { dbUser, signOut } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
   const [newTripName, setNewTripName] = useState("");
@@ -571,16 +683,26 @@ export default function TravelPage() {
   const [budgetDraft, setBudgetDraft] = useState<string | null>(null);
   const [deleteTripId, setDeleteTripId] = useState<string | null>(null);
   const [deleteReceiptId, setDeleteReceiptId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    participants: Participant[];
+    receipts: Receipt[];
+    droppedIds: string[];
+    droppedTitles: string[];
+  } | null>(null);
   // Archived trip IDs — stored in localStorage, filtered from the active list.
   const [archivedIds, setArchivedIds] = useState<Set<string>>(() => archivedTripIds());
   const { toast } = useToast();
 
-  const trips = (travel.trips ?? []).filter((t) => !archivedIds.has(t.id));
-  const rawActive = trips.find((t) => t.id === travel.activeId) ?? null;
-  const activeTrip: TravelTrip | null = rawActive
-    ? { ...rawActive, participants: rawActive.participants ?? [], receipts: rawActive.receipts ?? [] }
-    : null;
+  const trips = useMemo(
+    () => (travel.trips ?? []).filter((t) => !archivedIds.has(t.id)),
+    [travel.trips, archivedIds]
+  );
+  const activeTrip = useMemo<TravelTrip | null>(() => {
+    const raw = trips.find((t) => t.id === travel.activeId) ?? null;
+    return raw
+      ? { ...raw, participants: raw.participants ?? [], receipts: raw.receipts ?? [] }
+      : null;
+  }, [trips, travel.activeId]);
 
   useEffect(() => {
     if (viewMode !== "overview") window.scrollTo({ top: 0, behavior: "instant" });
@@ -593,10 +715,10 @@ export default function TravelPage() {
     setNewTripName("");
   };
 
-  const deleteTrip = async (id: string) => {
+  const deleteTrip = (id: string) => {
     const removed = trips.find((t) => t.id === id);
-    await travel.deleteTrip(id);
     setDeleteTripId(null);
+    void travel.deleteTrip(id);
     toast({
       title: "Trip deleted",
       description: removed?.name,
@@ -622,14 +744,32 @@ export default function TravelPage() {
       return;
     }
     const { receipts, dropped } = reconcileReceipts(activeTrip.receipts, ids);
-    await travel.updateParticipants(activeTrip.id, participants, receipts);
-    if (dropped > 0) {
-      toast({
-        title: `${dropped} receipt${dropped > 1 ? "s" : ""} removed`,
-        description: "They referenced a traveler you removed.",
-        variant: "success",
-      });
+    if (dropped === 0) {
+      await travel.updateParticipants(activeTrip.id, participants, receipts);
+      return;
     }
+    // Receipts would be cascade-deleted — ask for confirmation first.
+    const keptIds = new Set(receipts.map((r) => r.id));
+    const droppedReceipts = activeTrip.receipts.filter((r) => !keptIds.has(r.id));
+    setPendingRemoval({
+      participants,
+      receipts,
+      droppedIds: droppedReceipts.map((r) => r.id),
+      droppedTitles: droppedReceipts.map((r) => r.title),
+    });
+  };
+
+  const confirmRemoval = async () => {
+    if (!pendingRemoval || !activeTrip) return;
+    const { participants, receipts, droppedIds } = pendingRemoval;
+    setPendingRemoval(null);
+    await travel.updateParticipants(activeTrip.id, participants, receipts);
+    for (const rid of droppedIds) void travel.deleteReceipt(activeTrip.id, rid);
+    toast({
+      title: `${droppedIds.length} receipt${droppedIds.length > 1 ? "s" : ""} removed`,
+      description: "They referenced the traveler you removed.",
+      variant: "success",
+    });
   };
 
   const updateParticipantPaymentInfo = async (participantId: string, info: PaymentInfo | undefined) => {
@@ -698,27 +838,27 @@ export default function TravelPage() {
     setEditingReceipt((prev) => (prev ? { ...prev, receipt: { ...prev.receipt, ...updates } } : prev));
   };
 
-  const saveReceipt = async () => {
-    if (!activeTrip || !editingReceipt || isSaving) return;
-    setIsSaving(true);
+  const saveReceipt = () => {
+    if (!activeTrip || !editingReceipt) return;
     const { receipt, isNew } = editingReceipt;
+    // Fire optimistic update + background API sync, then redirect immediately.
+    // The syncStatus banner surfaces any server error without blocking the user.
     if (isNew) {
-      await travel.addReceipt(activeTrip.id, receipt);
+      void travel.addReceipt(activeTrip.id, receipt);
     } else {
-      await travel.updateReceipt(activeTrip.id, receipt);
+      void travel.updateReceipt(activeTrip.id, receipt);
     }
     setEditingReceipt(null);
     setViewMode("overview");
     toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
-    setTimeout(() => setIsSaving(false), 0);
   };
 
-  const deleteReceipt = async (id: string) => {
+  const deleteReceipt = (id: string) => {
     if (!activeTrip) return;
     const tripId = activeTrip.id;
     const removed = activeTrip.receipts.find((r) => r.id === id);
-    await travel.deleteReceipt(tripId, id);
     setDeleteReceiptId(null);
+    void travel.deleteReceipt(tripId, id);
     toast({
       title: "Receipt deleted",
       description: removed?.title,
@@ -787,13 +927,17 @@ export default function TravelPage() {
   };
 
   // Record / remove a direct settle-up payment between two travelers.
-  const addSettleUp = (input: { from: string; to: string; amount: number; note?: string; source?: string }) => {
+  const addSettleUp = (input: { from: string; to: string; amount: number; currency?: string; fxRate?: number; note?: string; source?: string }) => {
     if (!activeTrip) return;
     void travel.addPayment(activeTrip.id, input);
     const nameOf = (id: string) => activeTrip.participants.find((p) => p.id === id)?.name ?? "?";
+    const isForeign = input.currency && input.currency !== "IDR" && input.fxRate;
+    const displayAmt = isForeign
+      ? `${TRAVEL_CURRENCIES.find((c) => c.code === input.currency)?.symbol ?? input.currency} ${formatCurrency(input.amount)}`
+      : `Rp ${formatCurrency(input.amount)}`;
     toast({
       title: "Payment recorded",
-      description: `${nameOf(input.from)} → ${nameOf(input.to)}: Rp ${formatCurrency(input.amount)}`,
+      description: `${nameOf(input.from)} → ${nameOf(input.to)}: ${displayAmt}`,
       variant: "success",
     });
   };
@@ -1045,8 +1189,11 @@ export default function TravelPage() {
                   return (
                     <div
                       key={t.id}
-                      className="flex items-center justify-between gap-3 p-4 rounded-xl border hover:bg-muted/40 transition-colors cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      className="flex items-center justify-between gap-3 p-4 rounded-xl border hover:bg-muted/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => openTrip(t.id)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTrip(t.id); } }}
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -1263,6 +1410,7 @@ export default function TravelPage() {
               <SettleUpCard
                 participants={activeTrip.participants}
                 payments={activeTrip.payments ?? []}
+                defaultCurrency={activeTrip.defaultCurrency}
                 onAdd={addSettleUp}
                 onDelete={deleteSettleUp}
               />
@@ -1380,14 +1528,42 @@ export default function TravelPage() {
             participants={activeTrip.participants}
             isNew={editingReceipt.isNew}
             onChange={updateEditingReceipt}
-            onSave={() => void saveReceipt()}
+            onSave={saveReceipt}
             onCancel={() => { setEditingReceipt(null); setViewMode("overview"); }}
-            isSaving={isSaving}
             onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
             isTravelMode
           />
         )}
       </div>
+
+      {/* Confirm traveler removal when receipts would cascade-delete */}
+      <Dialog open={pendingRemoval !== null} onOpenChange={(o) => !o && setPendingRemoval(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove traveler?</DialogTitle>
+            <DialogDescription>
+              Removing this traveler will also delete the following receipt{pendingRemoval?.droppedTitles.length !== 1 ? "s" : ""} that reference them:
+            </DialogDescription>
+          </DialogHeader>
+          {pendingRemoval && (
+            <ul className="text-sm space-y-1 my-1 pl-1">
+              {pendingRemoval.droppedTitles.map((t, i) => (
+                <li key={i} className="flex items-center gap-2 text-muted-foreground">
+                  <ReceiptIcon className="h-3.5 w-3.5 shrink-0" />
+                  {t}
+                </li>
+              ))}
+            </ul>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPendingRemoval(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => void confirmRemoval()}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remove & delete receipts
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete trip confirm */}
       <Dialog open={deleteTripId !== null} onOpenChange={() => setDeleteTripId(null)}>
@@ -1395,12 +1571,12 @@ export default function TravelPage() {
           <DialogHeader>
             <DialogTitle>Delete this trip?</DialogTitle>
             <DialogDescription>
-              This permanently removes the trip and all its receipts. This action cannot be undone.
+              The trip and all its receipts will be removed. You can undo this using the notification that appears.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setDeleteTripId(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => deleteTripId && void deleteTrip(deleteTripId)}>
+            <Button variant="destructive" onClick={() => deleteTripId && deleteTrip(deleteTripId)}>
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
             </Button>
@@ -1414,7 +1590,7 @@ export default function TravelPage() {
           <DialogHeader>
             <DialogTitle>Delete Receipt?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this receipt? This action cannot be undone.
+              The receipt will be removed. You can undo this using the notification that appears.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -1431,6 +1607,7 @@ export default function TravelPage() {
         open={travel.showSyncDialog}
         onSync={travel.syncLocalToCloud}
         onDismiss={travel.dismissSyncDialog}
+        onKeepLocal={() => void signOut()}
       />
 
       <AppFooter />

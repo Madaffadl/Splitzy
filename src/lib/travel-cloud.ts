@@ -67,6 +67,8 @@ export interface ValidatedTripPayment {
   from: string;
   to: string;
   amount: number;
+  currency?: string;
+  fxRate?: number;
   note?: string;
   source?: string;
 }
@@ -109,5 +111,24 @@ export function validateTripPaymentInput(
     source = b.source.slice(0, MAX_PAYMENT_SOURCE);
   }
 
-  return { from, to, amount, ...(note ? { note } : {}), ...(source ? { source } : {}) };
+  let currency: string | undefined;
+  if (b.currency != null && b.currency !== "" && b.currency !== "IDR") {
+    if (typeof b.currency !== "string") throw new ValidationError("currency", "must be a string");
+    currency = b.currency.slice(0, 10).toUpperCase();
+  }
+
+  let fxRate: number | undefined;
+  if (currency && b.fxRate != null) {
+    const r = typeof b.fxRate === "number" ? b.fxRate : parseFloat(String(b.fxRate));
+    if (!Number.isFinite(r) || r <= 0) throw new ValidationError("fxRate", "must be a positive number");
+    fxRate = r;
+  }
+
+  return {
+    from, to, amount,
+    ...(currency ? { currency } : {}),
+    ...(fxRate ? { fxRate } : {}),
+    ...(note ? { note } : {}),
+    ...(source ? { source } : {}),
+  };
 }
