@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Layers, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Instagram, Linkedin, Phone, Network, ArrowRightLeft, History } from "lucide-react";
+import { Receipt, Layers, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Phone, Network, ArrowRightLeft, History } from "lucide-react";
+import { Instagram, Linkedin } from "@/components/icons/BrandIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { useAuth } from "@/hooks/useAuth";

@@ -1,4 +1,5 @@
-import { Calculator, Mail, Instagram, Linkedin, Phone } from "lucide-react";
+import { Calculator, Mail, Phone } from "lucide-react";
+import { Instagram, Linkedin } from "@/components/icons/BrandIcons";
 
 // Shared footer used across the single, trip, and history pages. Keep all
 // social links and styling in one place — the previous copy-paste in three
