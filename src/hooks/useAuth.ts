@@ -15,6 +15,7 @@ export interface DbUser {
   email: string;
   name: string | null;
   avatarUrl: string | null;
+  isAdmin: boolean;
   createdAt: string;
 }
 

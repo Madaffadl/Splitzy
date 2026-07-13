@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, forbidden } from "@/lib/api-auth";
-import { isAdminEmail } from "@/lib/admin-auth";
+import { isAdmin } from "@/lib/admin-auth";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getAuthUser(request);
-  if (!user || !isAdminEmail(user.email)) return forbidden();
+  if (!user || !isAdmin(user)) return forbidden();
+
+  const limited = enforceRateLimit(request, "admin:trips", { userId: user.id, limit: 120 });
+  if (limited) return limited;
 
   const { id } = await params;
 

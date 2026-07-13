@@ -1,7 +1,23 @@
-// Email addresses with admin access to /admin and /api/admin/*.
-// Add more emails here to grant access.
-const ADMIN_EMAILS = new Set(["m.daffafadhil26@gmail.com"]);
+// Admin access is driven by the `role` column on User ("admin" vs "user"),
+// manageable at runtime from the admin dashboard.
+//
+// A bootstrap allowlist (env ADMIN_BOOTSTRAP_EMAILS, comma-separated; defaults
+// to the original owner) is ALWAYS treated as admin regardless of the DB role.
+// This is a deliberate lockout guard: it seeds the very first admin and lets an
+// operator recover access by setting an env var if the role data ever gets lost.
+const BOOTSTRAP_ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_BOOTSTRAP_EMAILS ?? "m.daffafadhil26@gmail.com")
+    .split(",")
+    .map((e) => e.toLowerCase().trim())
+    .filter(Boolean)
+);
 
-export function isAdminEmail(email: string): boolean {
-  return ADMIN_EMAILS.has(email.toLowerCase().trim());
+/** True if this email is a hardcoded/bootstrap admin (can't be revoked via UI). */
+export function isBootstrapAdmin(email: string): boolean {
+  return BOOTSTRAP_ADMIN_EMAILS.has(email.toLowerCase().trim());
+}
+
+/** Effective admin check: DB role OR bootstrap email. */
+export function isAdmin(user: { email: string; role?: string | null }): boolean {
+  return user.role === "admin" || isBootstrapAdmin(user.email);
 }

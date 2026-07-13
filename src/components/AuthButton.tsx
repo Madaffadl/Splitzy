@@ -2,8 +2,9 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { LogIn, LogOut, User } from "lucide-react";
+import { LogIn, LogOut, User, Shield } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 
 export function AuthButton() {
@@ -77,6 +78,16 @@ export function AuthButton() {
               {user.email}
             </p>
           </div>
+          {dbUser?.isAdmin && (
+            <Link
+              href="/admin"
+              onClick={() => setShowMenu(false)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border"
+            >
+              <Shield className="h-4 w-4 text-violet-500" />
+              Admin dashboard
+            </Link>
+          )}
           <button
             onClick={async () => {
               setShowMenu(false);

@@ -25,6 +25,10 @@ model User {
   aiScanLimit   Int?      @map("ai_scan_limit")
   // Set by admin to suspend access; null = active account.
   bannedAt      DateTime? @map("banned_at")
+  // Access role: "user" (default) or "admin". Admins reach /admin + /api/admin/*.
+  // A bootstrap email (see lib/admin-auth) is always treated as admin regardless
+  // of this column, so the first admin can never lock themselves out.
+  role          String    @default("user")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -239,4 +243,28 @@ model ItemAssignment {
   @@index([itemId])
   @@index([userId])
   @@map("item_assignments")
+}
+
+// Append-only trail of privileged admin mutations (plan/quota/ban changes).
+// No FK to users on purpose: the trail must survive account deletion, so the
+// actor + target emails are denormalized snapshots taken at write time. App
+// code only ever inserts and reads — it never updates or deletes rows here.
+model AdminAuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  // Who performed the action (the admin). Email is a durable snapshot.
+  actorId      String   @map("actor_id") @db.Uuid
+  actorEmail   String   @map("actor_email")
+  // What happened, e.g. "plan.change", "quota.reset", "quota.limit",
+  // "user.ban", "user.unban". Stable machine-readable slug.
+  action       String
+  // Whom it affected + a before/after snapshot in `metadata`.
+  targetUserId String?  @map("target_user_id") @db.Uuid
+  targetEmail  String?  @map("target_email")
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // The activity feed reads newest-first; target lookups group per user.
+  @@index([createdAt(sort: Desc)])
+  @@index([targetUserId])
+  @@map("admin_audit_logs")
 }
