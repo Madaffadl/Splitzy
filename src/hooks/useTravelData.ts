@@ -49,6 +49,10 @@ export function useTravelData() {
   // sync). An in-flight loadCloud whose sequence is stale on resolve is dropped,
   // so a slow initial load can't clobber trips a subsequent sync just added.
   const loadSeqRef = useRef(0);
+  // Serialises PUT /api/travel/[id] calls per trip so rapid successive edits
+  // never send the same expectedVersion twice (which would produce a false-positive
+  // 409 "changed elsewhere" even when the only editor is the current user).
+  const tripUpdateQueues = useRef<Map<string, Promise<void>>>(new Map());
 
   // Sync dialog: offer to push local trips to cloud when user signs in.
   const [showSyncDialog, setShowSyncDialog] = useState(false);
@@ -200,30 +204,46 @@ export function useTravelData() {
   const updateTrip = useCallback(
     async (id: string, updates: Partial<Omit<TravelTrip, "id">>) => {
       if (isAuthenticated) {
+        // Apply optimistic update immediately so the UI responds without waiting
+        // for the network (preserves snappy feel even under queued saves).
         setCloudTrips((prev) =>
           prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
         );
+
         // Build only fields the API accepts.
         const body: Record<string, unknown> = {};
         if ("name" in updates) body.name = updates.name;
         if ("budget" in updates) body.budget = updates.budget ?? null;
         if ("participants" in updates) body.participants = updates.participants;
         if (Object.keys(body).length === 0) return;
-        // Send the observed version so the server can detect a concurrent edit
-        // (optimistic lock). trackedFetch flags a 409 as a conflict for the UI.
-        body.expectedVersion = cloudRef.current.find((t) => t.id === id)?.version;
-        const res = await trackedFetch(`/api/travel/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (res && res.ok) {
-          const data = (await res.json().catch(() => null)) as { version?: number } | null;
-          if (typeof data?.version === "number") {
-            // Advance the local version so the next edit sends the right one.
-            setCloudTrips((prev) => prev.map((t) => (t.id === id ? { ...t, version: data.version } : t)));
+
+        // Serialise API calls for this trip: the next PUT only starts after the
+        // previous one resolves, so each call reads the version the server just
+        // wrote rather than the stale version seen at call time. This prevents
+        // rapid successive edits from self-inflicting a false 409 "changed
+        // elsewhere" and losing whichever save arrived second.
+        const prev = tripUpdateQueues.current.get(id) ?? Promise.resolve();
+        const next = prev.then(async () => {
+          // Read expectedVersion here — after the previous save has finished and
+          // advanced the local version — not at the time updateTrip was called.
+          body.expectedVersion = cloudRef.current.find((t) => t.id === id)?.version;
+          const res = await trackedFetch(`/api/travel/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (res && res.ok) {
+            const data = (await res.json().catch(() => null)) as { version?: number } | null;
+            if (typeof data?.version === "number") {
+              // Advance local version so the next queued edit sends the right one.
+              setCloudTrips((prev) => prev.map((t) => (t.id === id ? { ...t, version: data.version } : t)));
+            }
           }
-        }
+        // Never let a failed save break the queue — error is already surfaced via
+        // trackedFetch (syncError / conflict state); subsequent saves must proceed.
+        }).catch(() => {});
+        tripUpdateQueues.current.set(id, next);
+        await next;
       } else {
         setLocal((prev) => ({
           ...prev,

@@ -1465,7 +1465,7 @@ export default function TravelPage() {
             </div>
 
             {/* Summary sidebar — compact */}
-            <div className="space-y-3">
+            <div className="space-y-3 lg:sticky lg:top-20 lg:self-start">
               <ErrorBoundary label="the trip summary">
                 <MultipleReceiptSummaryPanel
                   receipts={activeTrip.receipts}

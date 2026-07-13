@@ -237,7 +237,7 @@ export default function SinglePage() {
   return (
     <main className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link
             href="/"

@@ -1583,7 +1583,7 @@ export function MultipleReceiptSummaryPanel({
     const over = budget != null && budget > 0 && totalPaid > budget;
     const pct = budget != null && budget > 0 ? Math.min(100, Math.round((totalPaid / budget) * 100)) : 0;
     return (
-      <Card className={cn(!readOnly && "sticky top-4")}>
+      <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="h-5 w-5" />
