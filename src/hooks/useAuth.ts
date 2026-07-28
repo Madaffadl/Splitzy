@@ -114,6 +114,11 @@ export function useAuthProvider(): AuthContextType {
       window.localStorage.removeItem("splitbill-trips");
       window.localStorage.removeItem("splitzy-history");
       window.localStorage.removeItem("splitzy-guest-splits-count");
+      // Travel Spend local-first caches (mirror/outbox/draft) are per-account or
+      // ephemeral — don't let them leak to the next user on a shared device.
+      window.localStorage.removeItem("splitzy-travel-mirror");
+      window.localStorage.removeItem("splitzy-travel-outbox");
+      window.localStorage.removeItem("splitzy-travel-draft");
     } catch {
       // localStorage may be unavailable — safe to ignore
     }

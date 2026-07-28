@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
@@ -69,6 +69,42 @@ type ViewMode = "overview" | "edit-receipt" | "summary";
 interface EditingReceipt {
   receipt: Receipt;
   isNew: boolean;
+}
+
+// An in-progress receipt edit, persisted to localStorage so a refresh/crash
+// while typing doesn't lose the work. Cleared on Save or Cancel. Device-local
+// and ephemeral, so it isn't user-scoped (but is wiped on sign-out).
+const DRAFT_KEY = "splitzy-travel-draft";
+interface ReceiptDraft {
+  tripId: string;
+  receipt: Receipt;
+  isNew: boolean;
+}
+
+function readDraft(): ReceiptDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as ReceiptDraft) : null;
+  } catch {
+    return null;
+  }
+}
+function writeDraft(draft: ReceiptDraft): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // quota / disabled storage — best effort
+  }
+}
+function clearDraft(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 function parseAmount(s: string): number {
@@ -708,6 +744,34 @@ export default function TravelPage() {
     if (viewMode !== "overview") window.scrollTo({ top: 0, behavior: "instant" });
   }, [viewMode]);
 
+  // ── Receipt draft persistence ──────────────────────────────────────────────
+  // Restore an in-progress receipt on mount (survives refresh/crash mid-edit),
+  // then keep localStorage in sync with the editor. Cancel/Save clear it.
+  const draftReadyRef = useRef(false);
+  useEffect(() => {
+    const draft = readDraft();
+    if (draft) {
+      travel.setActiveId(draft.tripId);
+      setEditingReceipt({ receipt: draft.receipt, isNew: draft.isNew });
+      setViewMode("edit-receipt");
+    }
+    draftReadyRef.current = true;
+    // Mount-only: read once and restore. Intentionally not re-run on deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!draftReadyRef.current) return; // don't clear before the restore runs
+    if (editingReceipt && viewMode === "edit-receipt") {
+      // Only rewrite once the trip has hydrated; while it's still loading, leave
+      // the restored draft untouched rather than clearing it.
+      if (activeTrip) {
+        writeDraft({ tripId: activeTrip.id, receipt: editingReceipt.receipt, isNew: editingReceipt.isNew });
+      }
+    } else {
+      clearDraft();
+    }
+  }, [editingReceipt, viewMode, activeTrip]);
+
   // ── Trip CRUD ─────────────────────────────────────────────────────────────
   const createTrip = async () => {
     const name = newTripName.trim() || "My Trip";
@@ -838,19 +902,38 @@ export default function TravelPage() {
     setEditingReceipt((prev) => (prev ? { ...prev, receipt: { ...prev.receipt, ...updates } } : prev));
   };
 
+  // Persist a receipt and report the *real* outcome. Navigation stays optimistic
+  // (snappy), but the success toast only fires once the server confirms the save;
+  // on failure the optimistic receipt is already rolled back by the data layer,
+  // so we surface an error with a Retry action instead of a false "saved".
+  const submitReceipt = (tripId: string, receipt: Receipt, isNew: boolean) => {
+    void (async () => {
+      const ok = isNew
+        ? await travel.addReceipt(tripId, receipt)
+        : await travel.updateReceipt(tripId, receipt);
+      if (ok) {
+        toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
+      } else {
+        toast({
+          title: "Couldn't save receipt",
+          description: `${receipt.title} wasn't saved. Check your connection and retry.`,
+          variant: "error",
+          duration: 8000,
+          action: { label: "Retry", onClick: () => submitReceipt(tripId, receipt, isNew) },
+        });
+      }
+    })();
+  };
+
   const saveReceipt = () => {
     if (!activeTrip || !editingReceipt) return;
     const { receipt, isNew } = editingReceipt;
-    // Fire optimistic update + background API sync, then redirect immediately.
-    // The syncStatus banner surfaces any server error without blocking the user.
-    if (isNew) {
-      void travel.addReceipt(activeTrip.id, receipt);
-    } else {
-      void travel.updateReceipt(activeTrip.id, receipt);
-    }
+    const tripId = activeTrip.id;
+    // Redirect immediately for a snappy feel; the outcome is reported by the
+    // toast inside submitReceipt once the background save resolves.
     setEditingReceipt(null);
     setViewMode("overview");
-    toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
+    submitReceipt(tripId, receipt, isNew);
   };
 
   const deleteReceipt = (id: string) => {
@@ -1053,8 +1136,9 @@ export default function TravelPage() {
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
             <p className="flex-1 text-foreground/90">
-              <span className="font-semibold text-red-700 dark:text-red-300">This trip changed elsewhere.</span>{" "}
-              Reload to get the latest — unsaved local changes will be discarded.
+              <span className="font-semibold text-red-700 dark:text-red-300">This trip is out of sync.</span>{" "}
+              It may have changed on another device or tab, or a save didn&apos;t go through. Reload to get the
+              latest — unsaved local changes will be discarded.
             </p>
             <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
               <RefreshCw className="h-3.5 w-3.5" /> Reload
@@ -1071,18 +1155,30 @@ export default function TravelPage() {
               <RefreshCw className="h-3.5 w-3.5" /> Reload
             </Button>
           </div>
+        ) : travel.cloudMode && travel.pendingSync && !travel.isOnline ? (
+          // Local-first: the change is safely on this device; it just hasn't
+          // reached the server yet. Calm, not alarming — no data is at risk.
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-sm">
+            <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+            <p className="text-foreground/90">
+              <span className="font-semibold text-sky-700 dark:text-sky-300">Saved on this device.</span>{" "}
+              You&apos;re offline — changes will sync to your account when you reconnect.
+            </p>
+          </div>
         ) : travel.cloudMode ? (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-            {travel.syncStatus === "saving" ? (
+            {travel.syncStatus === "saving" || travel.pendingSync ? (
               <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-emerald-600 dark:text-emerald-400" />
             ) : (
               <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
             )}
             <p className="text-foreground/90">
               <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                {travel.syncStatus === "saving" ? "Saving…" : "Saved to your account."}
+                {travel.syncStatus === "saving" || travel.pendingSync ? "Saving…" : "Saved to your account."}
               </span>{" "}
-              {travel.syncStatus === "saving" ? "Syncing your changes." : "Trips sync across devices automatically."}
+              {travel.syncStatus === "saving" || travel.pendingSync
+                ? "Syncing your changes."
+                : "Trips sync across devices automatically."}
             </p>
           </div>
         ) : (

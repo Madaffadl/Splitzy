@@ -16,6 +16,7 @@ import {
   removePaymentFromTrips,
 } from "@/lib/travel-sync";
 import { mergePrefs } from "@/lib/trip-prefs";
+import { ReceiptOp, pushOp, removeOp, replayOps } from "@/lib/travel-outbox";
 
 export interface TravelStore {
   trips: TravelTrip[];
@@ -24,6 +25,35 @@ export interface TravelStore {
 
 const LOCAL_KEY = "splitzy-travel";
 const DEFAULT: TravelStore = { trips: [], activeId: null };
+
+// Local-first (cloud mode) persistence. Both are scoped to the signed-in user
+// so a shared device never shows one account's data to the next, and are cleared
+// on sign-out (see useAuth). MIRROR = last-known trips for instant/offline paint;
+// OUTBOX = receipt writes not yet synced to the server.
+export const MIRROR_KEY = "splitzy-travel-mirror";
+export const OUTBOX_KEY = "splitzy-travel-outbox";
+
+function readScoped<T>(key: string, uid: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { uid: string; data: T };
+    // Ignore a payload belonging to a different account (stale device cache).
+    return parsed.uid === uid ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeScoped<T>(key: string, uid: string, data: T): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ uid, data }));
+  } catch {
+    // quota / disabled storage — best effort
+  }
+}
 
 /**
  * Unified Travel Spend data layer.
@@ -37,6 +67,10 @@ const DEFAULT: TravelStore = { trips: [], activeId: null };
 export function useTravelData() {
   const { isAuthenticated, isLoading: authLoading, dbUser } = useAuth();
   const [local, setLocal] = useLocalStorage<TravelStore>(LOCAL_KEY, DEFAULT);
+  // Stable per-account key for the mirror/outbox. dbUser is the canonical app
+  // user; using it (not the transient supabase id) keeps the key from changing
+  // mid-session, which would otherwise orphan the cached data.
+  const uid = dbUser?.id ?? null;
 
   // ── Cloud state ──────────────────────────────────────────────────────────
   const [cloudTrips, _setCloudTrips] = useState<TravelTrip[]>([]);
@@ -49,10 +83,28 @@ export function useTravelData() {
   // sync). An in-flight loadCloud whose sequence is stale on resolve is dropped,
   // so a slow initial load can't clobber trips a subsequent sync just added.
   const loadSeqRef = useRef(0);
-  // Serialises PUT /api/travel/[id] calls per trip so rapid successive edits
-  // never send the same expectedVersion twice (which would produce a false-positive
-  // 409 "changed elsewhere" even when the only editor is the current user).
-  const tripUpdateQueues = useRef<Map<string, Promise<void>>>(new Map());
+  // Serialises writes per trip so operations that depend on each other never
+  // race. Two guarantees this buys us:
+  //  1. Rapid successive trip PUTs never send the same expectedVersion twice
+  //     (which would produce a false-positive 409 "changed elsewhere" even when
+  //     the only editor is the current user).
+  //  2. A receipt write never reaches the server before a participant edit that
+  //     precedes it has committed — otherwise the server would validate the
+  //     receipt against a stale participant list and reject it (data loss).
+  const tripWriteQueues = useRef<Map<string, Promise<void>>>(new Map());
+
+  // ── Local-first outbox (durable receipt writes) ────────────────────────────
+  // Receipt add/update/delete are applied to the mirror immediately and recorded
+  // here; a background loop drains them to the server, surviving reloads and
+  // offline periods so a receipt entered on flaky Wi-Fi is never lost.
+  const outboxRef = useRef<ReceiptOp[]>([]);
+  const drainingRef = useRef(false);
+  const hydratedRef = useRef(false);
+  const drainRef = useRef<() => void>(() => {});
+  const [pendingSync, setPendingSync] = useState(0);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine
+  );
 
   // Sync dialog: offer to push local trips to cloud when user signs in.
   const [showSyncDialog, setShowSyncDialog] = useState(false);
@@ -88,48 +140,175 @@ export function useTravelData() {
       if (!res.ok) return;
       const { trips } = (await res.json()) as { trips: TravelTrip[] };
       // Drop a stale response (e.g. a sync bumped the sequence while in flight).
-      // Merge device-local prefs (e.g. defaultCurrency) into server trips.
-      if (seq === loadSeqRef.current) setCloudTrips(mergePrefs(trips));
+      if (seq === loadSeqRef.current) {
+        // Reconciled state = authoritative server truth + local receipt writes
+        // not yet synced (replayed on top). Merge device-local prefs too.
+        setCloudTrips(replayOps(mergePrefs(trips), outboxRef.current));
+        // Now that we're online and reconciled, flush any pending writes.
+        drainRef.current();
+      }
     } catch {
-      // Network failure — cloud list stays empty; user can still work locally.
+      // Network failure — keep whatever the mirror already painted; the outbox
+      // still holds unsynced writes and will drain on reconnect.
     } finally {
       setCloudLoaded(true);
     }
   }, [setCloudTrips]);
 
+  // Persist the outbox and surface its size (drives the "will sync" banner).
+  const persistOutbox = useCallback(() => {
+    if (uid) writeScoped(OUTBOX_KEY, uid, outboxRef.current);
+    setPendingSync(outboxRef.current.length);
+  }, [uid]);
+
   // Wraps a cloud write: tracks in-flight count, distinguishes a version
   // conflict (409 / VERSION_CONFLICT) from a generic failure, and never throws
   // (returns null on network error) so callers can branch on the response.
+  //
+  // `retryOnNetworkError` retries transient network failures (flaky Wi-Fi) with
+  // a short backoff. Only pass it for idempotent writes (receipt upsert/delete),
+  // never for the version-locked trip PUT where a retry could clobber a genuine
+  // concurrent edit.
   const trackedFetch = useCallback(
-    async (input: string, init?: RequestInit): Promise<Response | null> => {
+    async (
+      input: string,
+      init?: RequestInit,
+      opts?: { retryOnNetworkError?: boolean; quietNetworkError?: boolean }
+    ): Promise<Response | null> => {
+      const maxAttempts = opts?.retryOnNetworkError ? 3 : 1;
       setPendingWrites((n) => n + 1);
       try {
-        const res = await fetch(input, init);
-        let code: string | undefined;
-        let message: string | undefined;
-        if (!res.ok) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
           try {
-            const body = await res.clone().json();
-            code = body?.code;
-            message = body?.message;
+            const res = await fetch(input, init);
+            let code: string | undefined;
+            let message: string | undefined;
+            if (!res.ok) {
+              try {
+                const body = await res.clone().json();
+                code = body?.code;
+                message = body?.message;
+              } catch {
+                // non-JSON error body
+              }
+            }
+            const outcome = classifyWriteResult(res.ok, res.status, code);
+            if (outcome === "ok") setSyncError(null);
+            else if (outcome === "conflict") setConflict(true);
+            else setSyncError(message || "Couldn't save your changes.");
+            return res;
           } catch {
-            // non-JSON error body
+            // Network failure. Retry a couple of times before giving up so a
+            // brief connectivity blip doesn't surface as a lost save.
+            if (attempt < maxAttempts) {
+              await new Promise((r) => setTimeout(r, 300 * attempt));
+              continue;
+            }
+            // Durable outbox writes retry themselves on reconnect, so a network
+            // blip there isn't an error to shout about — it's "will sync later".
+            if (!opts?.quietNetworkError) {
+              setSyncError("You appear to be offline — changes aren't saved to your account yet.");
+            }
+            return null;
           }
         }
-        const outcome = classifyWriteResult(res.ok, res.status, code);
-        if (outcome === "ok") setSyncError(null);
-        else if (outcome === "conflict") setConflict(true);
-        else setSyncError(message || "Couldn't save your changes.");
-        return res;
-      } catch {
-        setSyncError("You appear to be offline — changes aren't saved to your account yet.");
-        return null;
+        return null; // unreachable — loop always returns
       } finally {
         setPendingWrites((n) => n - 1);
       }
     },
     []
   );
+
+  // Serialise a write behind any pending write for the same trip. Every queued
+  // task is wrapped so a failure never breaks the chain for later writes; the
+  // returned promise resolves after `task` settles so callers can read its result.
+  const enqueue = useCallback(<T,>(tripId: string, task: () => Promise<T>): Promise<T> => {
+    const prev = tripWriteQueues.current.get(tripId) ?? Promise.resolve();
+    const result = prev.then(task);
+    // The stored tail must never reject (one failed write must not break the
+    // queue for the next writer) and must be Promise<void>.
+    tripWriteQueues.current.set(
+      tripId,
+      result.then(
+        () => undefined,
+        () => undefined
+      )
+    );
+    return result;
+  }, []);
+
+  // Send one outbox op to the server. Idempotent (receipt id = row id), so a
+  // replay after a retry or reload is always safe.
+  const sendOp = useCallback(
+    (op: ReceiptOp): Promise<Response | null> => {
+      const opts = { quietNetworkError: true };
+      if (op.kind === "delete") {
+        return trackedFetch(`/api/travel/${op.tripId}/receipts/${op.receiptId}`, { method: "DELETE" }, opts);
+      }
+      if (op.kind === "add") {
+        return trackedFetch(
+          `/api/travel/${op.tripId}/receipts`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ receipt: op.receipt }) },
+          opts
+        );
+      }
+      return trackedFetch(
+        `/api/travel/${op.tripId}/receipts/${op.receipt.id}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ receipt: op.receipt }) },
+        opts
+      );
+    },
+    [trackedFetch]
+  );
+
+  // Drain the outbox FIFO. Each send is serialised through the per-trip queue so
+  // it never races ahead of a participant edit it depends on. Stops on the first
+  // network failure (resumes on reconnect / next write); drops an op the server
+  // permanently rejects (e.g. it targets a deleted trip) and re-syncs.
+  const drainOutbox = useCallback(async () => {
+    if (!isAuthenticated) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    if (drainingRef.current) return;
+    drainingRef.current = true;
+    try {
+      while (outboxRef.current.length > 0) {
+        if (typeof navigator !== "undefined" && !navigator.onLine) break;
+        const op = outboxRef.current[0];
+        const outcome = await enqueue(op.tripId, async (): Promise<"ok" | "network" | "permanent"> => {
+          const res = await sendOp(op);
+          if (res && res.ok) return "ok";
+          if (res) {
+            // 5xx and 429 are transient (server error / rate limit) — keep the op
+            // queued and retry later. Only discard on 4xx client errors (the op is
+            // structurally invalid and retrying will never succeed).
+            if (res.status >= 500 || res.status === 429) return "network";
+            return "permanent"; // 400/404/422 — the op itself is invalid
+          }
+          return "network"; // offline / fetch threw
+        });
+        if (outcome === "ok") {
+          outboxRef.current = removeOp(outboxRef.current, op.opId);
+          persistOutbox();
+        } else if (outcome === "permanent") {
+          outboxRef.current = removeOp(outboxRef.current, op.opId);
+          persistOutbox();
+          setSyncError("A change couldn't be saved and was discarded.");
+          void loadCloud(); // re-pull authoritative state; drops the phantom
+          break;
+        } else {
+          break; // network — leave the op queued for the next reconnect
+        }
+      }
+    } finally {
+      drainingRef.current = false;
+    }
+  }, [isAuthenticated, enqueue, sendOp, persistOutbox, loadCloud]);
+
+  // Keep the ref that loadCloud calls pointed at the latest drainOutbox.
+  useEffect(() => {
+    drainRef.current = () => void drainOutbox();
+  }, [drainOutbox]);
 
   // Discard local optimistic state and re-pull authoritative server state.
   // Used to resolve a detected conflict ("this trip changed elsewhere").
@@ -139,9 +318,51 @@ export function useTravelData() {
     await loadCloud();
   }, [loadCloud]);
 
+  // Fetch authoritative server state once signed in. Independent of the mirror
+  // hydration below so it runs even before dbUser (the mirror key) has loaded.
   useEffect(() => {
     if (isAuthenticated && !cloudLoaded) void loadCloud();
   }, [isAuthenticated, cloudLoaded, loadCloud]);
+
+  // Hydrate the mirror + outbox once the account key is known. Painting the
+  // mirror means trips appear instantly (and offline). Only paint over state the
+  // server hasn't already replaced; either way, re-apply pending receipt ops
+  // (idempotent) so unsynced work stays visible, then flush it.
+  useEffect(() => {
+    if (!isAuthenticated || !uid || hydratedRef.current) return;
+    hydratedRef.current = true;
+    outboxRef.current = readScoped<ReceiptOp[]>(OUTBOX_KEY, uid) ?? [];
+    setPendingSync(outboxRef.current.length);
+    const mirror = readScoped<TravelTrip[]>(MIRROR_KEY, uid);
+    if (!cloudLoaded && mirror && mirror.length > 0) {
+      setCloudTrips(replayOps(mergePrefs(mirror), outboxRef.current));
+    } else if (outboxRef.current.length > 0) {
+      setCloudTrips((prev) => replayOps(prev, outboxRef.current));
+    }
+    if (outboxRef.current.length > 0) drainRef.current();
+  }, [isAuthenticated, uid, cloudLoaded, setCloudTrips]);
+
+  // Persist the mirror on every cloud-state change so the last-known trips
+  // survive a reload / offline restart.
+  useEffect(() => {
+    if (isAuthenticated && uid && hydratedRef.current) writeScoped(MIRROR_KEY, uid, cloudTrips);
+  }, [cloudTrips, isAuthenticated, uid]);
+
+  // Track connectivity and flush the outbox the moment we're back online.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onOnline = () => {
+      setIsOnline(true);
+      drainRef.current();
+    };
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   // Show sync dialog once when the user first signs in and has local trips.
   useEffect(() => {
@@ -150,10 +371,18 @@ export function useTravelData() {
     if ((local.trips ?? []).length > 0) setShowSyncDialog(true);
   }, [isAuthenticated, authLoading, local.trips]);
 
-  // Reset the sync-check flag on sign-out so the dialog shows again next sign-in.
+  // Reset per-session state on sign-out so the next sign-in re-hydrates cleanly
+  // (fresh mirror/outbox for whoever signs in next on this device).
   useEffect(() => {
-    if (!isAuthenticated) syncCheckedRef.current = false;
-  }, [isAuthenticated]);
+    if (!isAuthenticated) {
+      syncCheckedRef.current = false;
+      hydratedRef.current = false;
+      outboxRef.current = [];
+      setPendingSync(0);
+      setCloudTrips([]);
+      setCloudLoaded(false);
+    }
+  }, [isAuthenticated, setCloudTrips]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const trips = isAuthenticated ? cloudTrips : (local.trips ?? []);
@@ -218,12 +447,11 @@ export function useTravelData() {
         if (Object.keys(body).length === 0) return;
 
         // Serialise API calls for this trip: the next PUT only starts after the
-        // previous one resolves, so each call reads the version the server just
+        // previous write resolves, so each call reads the version the server just
         // wrote rather than the stale version seen at call time. This prevents
         // rapid successive edits from self-inflicting a false 409 "changed
         // elsewhere" and losing whichever save arrived second.
-        const prev = tripUpdateQueues.current.get(id) ?? Promise.resolve();
-        const next = prev.then(async () => {
+        await enqueue(id, async () => {
           // Read expectedVersion here — after the previous save has finished and
           // advanced the local version — not at the time updateTrip was called.
           body.expectedVersion = cloudRef.current.find((t) => t.id === id)?.version;
@@ -239,11 +467,7 @@ export function useTravelData() {
               setCloudTrips((prev) => prev.map((t) => (t.id === id ? { ...t, version: data.version } : t)));
             }
           }
-        // Never let a failed save break the queue — error is already surfaced via
-        // trackedFetch (syncError / conflict state); subsequent saves must proceed.
-        }).catch(() => {});
-        tripUpdateQueues.current.set(id, next);
-        await next;
+        });
       } else {
         setLocal((prev) => ({
           ...prev,
@@ -251,7 +475,7 @@ export function useTravelData() {
         }));
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
+    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, enqueue]
   );
 
   const deleteTrip = useCallback(
@@ -286,49 +510,58 @@ export function useTravelData() {
     [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
   );
 
-  // ── Mutations: receipts ───────────────────────────────────────────────────
+  // ── Mutations: receipts (local-first) ─────────────────────────────────────
+  // A receipt write is applied to the local mirror immediately (durable across
+  // reloads) and recorded in the outbox; the background drain syncs it to the
+  // server, retrying across offline periods. So a Save always "sticks" — even on
+  // no connectivity — and there are no phantom receipts to roll back. Returns
+  // true once the change is durably recorded locally.
   const addReceipt = useCallback(
-    async (tripId: string, receipt: Receipt) => {
+    async (tripId: string, receipt: Receipt): Promise<boolean> => {
       if (isAuthenticated) {
         setCloudTrips((prev) => addReceiptToTrips(prev, tripId, receipt));
-        await trackedFetch(`/api/travel/${tripId}/receipts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ receipt }),
-        });
+        outboxRef.current = pushOp(outboxRef.current, { opId: generateId(), kind: "add", tripId, receipt });
+        persistOutbox();
+        void drainOutbox();
+        return true;
       } else {
         setLocal((prev) => ({ ...prev, trips: addReceiptToTrips(prev.trips, tripId, receipt) }));
+        return true;
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
+    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox]
   );
 
   const updateReceipt = useCallback(
-    async (tripId: string, receipt: Receipt) => {
+    async (tripId: string, receipt: Receipt): Promise<boolean> => {
       if (isAuthenticated) {
         setCloudTrips((prev) => replaceReceiptInTrips(prev, tripId, receipt));
-        await trackedFetch(`/api/travel/${tripId}/receipts/${receipt.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ receipt }),
-        });
+        outboxRef.current = pushOp(outboxRef.current, { opId: generateId(), kind: "update", tripId, receipt });
+        persistOutbox();
+        void drainOutbox();
+        return true;
       } else {
         setLocal((prev) => ({ ...prev, trips: replaceReceiptInTrips(prev.trips, tripId, receipt) }));
+        return true;
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
+    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox]
   );
 
   const deleteReceipt = useCallback(
-    async (tripId: string, receiptId: string) => {
+    async (tripId: string, receiptId: string): Promise<boolean> => {
       if (isAuthenticated) {
         setCloudTrips((prev) => removeReceiptFromTrips(prev, tripId, receiptId));
-        await trackedFetch(`/api/travel/${tripId}/receipts/${receiptId}`, { method: "DELETE" });
+        outboxRef.current = pushOp(outboxRef.current, { opId: generateId(), kind: "delete", tripId, receiptId });
+        persistOutbox();
+        void drainOutbox();
+        return true;
       } else {
         setLocal((prev) => ({ ...prev, trips: removeReceiptFromTrips(prev.trips, tripId, receiptId) }));
+        return true;
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
+    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox]
   );
 
   // ── Mutations: settle-up payments ─────────────────────────────────────────
@@ -486,5 +719,9 @@ export function useTravelData() {
     syncStatus,
     syncError,
     reloadCloud,
+    // Local-first status: unsynced receipt writes waiting to reach the server,
+    // and whether the browser is currently online.
+    pendingSync: pendingSync > 0,
+    isOnline,
   };
 }

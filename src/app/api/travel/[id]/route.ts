@@ -124,7 +124,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     data: { ...data, version: { increment: 1 } },
   });
   if (result.count === 0) {
-    return apiError("VERSION_CONFLICT", "This trip was changed elsewhere. Reload and try again.");
+    return apiError("VERSION_CONFLICT", "This trip is out of sync (another device/tab, or an interrupted save). Reload and try again.");
   }
 
   return NextResponse.json({ ok: true, version: expectedVersion + 1 });
