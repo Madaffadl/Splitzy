@@ -7,9 +7,9 @@ import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment 
 import { useTravelData } from "@/hooks/useTravelData";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency } from "@/lib/calculations";
-import { findSharePayment, paidShareParticipants, sharePaymentSource } from "@/lib/settle-up";
+import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
 import { formatCurrency, cn } from "@/lib/utils";
-import { generateId } from "@/lib/utils";
+import { generateId, todayDateString } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { ParticipantManager } from "@/components/ParticipantManager";
@@ -880,6 +880,7 @@ export default function TravelPage() {
     const receipt: Receipt = {
       id: generateId(),
       title: `Receipt ${activeTrip.receipts.length + 1}`,
+      date: todayDateString(),
       payerId: activeTrip.participants[0]?.id || "",
       items: [],
       tax: 0,
@@ -970,7 +971,22 @@ export default function TravelPage() {
     if (existing) {
       void travel.deletePayment(activeTrip.id, existing.id);
     } else {
-      const amount = shareOf(receipt, participantId);
+      // B1: record only the *remaining* debt, never the full share on top of what
+      // was already paid (e.g. an earlier partial manual "B paid A 50k"). Recording
+      // the full share would over-settle and flip the payer negative — the ghost
+      // "+Rp 50.000 / -Rp 50.000" balance. remaining = owed − already-paid.
+      const ids = activeTrip.participants.map((p) => p.id);
+      const { owed, paid } = pairSettlement(activeTrip.receipts, ids, activeTrip.payments, participantId, receipt.payerId);
+      const remaining = Math.round((owed - paid) * 100) / 100;
+      if (remaining <= 0) {
+        const nameOf = (id: string) => activeTrip.participants.find((p) => p.id === id)?.name ?? "?";
+        toast({
+          title: "Already settled",
+          description: `${nameOf(participantId)} has already settled up with ${nameOf(receipt.payerId)} — no extra payment recorded.`,
+        });
+        return;
+      }
+      const amount = Math.round(Math.min(shareOf(receipt, participantId), remaining) * 100) / 100;
       if (amount <= 0) return;
       void travel.addPayment(activeTrip.id, {
         from: participantId,
@@ -992,6 +1008,7 @@ export default function TravelPage() {
       .filter((p) => p.id !== receipt.payerId)
       .map((p) => ({ id: p.id, amount: shareOf(receipt, p.id) }))
       .filter((p) => p.amount > 0);
+    const ids = activeTrip.participants.map((p) => p.id);
     const paidSet = paidShareParticipants(activeTrip.payments, receiptId);
     const allPaid = owing.length > 0 && owing.every((p) => paidSet.has(p.id));
     for (const p of owing) {
@@ -999,10 +1016,17 @@ export default function TravelPage() {
       if (allPaid && existing) {
         void travel.deletePayment(activeTrip.id, existing.id);
       } else if (!allPaid && !existing) {
+        // B1: cap to the remaining debt so an earlier (partial) payment isn't
+        // double-counted — never record more than this person still owes.
+        const { owed, paid } = pairSettlement(activeTrip.receipts, ids, activeTrip.payments, p.id, receipt.payerId);
+        const remaining = Math.round((owed - paid) * 100) / 100;
+        if (remaining <= 0) continue;
+        const amount = Math.round(Math.min(p.amount, remaining) * 100) / 100;
+        if (amount <= 0) continue;
         void travel.addPayment(activeTrip.id, {
           from: p.id,
           to: receipt.payerId,
-          amount: p.amount,
+          amount,
           source: sharePaymentSource(receiptId, p.id),
         });
       }
@@ -1061,6 +1085,20 @@ export default function TravelPage() {
     !!tripTotals &&
     tripTotals.totalGrandTotal > 0 &&
     tripTotals.settlements.length === 0;
+
+  // Per-receipt "covered" sets: a share reads as paid if it has an explicit
+  // share payment OR the person is already fully settled with the payer (manual
+  // settle-ups included). Computed once so the receipt list reflects the whole
+  // ledger consistently. See coveredShareParticipants.
+  const coveredByReceipt = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    if (!activeTrip) return map;
+    const ids = activeTrip.participants.map((p) => p.id);
+    for (const r of activeTrip.receipts) {
+      map.set(r.id, coveredShareParticipants(activeTrip.receipts, ids, activeTrip.payments, r.id));
+    }
+    return map;
+  }, [activeTrip]);
 
   // ── Archive ───────────────────────────────────────────────────────────────
   const archiveTrip = (id: string) => {
@@ -1492,7 +1530,7 @@ export default function TravelPage() {
                           index={i}
                           onEdit={() => editReceipt(r.id)}
                           onDelete={() => setDeleteReceiptId(r.id)}
-                          paidParticipantIds={paidShareParticipants(activeTrip.payments, r.id)}
+                          paidParticipantIds={coveredByReceipt.get(r.id)}
                           onToggleAllPaid={() => toggleReceiptPaid(r.id)}
                           onTogglePaidShare={(pid) => togglePaidShare(r.id, pid)}
                         />
@@ -1505,7 +1543,7 @@ export default function TravelPage() {
               {/* Settle-up payments */}
               <SettleUpCard
                 participants={activeTrip.participants}
-                payments={activeTrip.payments ?? []}
+                payments={(activeTrip.payments ?? []).filter(isManualPayment)}
                 defaultCurrency={activeTrip.defaultCurrency}
                 onAdd={addSettleUp}
                 onDelete={deleteSettleUp}

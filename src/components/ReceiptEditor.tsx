@@ -154,13 +154,24 @@ export function ReceiptEditor({
             <CardTitle>{isNew ? "New Receipt" : "Edit Receipt"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label>Receipt Title</Label>
-              <Input
-                value={receipt.title}
-                onChange={(e) => onChange({ title: e.target.value })}
-                placeholder="e.g., Lunch at Cafe"
-              />
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+              <div className="space-y-2">
+                <Label>Receipt Title</Label>
+                <Input
+                  value={receipt.title}
+                  onChange={(e) => onChange({ title: e.target.value })}
+                  placeholder="e.g., Lunch at Cafe"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={receipt.date ? receipt.date.slice(0, 10) : ""}
+                  onChange={(e) => onChange({ date: e.target.value || undefined })}
+                  className="w-full sm:w-44"
+                />
+              </div>
             </div>
 
             {/* ── Currency section (Travel Spend only) ── */}

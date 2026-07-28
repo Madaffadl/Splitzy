@@ -28,7 +28,7 @@ import { Copy, Check, CheckCircle2, Circle, ArrowRight, Wallet, Calculator, Chev
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
-import { parseShareSource, paidShareParticipants } from "@/lib/settle-up";
+import { parseShareSource, coveredShareParticipants } from "@/lib/settle-up";
 
 // Shared empty set so ReceiptBreakdown's default doesn't allocate each render.
 const EMPTY_PAID: ReadonlySet<string> = new Set<string>();
@@ -1274,6 +1274,17 @@ export function MultipleReceiptSummaryPanel({
     [receipts, participantIds, payments]
   );
 
+  // Per-receipt "covered" sets — a share reads as paid if it has an explicit
+  // share payment OR the person is already fully settled with the payer (manual
+  // settle-ups included), so every surface agrees with the ledger.
+  const coveredByReceipt = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const r of receipts) {
+      map.set(r.id, coveredShareParticipants(receipts, participantIds, payments ?? [], r.id));
+    }
+    return map;
+  }, [receipts, participantIds, payments]);
+
   // Wallet stats (paid vs consumed)
   const walletStats = useMemo(() => {
     const stats = new Map<string, { paid: number; consumed: number }>();
@@ -1771,7 +1782,7 @@ export function MultipleReceiptSummaryPanel({
                 receipt={r}
                 participants={participants}
                 index={i}
-                paidParticipantIds={paidShareParticipants(payments, r.id)}
+                paidParticipantIds={coveredByReceipt.get(r.id)}
                 onToggleAllPaid={
                   onToggleReceiptPaid ? () => onToggleReceiptPaid(r.id) : undefined
                 }
@@ -1942,14 +1953,25 @@ export function MultipleReceiptSummaryPanel({
             )}
           </div>
 
-          {/* Already-paid — the payment ledger (share settle-ups + manual) */}
+          {/* Already-paid — the payment ledger (share settle-ups + manual),
+              collapsed by default so a long list of marked-paid receipts doesn't
+              dominate the summary (settle-up section shows manual entries only). */}
           {alreadyPaid.length > 0 && (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs space-y-2">
-              <p className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
-                <Check className="h-3.5 w-3.5 shrink-0" />
-                Already paid — not included in settlement
-              </p>
-              <ul className="space-y-1.5">
+            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs">
+              <CollapsibleSection
+                title={
+                  <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                    Already paid — not included in settlement
+                  </span>
+                }
+                badge={
+                  <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                    {alreadyPaid.length}
+                  </span>
+                }
+              >
+                <ul className="space-y-1.5">
                 {alreadyPaid.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-foreground/90">
@@ -1984,7 +2006,8 @@ export function MultipleReceiptSummaryPanel({
                     </span>
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </CollapsibleSection>
             </div>
           )}
 

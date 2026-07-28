@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, PaymentInfo, Discount } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
-import { formatCurrency, generateId } from "@/lib/utils";
+import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { GuestLimitDialog } from "@/components/GuestLimitDialog";
@@ -51,6 +51,7 @@ interface SingleState {
   participants: Participant[];
   items: ReceiptItem[];
   title: string;
+  date?: string;
   tax: number;
   service: number;
   payerId: string;
@@ -61,6 +62,7 @@ const DEFAULT_STATE: SingleState = {
   participants: [],
   items: [],
   title: "Dinner",
+  date: todayDateString(),
   tax: 0,
   service: 0,
   payerId: "",
@@ -85,6 +87,7 @@ export default function SinglePage() {
     () => ({
       id: "single-receipt",
       title: state.title,
+      date: state.date,
       payerId: state.payerId,
       items: state.items,
       tax: state.tax,
@@ -339,13 +342,24 @@ export default function SinglePage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Receipt Title</Label>
-                      <Input
-                        value={state.title}
-                        onChange={(e) => updateState({ title: e.target.value })}
-                        placeholder="e.g., Dinner at Restaurant"
-                      />
+                    <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Receipt Title</Label>
+                        <Input
+                          value={state.title}
+                          onChange={(e) => updateState({ title: e.target.value })}
+                          placeholder="e.g., Dinner at Restaurant"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Date</Label>
+                        <Input
+                          type="date"
+                          value={state.date ? state.date.slice(0, 10) : ""}
+                          onChange={(e) => updateState({ date: e.target.value || undefined })}
+                          className="w-full sm:w-44"
+                        />
+                      </div>
                     </div>
                     <ReceiptInput
                       onParsed={(result) =>
