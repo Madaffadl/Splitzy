@@ -16,6 +16,7 @@ import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptEditor } from "@/components/ReceiptEditor";
 import { MultipleReceiptSummaryPanel, ReceiptBreakdown } from "@/components/SummaryPanel";
 import { ReviewInbox, ProposalBar } from "@/components/travel/ChangeRequests";
+import { logFeatureUsage } from "@/lib/activity-client";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -971,6 +972,7 @@ export default function TravelPage() {
         : await travel.updateReceipt(tripId, receipt);
       if (ok) {
         toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
+        logFeatureUsage("travel", "receipt.added");
       } else {
         toast({
           title: "Couldn't save receipt",

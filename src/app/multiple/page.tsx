@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, Trip, PaymentInfo } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
+import { logFeatureUsage } from "@/lib/activity-client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { ParticipantManager } from "@/components/ParticipantManager";
@@ -141,6 +142,8 @@ export default function MultipleReceiptPage() {
         receipts: split.receipts.map((r) => (r.id === receipt.id ? receipt : r)),
       });
     }
+    // Saving a receipt is the "used this feature" signal (deduped per session).
+    logFeatureUsage("multiple");
 
     setEditingReceipt(null);
     setViewMode("overview");

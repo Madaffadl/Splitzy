@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { FREE_SCAN_LIMIT } from "@/lib/scan-quota";
 import { describeAuditEntry, type AdminAuditEntry } from "@/lib/admin-audit";
+import { describeActivity, featureLabel, type ActivityEntry } from "@/lib/activity";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -37,6 +38,7 @@ import {
   ChevronRight,
   AlertTriangle,
   History,
+  Activity as ActivityIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -689,6 +691,125 @@ function ActivityFeed({ reload }: { reload: number }) {
   );
 }
 
+// ── User activity (who logged in / used which feature) ──────────────────────
+interface ActivitySummary {
+  activeUsers: number;
+  logins: number;
+  byFeature: { single: number; multiple: number; travel: number };
+}
+
+// Local calendar day → [start, nextStart) ISO strings, so "today" matches the
+// admin's wall clock rather than a server timezone.
+function dayRange(dateStr: string): { from: string; to: string } {
+  const start = new Date(`${dateStr}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { from: start.toISOString(), to: end.toISOString() };
+}
+
+function todayLocal(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+function StatTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-border bg-background px-3 py-2">
+      <div className="text-xl font-semibold tabular-nums">{value}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function UserActivity() {
+  const [date, setDate] = useState(todayLocal());
+  const [events, setEvents] = useState<ActivityEntry[]>([]);
+  const [summary, setSummary] = useState<ActivitySummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    const { from, to } = dayRange(date);
+    void fetch(`/api/admin/activity?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+      .then((r) => (r.ok ? r.json() : { events: [], summary: null }))
+      .then((d: { events: ActivityEntry[]; summary: ActivitySummary | null }) => {
+        if (!active) return;
+        setEvents(d.events ?? []);
+        setSummary(d.summary ?? null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [date]);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ActivityIcon className="h-4 w-4 text-muted-foreground" />
+            <CardTitle>User activity</CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="activity-date" className="text-xs text-muted-foreground">Date</Label>
+            <Input
+              id="activity-date"
+              type="date"
+              value={date}
+              max={todayLocal()}
+              onChange={(e) => setDate(e.target.value || todayLocal())}
+              className="w-40"
+            />
+          </div>
+        </div>
+        <CardDescription>Who signed in and which feature they used on the selected day.</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-4">
+        {summary && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <StatTile label="Active users" value={summary.activeUsers} />
+            <StatTile label="Signed in" value={summary.logins} />
+            <StatTile label="Single" value={summary.byFeature.single} />
+            <StatTile label="Multiple" value={summary.byFeature.multiple} />
+            <StatTile label="Travel" value={summary.byFeature.travel} />
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : events.length === 0 ? (
+          <p className="text-center py-8 text-sm text-muted-foreground">No activity on this day.</p>
+        ) : (
+          <ul className="divide-y">
+            {events.map((e) => (
+              <li key={e.id} className="py-2.5 flex items-start gap-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate">
+                    <span className="font-medium">{e.userEmail}</span>{" "}
+                    <span className="text-muted-foreground">{describeActivity(e)}</span>
+                  </p>
+                </div>
+                <Badge variant="secondary" className="shrink-0">{featureLabel(e.feature)}</Badge>
+                <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                  {new Date(e.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main page ───────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { isLoading: authLoading, dbUser } = useAuth();
@@ -977,6 +1098,9 @@ export default function AdminPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* User activity: logins + feature usage per day */}
+        <UserActivity />
 
         {/* Audit trail */}
         <ActivityFeed reload={auditReload} />

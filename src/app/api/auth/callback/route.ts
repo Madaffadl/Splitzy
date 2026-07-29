@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/lib/prisma";
+import { logActivity } from "@/lib/activity-server";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -41,32 +42,29 @@ export async function GET(request: NextRequest) {
 
   // Upsert user into our database
   try {
-    await prisma.user.upsert({
+    const now = new Date();
+    const name =
+      supabaseUser.user_metadata?.full_name ??
+      supabaseUser.user_metadata?.name ??
+      null;
+    const avatarUrl =
+      supabaseUser.user_metadata?.avatar_url ??
+      supabaseUser.user_metadata?.picture ??
+      null;
+    const dbUser = await prisma.user.upsert({
       where: { googleId: supabaseUser.id },
-      update: {
-        email: supabaseUser.email ?? "",
-        name:
-          supabaseUser.user_metadata?.full_name ??
-          supabaseUser.user_metadata?.name ??
-          null,
-        avatarUrl:
-          supabaseUser.user_metadata?.avatar_url ??
-          supabaseUser.user_metadata?.picture ??
-          null,
-      },
+      update: { email: supabaseUser.email ?? "", name, avatarUrl, lastLoginAt: now },
       create: {
         googleId: supabaseUser.id,
         email: supabaseUser.email ?? "",
-        name:
-          supabaseUser.user_metadata?.full_name ??
-          supabaseUser.user_metadata?.name ??
-          null,
-        avatarUrl:
-          supabaseUser.user_metadata?.avatar_url ??
-          supabaseUser.user_metadata?.picture ??
-          null,
+        name,
+        avatarUrl,
+        lastLoginAt: now,
       },
+      select: { id: true, email: true },
     });
+    // Record the sign-in in the activity log (best-effort).
+    await logActivity({ userId: dbUser.id, userEmail: dbUser.email, feature: "account", type: "login" });
   } catch (dbError) {
     console.error("Failed to upsert user:", dbError);
     // Don't block login if DB upsert fails — auth session is still valid
