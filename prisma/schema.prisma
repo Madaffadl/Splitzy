@@ -29,6 +29,9 @@ model User {
   // A bootstrap email (see lib/admin-auth) is always treated as admin regardless
   // of this column, so the first admin can never lock themselves out.
   role          String    @default("user")
+  // Last successful sign-in (set by the auth callback). Powers the admin
+  // "active today" view without scanning the activity log.
+  lastLoginAt   DateTime? @map("last_login_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -38,6 +41,7 @@ model User {
   paidReceipts    Receipt[]        @relation("ReceiptPayer")
   itemAssignments ItemAssignment[]
   sharedSummaries SharedSummary[]  @relation("SharedSummaryCreator")
+  activityEvents  ActivityEvent[]  @relation("UserActivity")
 
   @@map("users")
 }
@@ -295,4 +299,29 @@ model AdminAuditLog {
   @@index([createdAt(sort: Desc)])
   @@index([targetUserId])
   @@map("admin_audit_logs")
+}
+
+// Append-only user activity log: one row per meaningful completed action, so the
+// admin can see who was active on a given day and which feature they used.
+// Single/Multiple are otherwise local-only (no server trace), so those events
+// arrive via a client beacon (POST /api/activity); login + travel are logged
+// server-side. Swept by the cleanup job after a short retention window.
+model ActivityEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  // Durable email snapshot so the feed reads without a join and survives edits.
+  userEmail String   @map("user_email")
+  // Product area: "single" | "multiple" | "travel" | "account".
+  feature   String
+  // Machine-readable slug, e.g. "login" | "split.created" | "share.created".
+  type      String
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation("UserActivity", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Feed reads newest-first for a date range; per-user grouping for drill-downs.
+  @@index([createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("activity_events")
 }

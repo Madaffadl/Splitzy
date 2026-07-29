@@ -6,6 +6,7 @@ import { Participant, ReceiptItem, Receipt, PaymentInfo, Discount } from "@/type
 import { useHybridState } from "@/hooks/useHybridState";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
+import { logFeatureUsage } from "@/lib/activity-client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { GuestLimitDialog } from "@/components/GuestLimitDialog";
@@ -143,6 +144,8 @@ export default function SinglePage() {
           return;
         }
         incrementCount();
+        // Reaching the summary is the "completed a split" moment for this feature.
+        logFeatureUsage("single");
       }
       setCurrentStep((s) => s + 1);
     } finally {
