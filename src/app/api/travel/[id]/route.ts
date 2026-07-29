@@ -5,7 +5,7 @@ import { getAuthUser, unauthorized, forbidden, notFound, assertSameOrigin } from
 import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse, validateParticipantsJson } from "@/lib/validation";
 import { validateBudget } from "@/lib/travel-cloud";
-import { getTripAccess } from "@/lib/trip-access";
+import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -92,6 +92,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();
+  const gate = requireOwnerWrite(access);
+  if (gate) return gate;
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return apiError("BAD_REQUEST", "Invalid request body");

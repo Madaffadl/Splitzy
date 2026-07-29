@@ -15,6 +15,7 @@ import { AuthButton } from "@/components/AuthButton";
 import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptEditor } from "@/components/ReceiptEditor";
 import { MultipleReceiptSummaryPanel, ReceiptBreakdown } from "@/components/SummaryPanel";
+import { ReviewInbox, ProposalBar } from "@/components/travel/ChangeRequests";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -740,6 +741,62 @@ export default function TravelPage() {
       : null;
   }, [trips, travel.activeId]);
 
+  // ── Approval workflow (cloud collaboration) ────────────────────────────────
+  const activeRole = activeTrip ? travel.roleOf(activeTrip.id) : "owner";
+  const isMemberOfActive = activeRole === "member";
+  const activeProposal = activeTrip ? travel.proposals[activeTrip.id] : undefined;
+  const pendingReviews = activeTrip ? travel.changeRequests[activeTrip.id] ?? [] : [];
+  // While a member's proposal is submitted, editing is paused until the owner reviews it.
+  const editingLocked = isMemberOfActive && activeProposal?.status === "submitted";
+  const participantNameOf = useCallback(
+    (id: string) => activeTrip?.participants.find((p) => p.id === id)?.name ?? "Someone",
+    [activeTrip]
+  );
+
+  const handleSubmitProposal = useCallback(
+    async (note?: string) => {
+      if (!activeTrip) return false;
+      const ok = await travel.submitChangeRequest(activeTrip.id, note);
+      toast(
+        ok
+          ? { title: "Submitted for review", description: "The owner will approve or decline your changes.", variant: "success" }
+          : { title: "Couldn't submit", description: "Please try again.", variant: "error" }
+      );
+      return ok;
+    },
+    [activeTrip, travel, toast]
+  );
+
+  const handleDiscardProposal = useCallback(() => {
+    if (!activeTrip) return;
+    travel.discardProposal(activeTrip.id);
+    toast({ title: "Draft discarded" });
+  }, [activeTrip, travel, toast]);
+
+  const handleApprove = useCallback(
+    async (crId: string) => {
+      if (!activeTrip) return false;
+      const ok = await travel.approveChangeRequest(activeTrip.id, crId);
+      toast(
+        ok
+          ? { title: "Change approved", variant: "success" }
+          : { title: "Couldn't approve", description: "The trip may have changed since — reload and retry.", variant: "error" }
+      );
+      return ok;
+    },
+    [activeTrip, travel, toast]
+  );
+
+  const handleDecline = useCallback(
+    async (crId: string, note?: string) => {
+      if (!activeTrip) return false;
+      const ok = await travel.declineChangeRequest(activeTrip.id, crId, note);
+      toast(ok ? { title: "Change declined" } : { title: "Couldn't decline", variant: "error" });
+      return ok;
+    },
+    [activeTrip, travel, toast]
+  );
+
   useEffect(() => {
     if (viewMode !== "overview") window.scrollTo({ top: 0, behavior: "instant" });
   }, [viewMode]);
@@ -1053,7 +1110,8 @@ export default function TravelPage() {
     void travel.deletePayment(activeTrip.id, paymentId);
   };
 
-  const canAddReceipt = (activeTrip?.participants.length ?? 0) >= 2;
+  // Editing pauses for a member while their submitted proposal awaits review.
+  const canAddReceipt = (activeTrip?.participants.length ?? 0) >= 2 && !editingLocked;
 
   // ── Trip name sync on blur ────────────────────────────────────────────────
   const commitName = async () => {
@@ -1386,6 +1444,26 @@ export default function TravelPage() {
 
         {/* ── Trip workspace: overview ── */}
         {activeTrip && viewMode === "overview" && (
+          <div className="space-y-6">
+            {/* Approval workflow: owner review inbox + member proposal status */}
+            {travel.cloudMode && activeRole === "owner" && (
+              <ReviewInbox
+                requests={pendingReviews}
+                tripVersion={activeTrip.version}
+                nameOf={participantNameOf}
+                onApprove={handleApprove}
+                onDecline={handleDecline}
+              />
+            )}
+            {travel.cloudMode && isMemberOfActive && (
+              <ProposalBar
+                proposal={activeProposal}
+                nameOf={participantNameOf}
+                onSubmit={handleSubmitProposal}
+                onDiscard={handleDiscardProposal}
+              />
+            )}
+
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               {/* Trip details + budget */}
@@ -1627,6 +1705,7 @@ export default function TravelPage() {
                 />
               )}
             </div>
+          </div>
           </div>
         )}
 

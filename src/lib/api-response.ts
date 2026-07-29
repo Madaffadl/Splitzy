@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 export type ErrorCode =
   | "UNAUTHORIZED"
   | "FORBIDDEN"
+  | "REVIEW_REQUIRED"
   | "NOT_FOUND"
   | "VALIDATION_FAILED"
   | "VERSION_CONFLICT"
@@ -26,6 +27,7 @@ export type ErrorCode =
 const STATUS: Record<ErrorCode, number> = {
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
+  REVIEW_REQUIRED: 403,
   NOT_FOUND: 404,
   VALIDATION_FAILED: 400,
   VERSION_CONFLICT: 409,

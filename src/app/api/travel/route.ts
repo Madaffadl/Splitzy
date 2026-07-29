@@ -116,6 +116,9 @@ export async function POST(request: NextRequest) {
       members: { create: { userId: user.id, role: "owner" } },
       tripReceipts: {
         create: input.receipts.map((r, i) => ({
+          // Receipt ids are client-generated (row id = receipt.id); required now
+          // that TripReceipt.id has no DB default.
+          id: r.id,
           payload: r as unknown as Prisma.InputJsonValue,
           sortOrder: i,
           createdById: user.id,
