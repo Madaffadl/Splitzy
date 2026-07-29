@@ -5,13 +5,10 @@ import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { applyChangeOps } from "@/lib/apply-change-ops";
+import { buildChangeOpsWrites } from "@/lib/apply-change-ops";
 import type { ChangeOp } from "@/lib/change-ops";
 
 export const runtime = "nodejs";
-
-// Thrown inside the transaction when another reviewer claimed the request first.
-class AlreadyReviewed extends Error {}
 
 // POST /api/travel/[id]/change-requests/[crid]/approve — owner applies the batch.
 export async function POST(
@@ -40,44 +37,51 @@ export async function POST(
 
   const ops = cr.ops as unknown as ChangeOp[];
 
+  // Read the live participant set (approval is last-write-wins: ops are validated
+  // against the trip as it looks NOW, not at submit time).
+  const trip = await prisma.trip.findUnique({ where: { id }, select: { participantsJson: true } });
+  if (!trip) return notFound();
+  const participants = (trip.participantsJson as unknown as { id: string }[] | null) ?? [];
+  const participantIds = new Set(participants.map((p) => p.id));
+
+  // Validate + build the writes up front. An invalid op throws before any DB
+  // call, so a stale/no-longer-applicable request is rejected cleanly (400).
+  let writes;
   try {
-    const newVersion = await prisma.$transaction(async (tx) => {
-      // Re-read the live participant set: approval is last-write-wins, so ops are
-      // validated against whatever the trip looks like NOW, not at submit time.
-      const trip = await tx.trip.findUnique({ where: { id }, select: { participantsJson: true, version: true } });
-      if (!trip) throw new AlreadyReviewed();
-      const participants = (trip.participantsJson as unknown as { id: string }[] | null) ?? [];
-      const participantIds = new Set(participants.map((p) => p.id));
-
-      await applyChangeOps(tx, id, ops, cr.authorId, participantIds);
-
-      // Bump the trip version once so members' optimistic-lock reads stay correct.
-      await tx.trip.update({ where: { id }, data: { version: { increment: 1 } } });
-
-      // Atomically claim the request: if it's no longer pending, another reviewer
-      // beat us — throw to roll back everything applied above.
-      const claim = await tx.tripChangeRequest.updateMany({
-        where: { id: crid, status: "pending" },
-        data: { status: "approved", reviewedById: user.id, reviewedAt: new Date() },
-      });
-      if (claim.count === 0) throw new AlreadyReviewed();
-
-      return trip.version + 1;
-    });
-
-    return NextResponse.json({ ok: true, status: "approved", version: newVersion });
+    writes = buildChangeOpsWrites(id, ops, cr.authorId, participantIds);
   } catch (err) {
-    if (err instanceof AlreadyReviewed) {
-      return apiError("BAD_REQUEST", "This change request was already reviewed.");
-    }
     if (err instanceof ValidationError) {
-      // The trip changed since the proposal and it no longer applies cleanly.
       const { body, status } = validationErrorResponse(err);
       return NextResponse.json(
         { ...body, error: `Can't apply — the trip changed and this request no longer fits (${body.error}). Ask the member to resubmit.` },
         { status }
       );
     }
+    return apiError("BAD_REQUEST", "Invalid change request");
+  }
+
+  try {
+    // Array-form transaction (PgBouncer-safe): apply every op, bump the trip
+    // version, and claim the request — atomically. The claim's `status: pending`
+    // guard makes a concurrent double-approve a no-op on the second caller.
+    const results = await prisma.$transaction([
+      ...writes,
+      prisma.trip.update({ where: { id }, data: { version: { increment: 1 } }, select: { version: true } }),
+      prisma.tripChangeRequest.updateMany({
+        where: { id: crid, status: "pending" },
+        data: { status: "approved", reviewedById: user.id, reviewedAt: new Date() },
+      }),
+    ]);
+
+    const versionRow = results[results.length - 2] as { version: number };
+    const claim = results[results.length - 1] as { count: number };
+    if (claim.count === 0) {
+      // Another reviewer claimed it first; our writes were idempotent upserts.
+      return apiError("BAD_REQUEST", "This change request was already reviewed.");
+    }
+
+    return NextResponse.json({ ok: true, status: "approved", version: versionRow.version });
+  } catch (err) {
     console.error("[change-requests approve] failed:", err);
     return apiError("INTERNAL_ERROR", "Failed to apply the change request.");
   }

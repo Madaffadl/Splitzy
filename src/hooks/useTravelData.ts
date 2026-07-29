@@ -873,14 +873,15 @@ export function useTravelData() {
   const approveChangeRequest = useCallback(
     async (tripId: string, crId: string): Promise<boolean> => {
       const res = await trackedFetch(`/api/travel/${tripId}/change-requests/${crId}/approve`, { method: "POST" });
-      if (res && res.ok) {
-        setChangeRequests((prev) => ({ ...prev, [tripId]: (prev[tripId] ?? []).filter((c) => c.id !== crId) }));
-        await loadCloud();
-        return true;
-      }
-      return false;
+      const ok = !!(res && res.ok);
+      // Resync regardless of the reported outcome: on the Supabase pooler an
+      // approve can commit yet surface an error, so always reconcile the inbox +
+      // trip state with server truth (avoids stale-version conflict cascades).
+      await loadChangeRequests(tripId);
+      await loadCloud();
+      return ok;
     },
-    [trackedFetch, loadCloud]
+    [trackedFetch, loadCloud, loadChangeRequests]
   );
 
   const declineChangeRequest = useCallback(
