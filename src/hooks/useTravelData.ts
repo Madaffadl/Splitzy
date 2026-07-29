@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { TravelTrip, Receipt, Participant, TripPayment } from "@/types";
@@ -17,6 +17,12 @@ import {
 } from "@/lib/travel-sync";
 import { mergePrefs } from "@/lib/trip-prefs";
 import { ReceiptOp, pushOp, removeOp, replayOps } from "@/lib/travel-outbox";
+import {
+  ChangeOp,
+  TripProposal,
+  TripChangeRequestDTO,
+  applyOpsToTrip,
+} from "@/lib/change-ops";
 
 export interface TravelStore {
   trips: TravelTrip[];
@@ -32,6 +38,10 @@ const DEFAULT: TravelStore = { trips: [], activeId: null };
 // OUTBOX = receipt writes not yet synced to the server.
 export const MIRROR_KEY = "splitzy-travel-mirror";
 export const OUTBOX_KEY = "splitzy-travel-outbox";
+// PROPOSALS = a member's local edit buffers (per trip) awaiting owner review.
+// Members never write the trip directly; their edits accumulate here and are
+// submitted as change requests. Keyed per-account like the mirror/outbox.
+export const PROPOSALS_KEY = "splitzy-travel-proposals";
 
 function readScoped<T>(key: string, uid: string): T | null {
   if (typeof window === "undefined") return null;
@@ -118,6 +128,25 @@ export function useTravelData() {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
 
+  // ── Member proposal buffers + owner review inbox ───────────────────────────
+  // proposals: this member's local edits per trip (draft = editable, submitted =
+  //   awaiting review). Persisted per-account and overlaid on the server trip so
+  //   the member sees their own pending changes.
+  // changeRequests: pending requests for trips the current user OWNS (the inbox).
+  const [proposals, setProposals] = useState<Record<string, TripProposal>>({});
+  const proposalsRef = useRef<Record<string, TripProposal>>({});
+  const [changeRequests, setChangeRequests] = useState<Record<string, TripChangeRequestDTO[]>>({});
+  const proposalsHydratedRef = useRef(false);
+
+  const commitProposals = useCallback(
+    (next: Record<string, TripProposal>) => {
+      proposalsRef.current = next;
+      setProposals(next);
+      if (uid) writeScoped(PROPOSALS_KEY, uid, next);
+    },
+    [uid]
+  );
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   const setCloudTrips = useCallback(
     (updater: TravelTrip[] | ((prev: TravelTrip[]) => TravelTrip[])) => {
@@ -128,6 +157,40 @@ export function useTravelData() {
       });
     },
     []
+  );
+
+  // The current user's role on a trip. The owner is stored as a member with
+  // role "owner"; anyone else with access is a "member". Defaults to owner when
+  // membership is unknown (e.g. a just-created trip) so owner behaviour is the
+  // safe fallback and never accidentally gated.
+  const roleForTrip = useCallback(
+    (trip: TravelTrip | undefined): "owner" | "member" => {
+      if (!trip || !uid) return "owner";
+      const me = trip.members?.find((m) => m.userId === uid);
+      return me?.role === "member" ? "member" : "owner";
+    },
+    [uid]
+  );
+
+  // Append one op to a trip's draft proposal (member write path). A no-op while a
+  // proposal is already submitted — the UI disables editing until it's reviewed.
+  const appendOp = useCallback(
+    (tripId: string, op: ChangeOp) => {
+      const prev = proposalsRef.current;
+      const existing = prev[tripId];
+      if (existing?.status === "submitted") return; // locked pending review
+      const baseVersion = cloudRef.current.find((t) => t.id === tripId)?.version;
+      const next: TripProposal = {
+        tripId,
+        ops: [...(existing?.ops ?? []), op],
+        status: "draft",
+        baseVersion,
+        note: existing?.note,
+        updatedAt: new Date().toISOString(),
+      };
+      commitProposals({ ...prev, [tripId]: next });
+    },
+    [commitProposals]
   );
 
   // ── Cloud load ────────────────────────────────────────────────────────────
@@ -275,10 +338,17 @@ export function useTravelData() {
       while (outboxRef.current.length > 0) {
         if (typeof navigator !== "undefined" && !navigator.onLine) break;
         const op = outboxRef.current[0];
-        const outcome = await enqueue(op.tripId, async (): Promise<"ok" | "network" | "permanent"> => {
+        const outcome = await enqueue(op.tripId, async (): Promise<"ok" | "network" | "permanent" | "review"> => {
           const res = await sendOp(op);
           if (res && res.ok) return "ok";
           if (res) {
+            // The trip now requires member changes to go through review (the user
+            // was demoted to member, or an in-flight op predates that rule). Don't
+            // drop it — migrate it into the member's proposal buffer instead.
+            if (res.status === 403) {
+              const code = await res.clone().json().then((b) => b?.code).catch(() => undefined);
+              if (code === "REVIEW_REQUIRED") return "review";
+            }
             // 5xx and 429 are transient (server error / rate limit) — keep the op
             // queued and retry later. Only discard on 4xx client errors (the op is
             // structurally invalid and retrying will never succeed).
@@ -288,6 +358,13 @@ export function useTravelData() {
           return "network"; // offline / fetch threw
         });
         if (outcome === "ok") {
+          outboxRef.current = removeOp(outboxRef.current, op.opId);
+          persistOutbox();
+        } else if (outcome === "review") {
+          // Convert the unsynced receipt write into a pending proposal op.
+          if (op.kind === "add") appendOp(op.tripId, { kind: "receipt.add", receipt: op.receipt });
+          else if (op.kind === "update") appendOp(op.tripId, { kind: "receipt.update", receipt: op.receipt });
+          else appendOp(op.tripId, { kind: "receipt.delete", receiptId: op.receiptId });
           outboxRef.current = removeOp(outboxRef.current, op.opId);
           persistOutbox();
         } else if (outcome === "permanent") {
@@ -303,7 +380,7 @@ export function useTravelData() {
     } finally {
       drainingRef.current = false;
     }
-  }, [isAuthenticated, enqueue, sendOp, persistOutbox, loadCloud]);
+  }, [isAuthenticated, enqueue, sendOp, persistOutbox, loadCloud, appendOp]);
 
   // Keep the ref that loadCloud calls pointed at the latest drainOutbox.
   useEffect(() => {
@@ -348,6 +425,16 @@ export function useTravelData() {
     if (isAuthenticated && uid && hydratedRef.current) writeScoped(MIRROR_KEY, uid, cloudTrips);
   }, [cloudTrips, isAuthenticated, uid]);
 
+  // Hydrate the member's proposal buffers once the account key is known, so
+  // pending (draft/submitted) edits survive a reload.
+  useEffect(() => {
+    if (!isAuthenticated || !uid || proposalsHydratedRef.current) return;
+    proposalsHydratedRef.current = true;
+    const stored = readScoped<Record<string, TripProposal>>(PROPOSALS_KEY, uid) ?? {};
+    proposalsRef.current = stored;
+    setProposals(stored);
+  }, [isAuthenticated, uid]);
+
   // Track connectivity and flush the outbox the moment we're back online.
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -381,11 +468,25 @@ export function useTravelData() {
       setPendingSync(0);
       setCloudTrips([]);
       setCloudLoaded(false);
+      proposalsHydratedRef.current = false;
+      proposalsRef.current = {};
+      setProposals({});
+      setChangeRequests({});
     }
   }, [isAuthenticated, setCloudTrips]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
-  const trips = isAuthenticated ? cloudTrips : (local.trips ?? []);
+  // Members see their pending (draft/submitted) edits overlaid on the server
+  // truth; owners and guests see state as-is.
+  const trips = useMemo(() => {
+    if (!isAuthenticated) return local.trips ?? [];
+    if (Object.keys(proposals).length === 0) return cloudTrips;
+    return cloudTrips.map((t) => {
+      const prop = proposals[t.id];
+      if (!prop || prop.ops.length === 0 || roleForTrip(t) !== "member") return t;
+      return applyOpsToTrip(t, prop.ops);
+    });
+  }, [isAuthenticated, local.trips, cloudTrips, proposals, roleForTrip]);
   const activeId = isAuthenticated ? cloudActiveId : local.activeId;
   const isLoading = authLoading || (isAuthenticated && !cloudLoaded);
 
@@ -433,6 +534,37 @@ export function useTravelData() {
   const updateTrip = useCallback(
     async (id: string, updates: Partial<Omit<TravelTrip, "id">>) => {
       if (isAuthenticated) {
+        const trip = cloudRef.current.find((t) => t.id === id);
+        if (roleForTrip(trip) === "member") {
+          // Route the edit into the member's proposal as one or more ops.
+          if ("name" in updates || "budget" in updates) {
+            const op: Extract<ChangeOp, { kind: "trip.update" }> = { kind: "trip.update" };
+            if ("name" in updates && typeof updates.name === "string") op.name = updates.name;
+            if ("budget" in updates) op.budget = updates.budget ?? null;
+            if (op.name !== undefined || op.budget !== undefined) appendOp(id, op);
+          }
+          if ("participants" in updates && updates.participants) {
+            appendOp(id, { kind: "participants.set", participants: updates.participants });
+          }
+          if ("receipts" in updates && updates.receipts && trip) {
+            // A participant edit can reassign/remove receipts; emit minimal ops by
+            // diffing the passed list against the member's current overlaid view.
+            const view = applyOpsToTrip(trip, proposalsRef.current[id]?.ops ?? []);
+            const nextById = new Map(updates.receipts.map((r) => [r.id, r]));
+            for (const r of updates.receipts) {
+              const before = view.receipts.find((x) => x.id === r.id);
+              if (!before || JSON.stringify(before) !== JSON.stringify(r)) {
+                appendOp(id, { kind: "receipt.update", receipt: r });
+              }
+            }
+            for (const before of view.receipts) {
+              if (!nextById.has(before.id)) {
+                appendOp(id, { kind: "receipt.delete", receiptId: before.id, title: before.title });
+              }
+            }
+          }
+          return;
+        }
         // Apply optimistic update immediately so the UI responds without waiting
         // for the network (preserves snappy feel even under queued saves).
         setCloudTrips((prev) =>
@@ -475,7 +607,7 @@ export function useTravelData() {
         }));
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, enqueue]
+    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, enqueue, roleForTrip, appendOp]
   );
 
   const deleteTrip = useCallback(
@@ -519,6 +651,11 @@ export function useTravelData() {
   const addReceipt = useCallback(
     async (tripId: string, receipt: Receipt): Promise<boolean> => {
       if (isAuthenticated) {
+        const trip = cloudRef.current.find((t) => t.id === tripId);
+        if (roleForTrip(trip) === "member") {
+          appendOp(tripId, { kind: "receipt.add", receipt });
+          return true;
+        }
         setCloudTrips((prev) => addReceiptToTrips(prev, tripId, receipt));
         outboxRef.current = pushOp(outboxRef.current, { opId: generateId(), kind: "add", tripId, receipt });
         persistOutbox();
@@ -529,12 +666,17 @@ export function useTravelData() {
         return true;
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox]
+    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox, roleForTrip, appendOp]
   );
 
   const updateReceipt = useCallback(
     async (tripId: string, receipt: Receipt): Promise<boolean> => {
       if (isAuthenticated) {
+        const trip = cloudRef.current.find((t) => t.id === tripId);
+        if (roleForTrip(trip) === "member") {
+          appendOp(tripId, { kind: "receipt.update", receipt });
+          return true;
+        }
         setCloudTrips((prev) => replaceReceiptInTrips(prev, tripId, receipt));
         outboxRef.current = pushOp(outboxRef.current, { opId: generateId(), kind: "update", tripId, receipt });
         persistOutbox();
@@ -545,12 +687,25 @@ export function useTravelData() {
         return true;
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox]
+    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox, roleForTrip, appendOp]
   );
 
   const deleteReceipt = useCallback(
     async (tripId: string, receiptId: string): Promise<boolean> => {
       if (isAuthenticated) {
+        const trip = cloudRef.current.find((t) => t.id === tripId);
+        if (roleForTrip(trip) === "member") {
+          // Capture the title now (best-effort) so the diff can name a receipt
+          // that will no longer exist server-side by review time.
+          const draftOps = proposalsRef.current[tripId]?.ops ?? [];
+          const fromDraft = draftOps
+            .filter((o) => o.kind === "receipt.add" || o.kind === "receipt.update")
+            .map((o) => (o as { receipt: Receipt }).receipt)
+            .find((r) => r.id === receiptId);
+          const title = (fromDraft ?? trip?.receipts.find((r) => r.id === receiptId))?.title;
+          appendOp(tripId, { kind: "receipt.delete", receiptId, ...(title ? { title } : {}) });
+          return true;
+        }
         setCloudTrips((prev) => removeReceiptFromTrips(prev, tripId, receiptId));
         outboxRef.current = pushOp(outboxRef.current, { opId: generateId(), kind: "delete", tripId, receiptId });
         persistOutbox();
@@ -561,7 +716,7 @@ export function useTravelData() {
         return true;
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox]
+    [isAuthenticated, setCloudTrips, setLocal, persistOutbox, drainOutbox, roleForTrip, appendOp]
   );
 
   // ── Mutations: settle-up payments ─────────────────────────────────────────
@@ -574,6 +729,11 @@ export function useTravelData() {
       };
 
       if (isAuthenticated) {
+        const trip = cloudRef.current.find((t) => t.id === tripId);
+        if (roleForTrip(trip) === "member") {
+          appendOp(tripId, { kind: "payment.add", payment: input });
+          return;
+        }
         setCloudTrips((prev) => addPaymentToTrips(prev, tripId, optimistic));
         const res = await trackedFetch(`/api/travel/${tripId}/payments`, {
           method: "POST",
@@ -591,19 +751,30 @@ export function useTravelData() {
         setLocal((prev) => ({ ...prev, trips: addPaymentToTrips(prev.trips, tripId, optimistic) }));
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
+    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, roleForTrip, appendOp]
   );
 
   const deletePayment = useCallback(
     async (tripId: string, paymentId: string) => {
       if (isAuthenticated) {
+        const trip = cloudRef.current.find((t) => t.id === tripId);
+        if (roleForTrip(trip) === "member") {
+          const label = (() => {
+            const p = trip?.payments?.find((x) => x.id === paymentId);
+            if (!p) return undefined;
+            const name = (id: string) => trip?.participants.find((x) => x.id === id)?.name ?? "?";
+            return `${name(p.from)} → ${name(p.to)}`;
+          })();
+          appendOp(tripId, { kind: "payment.delete", paymentId, ...(label ? { label } : {}) });
+          return;
+        }
         setCloudTrips((prev) => removePaymentFromTrips(prev, tripId, paymentId));
         await trackedFetch(`/api/travel/${tripId}/payments/${paymentId}`, { method: "DELETE" });
       } else {
         setLocal((prev) => ({ ...prev, trips: removePaymentFromTrips(prev.trips, tripId, paymentId) }));
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
+    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, roleForTrip, appendOp]
   );
 
   // ── Participant helpers (used by travel/page.tsx) ─────────────────────────
@@ -615,6 +786,135 @@ export function useTravelData() {
     },
     [updateTrip]
   );
+
+  // ── Change requests: member submit + owner review ─────────────────────────
+  const roleOf = useCallback(
+    (tripId: string) => roleForTrip(cloudRef.current.find((t) => t.id === tripId)),
+    [roleForTrip]
+  );
+
+  // Submit a member's draft proposal for one trip as a single change request.
+  const submitChangeRequest = useCallback(
+    async (tripId: string, note?: string): Promise<boolean> => {
+      const prop = proposalsRef.current[tripId];
+      if (!prop || prop.ops.length === 0 || prop.status === "submitted") return false;
+      const baseVersion = cloudRef.current.find((t) => t.id === tripId)?.version ?? prop.baseVersion;
+      const res = await trackedFetch(`/api/travel/${tripId}/change-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ops: prop.ops, note, baseVersion }),
+      });
+      if (res && res.ok) {
+        const created = (await res.json()) as TripChangeRequestDTO;
+        commitProposals({
+          ...proposalsRef.current,
+          [tripId]: { ...prop, status: "submitted", crId: created.id, baseVersion, note, reviewNote: undefined },
+        });
+        return true;
+      }
+      return false;
+    },
+    [trackedFetch, commitProposals]
+  );
+
+  // Discard a member's local draft (or a declined proposal) for a trip.
+  const discardProposal = useCallback(
+    (tripId: string) => {
+      const next = { ...proposalsRef.current };
+      delete next[tripId];
+      commitProposals(next);
+    },
+    [commitProposals]
+  );
+
+  // Reconcile submitted proposals with the server: clear on approve (ops are now
+  // canonical), revert to an editable draft carrying the owner's note on decline.
+  const reconcileProposals = useCallback(async () => {
+    const pending = Object.values(proposalsRef.current).filter((p) => p.status === "submitted" && p.crId);
+    for (const p of pending) {
+      try {
+        const res = await fetch(`/api/travel/${p.tripId}/change-requests?status=all`);
+        if (!res.ok) continue;
+        const { changeRequests: list } = (await res.json()) as { changeRequests: TripChangeRequestDTO[] };
+        const cr = list.find((c) => c.id === p.crId);
+        if (!cr || cr.status === "pending") continue;
+        if (cr.status === "approved") {
+          const next = { ...proposalsRef.current };
+          delete next[p.tripId];
+          commitProposals(next);
+          void loadCloud();
+        } else if (cr.status === "declined") {
+          const cur = proposalsRef.current[p.tripId];
+          if (cur) {
+            commitProposals({
+              ...proposalsRef.current,
+              [p.tripId]: { ...cur, status: "draft", reviewNote: cr.reviewNote ?? undefined },
+            });
+          }
+        }
+      } catch {
+        // offline / transient — try again on the next reconcile
+      }
+    }
+  }, [commitProposals, loadCloud]);
+
+  // Owner: load pending change requests for a trip (the review inbox).
+  const loadChangeRequests = useCallback(async (tripId: string) => {
+    try {
+      const res = await fetch(`/api/travel/${tripId}/change-requests?status=pending`);
+      if (!res.ok) return;
+      const { changeRequests: list } = (await res.json()) as { changeRequests: TripChangeRequestDTO[] };
+      setChangeRequests((prev) => ({ ...prev, [tripId]: list }));
+    } catch {
+      // ignore — inbox stays at its last-known value
+    }
+  }, []);
+
+  const approveChangeRequest = useCallback(
+    async (tripId: string, crId: string): Promise<boolean> => {
+      const res = await trackedFetch(`/api/travel/${tripId}/change-requests/${crId}/approve`, { method: "POST" });
+      if (res && res.ok) {
+        setChangeRequests((prev) => ({ ...prev, [tripId]: (prev[tripId] ?? []).filter((c) => c.id !== crId) }));
+        await loadCloud();
+        return true;
+      }
+      return false;
+    },
+    [trackedFetch, loadCloud]
+  );
+
+  const declineChangeRequest = useCallback(
+    async (tripId: string, crId: string, reviewNote?: string): Promise<boolean> => {
+      const res = await trackedFetch(`/api/travel/${tripId}/change-requests/${crId}/decline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewNote }),
+      });
+      if (res && res.ok) {
+        setChangeRequests((prev) => ({ ...prev, [tripId]: (prev[tripId] ?? []).filter((c) => c.id !== crId) }));
+        return true;
+      }
+      return false;
+    },
+    [trackedFetch]
+  );
+
+  // Reconcile the member's submitted proposals once the cloud is loaded, and
+  // whenever the tab regains focus (an approval/decline may have happened).
+  useEffect(() => {
+    if (!isAuthenticated || !cloudLoaded) return;
+    void reconcileProposals();
+    const onFocus = () => void reconcileProposals();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [isAuthenticated, cloudLoaded, reconcileProposals]);
+
+  // Owner: auto-load the review inbox for the active trip.
+  useEffect(() => {
+    if (!isAuthenticated || !cloudActiveId) return;
+    if (roleOf(cloudActiveId) !== "owner") return;
+    void loadChangeRequests(cloudActiveId);
+  }, [isAuthenticated, cloudActiveId, roleOf, loadChangeRequests]);
 
   // ── Guest → cloud sync ────────────────────────────────────────────────────
   // POST every local trip in parallel, then build cloud state directly from the
@@ -723,5 +1023,17 @@ export function useTravelData() {
     // and whether the browser is currently online.
     pendingSync: pendingSync > 0,
     isOnline,
+    // ── Approval workflow (cloud collaboration) ──────────────────────────────
+    // roleOf: the current user's role on a trip ("owner" | "member").
+    // proposals: members' local edit buffers per trip (draft/submitted).
+    // changeRequests: pending requests per trip the user owns (review inbox).
+    roleOf,
+    proposals,
+    changeRequests,
+    submitChangeRequest,
+    discardProposal,
+    loadChangeRequests,
+    approveChangeRequest,
+    declineChangeRequest,
   };
 }

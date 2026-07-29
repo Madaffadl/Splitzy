@@ -4,6 +4,7 @@
 
 import { ValidationError, validateParticipantsJson, ValidatedParticipant } from "@/lib/validation";
 import { validateSharedReceipts, SharedReceipt } from "@/lib/shared-summary";
+import { ChangeOp, MAX_CHANGE_OPS } from "@/lib/change-ops";
 
 const MAX_TRIP_NAME = 200;
 const MAX_BUDGET = 1_000_000_000_000; // 1 trillion rupiah ceiling (abuse guard)
@@ -131,4 +132,82 @@ export function validateTripPaymentInput(
     ...(note ? { note } : {}),
     ...(source ? { source } : {}),
   };
+}
+
+/**
+ * Validate a member's submitted change-request batch (untrusted body). Ops are
+ * validated in order against a *working* participant set that starts from the
+ * trip's current participants and is replaced by any `participants.set` op — so
+ * a member can add a participant and reference them in a later receipt within
+ * the same batch. Throws ValidationError on the first invalid op.
+ */
+export function validateChangeOps(
+  raw: unknown,
+  initialParticipantIds: Set<string>
+): ChangeOp[] {
+  if (!Array.isArray(raw)) throw new ValidationError("ops", "must be an array");
+  if (raw.length === 0) throw new ValidationError("ops", "must contain at least one change");
+  if (raw.length > MAX_CHANGE_OPS) throw new ValidationError("ops", `too many changes (max ${MAX_CHANGE_OPS})`);
+
+  let participantIds = new Set(initialParticipantIds);
+  const out: ChangeOp[] = [];
+
+  for (const item of raw) {
+    if (!item || typeof item !== "object") throw new ValidationError("ops", "each change must be an object");
+    const rec = item as Record<string, unknown>;
+    const kind = rec.kind;
+
+    switch (kind) {
+      case "receipt.add":
+      case "receipt.update": {
+        const receipt = validateTripReceiptPayload(rec.receipt, participantIds);
+        out.push({ kind, receipt });
+        break;
+      }
+      case "receipt.delete": {
+        if (typeof rec.receiptId !== "string" || !rec.receiptId) {
+          throw new ValidationError("ops.receiptId", "is required");
+        }
+        const title = typeof rec.title === "string" ? rec.title.slice(0, 200) : undefined;
+        out.push({ kind, receiptId: rec.receiptId, ...(title ? { title } : {}) });
+        break;
+      }
+      case "participants.set": {
+        const participants = validateParticipantsJson(rec.participants, "participants") ?? [];
+        participantIds = new Set(participants.map((p) => p.id));
+        out.push({ kind, participants });
+        break;
+      }
+      case "trip.update": {
+        const op: Extract<ChangeOp, { kind: "trip.update" }> = { kind };
+        if ("name" in rec) {
+          const n = typeof rec.name === "string" ? rec.name.trim().slice(0, MAX_TRIP_NAME) : "";
+          if (n) op.name = n;
+        }
+        if ("budget" in rec) op.budget = validateBudget(rec.budget) ?? null;
+        if (op.name === undefined && op.budget === undefined) {
+          throw new ValidationError("ops", "trip.update must change name or budget");
+        }
+        out.push(op);
+        break;
+      }
+      case "payment.add": {
+        const payment = validateTripPaymentInput(rec.payment, participantIds);
+        out.push({ kind, payment });
+        break;
+      }
+      case "payment.delete": {
+        if (typeof rec.paymentId !== "string" || !rec.paymentId) {
+          throw new ValidationError("ops.paymentId", "is required");
+        }
+        const label = typeof rec.label === "string" ? rec.label.slice(0, 200) : undefined;
+        out.push({ kind, paymentId: rec.paymentId, ...(label ? { label } : {}) });
+        break;
+      }
+      default:
+        throw new ValidationError("ops.kind", "unknown change kind");
+    }
+  }
+
+  return out;
 }

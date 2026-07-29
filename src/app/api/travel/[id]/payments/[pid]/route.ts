@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api-auth";
-import { getTripAccess } from "@/lib/trip-access";
+import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -21,6 +21,8 @@ export async function DELETE(
 
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();
+  const gate = requireOwnerWrite(access);
+  if (gate) return gate;
 
   const result = await prisma.tripPayment.deleteMany({ where: { id: pid, tripId: id } });
   if (result.count === 0) return notFound();
