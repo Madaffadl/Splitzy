@@ -1,14 +1,18 @@
 # Splitzy — Product Transformation Plan & Execution Playbook
 
-> **Dokumen Resmi Internal** · Versi 1.0 · 13 Juli 2026
+> **Dokumen Resmi Internal** · Versi 1.1 · 30 Juli 2026
 > Status: **Draft untuk Review Tim** · Klasifikasi: Internal
 > Pemilik Dokumen: Chief Product Officer · Kontributor: Product, Engineering, Design, Growth
 > Sumber: Hasil Audit Produk Menyeluruh (lihat **Lampiran A**)
+
+> [!NOTE]
+> **Versi 1.1 — Rekonsiliasi dengan `main` (30 Juli 2026).** Dokumen ini telah disinkronkan ulang terhadap kondisi kode `main` terkini setelah beberapa update dirilis (change-request approval, activity log, travel outbox). Lihat **Bab 0 — Changelog & Rekonsiliasi** untuk delta lengkap. Ringkasan: fondasi rekayasa **menguat** (kolaborasi & offline-sync kelas produksi), namun **seluruh 10 item eksistensial/Critical dari audit v1.0 masih terbuka** — roadmap inti tidak berubah.
 
 ---
 
 ## Daftar Isi
 
+0. [Changelog & Rekonsiliasi dengan Main](#0-changelog--rekonsiliasi-dengan-main)
 1. [Executive Summary](#1-executive-summary)
 2. [Product Vision](#2-product-vision)
 3. [Ringkasan Hasil Audit](#3-ringkasan-hasil-audit)
@@ -33,24 +37,98 @@
 
 ---
 
+# 0. Changelog & Rekonsiliasi dengan Main
+
+> Bagian ini merekonsiliasi Transformation Plan v1.0 (13 Juli 2026) dengan kondisi aktual branch `main` pada 30 Juli 2026, berdasarkan re-audit kode langsung. Tujuannya: memastikan dokumen mencerminkan realitas, bukan snapshot lama.
+
+## 0.1 Ringkasan Perubahan Versi
+
+| Versi | Tanggal | Perubahan |
+|---|---|---|
+| 1.0 | 13 Jul 2026 | Dokumen awal berbasis audit produk menyeluruh. |
+| **1.1** | **30 Jul 2026** | **Rekonsiliasi dengan `main`: dokumentasi 3 fitur baru, update ERD/DB (2 model baru), penyesuaian skor audit Backend/Architecture, klarifikasi celah Analytics, penyelarasan status task.** |
+
+## 0.2 Fitur Baru di `main` (dibangun setelah audit v1.0)
+
+> [!IMPORTANT]
+> Ketiga fitur ini adalah **rekayasa kelas produksi** dan memperkuat skor Architecture & Backend. Namun tidak satu pun menutup 10 item Critical audit — keduanya adalah jalur kerja yang berbeda.
+
+### 0.2.1 Change-Request Approval Workflow (PR-style collaboration) ✅ Selesai
+- **Apa:** Member trip (non-owner) tidak menulis trip secara langsung. Perubahan mereka dibuffer sebagai batch `ChangeOp[]` terurut (maks 200 op) lalu diajukan sebagai satu `TripChangeRequest`. Owner me-review, lalu **approve/decline**.
+- **Kualitas rekayasa:** Validasi ulang ops terhadap participant set **saat approve** (bukan saat submit); transaksi Prisma **array-form** (sengaja, karena pooler PgBouncer transaction-mode kadang melaporkan kegagalan palsu pada interactive transaction); klaim atomik (`updateMany where status:"pending"`) sehingga double-approve = no-op; peringatan staleness saat `baseVersion !== tripVersion`.
+- **Model baru:** `TripChangeRequest`. Rute baru: `POST /change-requests`, `.../approve`, `.../decline`. Komponen: `ChangeRequests.tsx` (ReviewInbox).
+- **Dampak pada dokumen:** Memperkuat **UX kolaborasi Travel** (sebelumnya audit menandai konflik 409 sebagai UX-hostile). Ini adalah mitigasi parsial yang baik; **Realtime (T-34) tetap relevan** untuk kesadaran live, tetapi prioritasnya turun karena workflow approval sudah menutup kasus korupsi konkuren.
+
+### 0.2.2 Travel Outbox (offline-first optimistic sync) ✅ Selesai
+- **Apa:** Antrian outbox lokal-durable untuk write receipt Travel. Receipt add/update/delete diterapkan ke mirror lokal seketika, dicatat sebagai `ReceiptOp` pending di localStorage (tahan reload), lalu di-drain ke server saat online. Coalescing op (add→update tetap "add"; add→delete yang belum sync saling meniadakan); replay idempoten via client-generated ID + upsert.
+- **Dampak pada dokumen:** Ini adalah **aset fondasi** untuk **Unified State Layer (T-33)**. Rencana refactor state **wajib membangun di atas outbox ini, bukan menggantinya**. Nilai "offline mode" yang tadinya masuk v2.0 sebagian sudah tercapai untuk Travel receipts.
+
+### 0.2.3 Activity Log (admin monitoring) ⚠️ Selesai — TAPI bukan Product Analytics
+- **Apa:** Satu baris per aksi bermakna yang selesai, per user login. Model `ActivityEvent` + kolom `User.lastLoginAt`. Beacon `POST /api/activity` dengan allowlist tipe (`split.created`, `share.created`, `receipt.added`); login dicatat server-side. Konsumen: `GET /api/admin/activity` (feed & agregat distinct-user per hari).
+- **Batasan kritis:** Event **dideduplikasi sekali-per-fitur-per-sesi-browser** via sessionStorage. Sepuluh receipt di Multiple = satu event "pakai Multiple hari ini". Ini bagus untuk pertanyaan operator ("siapa aktif hari ini"), tetapi **tidak dapat mengukur funnel, volume, konversi, atau retensi**.
+- **Dampak pada dokumen:** **Celah Analytics (T-20) TETAP TERBUKA.** Activity log ≠ product analytics. Yang dibutuhkan roadmap adalah event funnel (signup→split→settle) tanpa dedup sesi, dengan properti event — biasanya PostHog. Namun `lastLoginAt` + infrastruktur beacon dapat **dipakai ulang** sebagai titik awal instrumentasi.
+
+## 0.3 Status Item Critical/High Audit v1.0 (verifikasi ulang terhadap `main`)
+
+| Item | Status di `main` (30 Jul) | Catatan |
+|---|---|---|
+| T-01 Distributed rate limit | ❌ **Masih terbuka** | Tetap in-memory `Map`, per-instance. Komentar kode: `TODO(Sprint 2): swap to shared-store`. **P0 belum ditutup.** |
+| T-02 Security headers | ❌ **Masih terbuka** | `next.config.mjs` hanya set `turbopack.root` + `images.remotePatterns`. Tidak ada CSP/HSTS/X-Frame. |
+| T-03 Hapus data pribadi footer | ❌ **Masih terbuka** | WA `+62 853-6536-0955`, IG pribadi, Gmail pribadi masih ada di footer. |
+| T-04 Hapus email admin hardcoded | ❌ **Masih terbuka** | `admin-auth.ts` masih fallback ke `m.daffafadhil26@gmail.com`. |
+| T-05–07 Stripe/pricing/paywall | ❌ **Masih terbuka** | Tidak ada payment processor. `plan`/`aiScanCount` = hook inert. |
+| T-09 Dashboard pasca-login | ❌ **Masih terbuka** | Tidak ada route `dashboard`/`app`. Pasca-login tetap landing + `/history`. |
+| T-14 RSC landing | ❌ **Masih terbuka** | `page.tsx` masih `"use client"` seluruhnya. |
+| T-19 Sentry | ❌ **Masih terbuka** | Tidak ada error monitoring apa pun. |
+| T-20 Analytics | ⚠️ **Parsial** | Activity log = monitoring admin, bukan funnel analytics. Lihat 0.2.3. |
+| T-21 CI/CD | ❌ **Masih terbuka** | Tidak ada `.github/workflows`. |
+| T-22 E2E | ❌ **Masih terbuka** | Hanya 9 unit test `lib/`; tidak ada Playwright; rute API baru (change-request, activity) tak teruji. |
+| T-25 Konsolidasi migrasi | ❌ **Memburuk** | Bertambah 2 SQL manual baru (`2026-07-add-activity-log.sql`, `2026-07-add-trip-change-requests.sql`) dijalankan via Supabase SQL editor. Schema drift meluas. |
+| T-39 Rename proxy.ts | ❌ **Masih terbuka** | Tetap `src/proxy.ts`, tidak ada `middleware.ts`. |
+
+## 0.4 Revisi Skor Audit
+
+| Dimensi | Skor v1.0 | Skor v1.1 | Alasan |
+|---|---|---|---|
+| Architecture | 5/10 | **6/10** | Outbox offline-first & change-op transaction design menaikkan kualitas arsitektur inti. |
+| Backend | 6/10 | **6/10** | Change-request routes solid, tapi celah operasional (cache/queue/monitoring) belum berubah. |
+| Engineering | 6/10 | **6/10** | Kualitas naik, tapi utang uji (rute baru tak teruji) menyeimbangkan. |
+| Analytics | (High gap) | (Tetap gap) | Activity log tidak memenuhi kebutuhan funnel analytics. |
+| **Overall** | **41/100** | **43/100** | Kenaikan tipis dari kualitas rekayasa fitur baru; item eksistensial belum tersentuh. |
+
+## 0.5 Implikasi terhadap Roadmap
+
+1. **Sprint 1 tidak berubah** — item Critical (rate limit, headers, footer, admin email) semuanya masih terbuka dan tetap prioritas #1.
+2. **T-34 (Realtime) prioritas turun** dari 🟡 Medium menjadi 🟢 Low — change-request workflow sudah menutup kasus korupsi konkuren; realtime kini murni peningkatan UX, bukan koreksi.
+3. **T-33 (Unified State Layer) harus membangun di atas travel-outbox** — bukan menggantinya. Tambahkan sebagai constraint desain.
+4. **T-20 (Analytics) diperjelas** — bukan "belum ada instrumentasi" melainkan "instrumentasi ada untuk monitoring, perlu dilengkapi lapisan funnel analytics". Manfaatkan beacon & `lastLoginAt` yang sudah ada.
+5. **T-23 (Normalisasi DB) bertambah cakupan** — kini juga harus mempertimbangkan `TripChangeRequest.ops` (JSON) dan `ActivityEvent`. `ops` sebagai JSON **dapat diterima** (ia adalah log perubahan immutable, bukan data query-kritis) — kecualikan dari normalisasi.
+6. **T-25 (Konsolidasi migrasi) naik urgensi** — sekarang ada 4+ SQL manual di luar Prisma Migrate; drift semakin nyata.
+
+### Ringkasan Bab 0
+
+`main` bertambah tiga fitur berkualitas tinggi (change-request approval, travel outbox, activity monitoring) yang menaikkan skor Architecture ke 6/10 dan Overall ke 43/100. Namun **kesepuluh item eksistensial/Critical audit tetap terbuka** — Sprint 1 dan spine roadmap tidak berubah. Penyesuaian utama: Realtime turun prioritas, Unified State Layer harus menghormati outbox, dan celah Analytics diklarifikasi sebagai "monitoring ada, funnel analytics belum".
+
+---
+
 # 1. Executive Summary
 
 ## 1.1 Ringkasan Kondisi Aplikasi Saat Ini
 
 Splitzy adalah aplikasi pembagi tagihan (bill splitter) berbasis web yang telah live di produksi (`www.splitzy.my.id`). Aplikasi memiliki tiga mode utama — **Single Receipt**, **Multiple Receipts**, dan **Travel Spend** — didukung oleh pemindaian struk berbasis AI (Google Gemini), settlement multi-mata uang, dan model freemium yang baru pada tahap awal (kolom `plan` sudah ada di database, namun belum ada mekanisme pembayaran).
 
-Fondasi teknis tergolong **kuat**: Next.js 16 (App Router), React 19, TypeScript 5.9, Supabase (Auth + Postgres), Prisma ORM, dan Vitest untuk unit testing. Kualitas lapisan `lib/` (fungsi murni yang teruji) berada di atas rata-rata untuk proyek indie.
+Fondasi teknis tergolong **kuat**: Next.js 16 (App Router), React 19, TypeScript 5.9, Supabase (Auth + Postgres), Prisma ORM, dan Vitest untuk unit testing. Kualitas lapisan `lib/` (fungsi murni yang teruji) berada di atas rata-rata untuk proyek indie. **Update v1.1:** `main` kini juga memuat change-request approval workflow (kolaborasi PR-style), travel outbox (offline-sync), dan activity monitoring — memperkuat sisi rekayasa (lihat **Bab 0**).
 
-Namun demikian, terdapat kesenjangan struktural kritis yang menghalangi Splitzy menjadi produk SaaS komersial yang sesungguhnya.
+Namun demikian, terdapat kesenjangan struktural kritis yang menghalangi Splitzy menjadi produk SaaS komersial yang sesungguhnya — dan **seluruh 10 item eksistensial masih terbuka** per 30 Juli 2026.
 
-**Skor Audit Keseluruhan: 41/100.**
+**Skor Audit Keseluruhan: 43/100** (v1.0: 41/100; +2 dari fitur rekayasa baru — lihat Bab 0.4).
 
 | Dimensi | Skor | Dimensi | Skor |
 |---|---|---|---|
 | UX | 4/10 | Security | 5/10 |
 | UI | 6/10 | SaaS Readiness | 2/10 |
 | Engineering | 6/10 | Conversion | 2/10 |
-| Architecture | 5/10 | Premium Feeling | 5/10 |
+| Architecture | 6/10 ↑ | Premium Feeling | 5/10 |
 | Scalability | 4/10 | Investor Readiness | 2/10 |
 
 ## 1.2 Permasalahan Utama
@@ -239,10 +317,10 @@ Visi Splitzy adalah menjadi OS keuangan kelompok yang AI-native, adil, mudah, da
 
 | Aspek | Detail |
 |---|---|
-| **Masalah** | Dua model data untuk domain yang sama. Tiga strategi storage berbeda. Middleware bernama `proxy.ts` (non-standar). Tidak ada API versioning. |
+| **Masalah** | Dua model data untuk domain yang sama. Tiga strategi storage berbeda. Middleware bernama `proxy.ts` (non-standar). Tidak ada API versioning. **Positif (v1.1):** travel outbox offline-first & change-op transaction design menaikkan kualitas arsitektur inti (skor 5→6). |
 | **Penyebab** | Evolusi organik tanpa refactor konsolidasi. |
 | **Dampak** | Sulit dipelihara, membingungkan kontributor, risiko breaking change klien. |
-| **Rekomendasi** | Satukan model data & state layer. Rename ke `middleware.ts`. Terapkan `/api/v1/`. |
+| **Rekomendasi** | Satukan state layer **di atas outbox** (jangan ganti). Rename ke `middleware.ts`. Terapkan `/api/v1/`. |
 | **Prioritas** | 🟠 High |
 
 ## 3.7 Frontend
@@ -259,7 +337,7 @@ Visi Splitzy adalah menjadi OS keuangan kelompok yang AI-native, adil, mudah, da
 
 | Aspek | Detail |
 |---|---|
-| **Masalah** | Tidak ada caching, queue, realtime, monitoring. AI scan sinkron di request thread. Tidak ada background job (quota reset, cleanup). |
+| **Masalah** | Tidak ada caching, queue, realtime, monitoring. AI scan sinkron di request thread. Tidak ada background job (quota reset, cleanup). **Catatan positif:** change-request routes menerapkan transaksi array-form PgBouncer-safe & klaim atomik (kualitas tinggi). |
 | **Penyebab** | Fokus pada fitur, belum pada operasional. |
 | **Dampak** | UI terblokir saat Gemini lambat; tidak ada visibilitas produksi. |
 | **Rekomendasi** | Redis cache, Inngest/Vercel Cron, Supabase Realtime, Sentry. |
@@ -339,11 +417,11 @@ Visi Splitzy adalah menjadi OS keuangan kelompok yang AI-native, adil, mudah, da
 
 | Aspek | Detail |
 |---|---|
-| **Masalah** | Tidak ada analitik produk (hanya health endpoint). Tidak ada event tracking, funnel, cohort. |
-| **Penyebab** | Instrumentasi belum dibangun. |
-| **Dampak** | Keputusan produk tanpa data; tidak investor-ready. |
-| **Rekomendasi** | PostHog/Vercel Analytics, definisi event funnel. |
-| **Prioritas** | 🟠 High |
+| **Masalah** | Ada **activity monitoring admin** (`ActivityEvent`, `lastLoginAt`) — tetapi dideduplikasi per-sesi sehingga **tidak bisa mengukur funnel/volume/konversi/retensi**. Tidak ada product analytics sejati. |
+| **Penyebab** | Instrumentasi dibangun untuk pertanyaan operator, bukan analitik produk. |
+| **Dampak** | Keputusan produk & funnel tanpa data; tidak investor-ready. |
+| **Rekomendasi** | Tambahkan PostHog/Vercel Analytics dengan event funnel (tanpa dedup sesi); **manfaatkan ulang** beacon & `lastLoginAt` yang sudah ada sebagai titik awal. |
+| **Prioritas** | 🟠 High (celah tetap terbuka meski monitoring ada) |
 
 ## 3.17 Growth
 
@@ -413,7 +491,6 @@ Masalah paling mendesak terkonsentrasi pada **Monetization, Conversion, UX (dash
 |---|---|
 | Atomic Design refactor | Skala pemeliharaan. |
 | Aksesibilitas (reduced-motion, kontras, skip link) | Kepatuhan WCAG. |
-| Realtime collaboration Travel | UX kolaborasi, bukan blocking konflik. |
 | Redis caching (FX, session) | Performa & biaya. |
 | Rename mode & IA nav | Kejelasan produk. |
 
@@ -421,6 +498,7 @@ Masalah paling mendesak terkonsentrasi pada **Monetization, Conversion, UX (dash
 
 | Item | Alasan |
 |---|---|
+| Realtime collaboration Travel ↓ | **Diturunkan dari Medium (v1.1)** — change-request approval sudah tutup korupsi konkuren; realtime kini murni peningkatan UX. |
 | Reduksi animasi CSS (25→10) | Kebersihan kode. |
 | Storybook | Dokumentasi komponen. |
 | Rename `proxy.ts`→`middleware.ts` | Kejelasan kontributor. |
@@ -647,7 +725,7 @@ Roadmap 13 fase (0–12) berjalan paralel dalam tiga gelombang; Phase 9 (Securit
 | T-22 | Testing | Playwright E2E | Flow sign-in→split→settle | 🟠 | Medium | 4 | T-21 | QA | Todo |
 | T-23 | Database | Normalisasi TripReceipt | Dual-write + backfill relational | 🟠 | Hard | 6 | T-17 | DBA/BE | Todo |
 | T-24 | Database | Index & tabel baru | Index tripId/expiresAt; Participant/Notification/Subscription | 🟠 | Medium | 3 | T-23 | DBA | Todo |
-| T-25 | Database | Konsolidasi migrasi | Masukkan SQL manual ke Prisma Migrate | 🟠 | Medium | 2 | — | DBA | Todo |
+| T-25 | Database | Konsolidasi migrasi | Masukkan 4+ SQL manual ke Prisma Migrate (kini termasuk activity-log & change-requests) | 🟠 | Medium | 2 | — | DBA | Todo |
 | T-26 | Growth | Share-to-WhatsApp | Format ringkasan settlement satu ketuk | 🟠 | Easy | 2 | — | FE/GRW | Todo |
 | T-27 | Growth | Email transaksional | Resend: welcome, settlement reminder, receipt | 🟠 | Medium | 3 | T-05 | BE/GRW | Todo |
 | T-28 | Growth | Referral program | "Share, get 1 bulan Plus" | 🟡 | Medium | 3 | T-05,T-27 | BE/GRW | Todo |
@@ -655,8 +733,8 @@ Roadmap 13 fase (0–12) berjalan paralel dalam tiga gelombang; Phase 9 (Securit
 | T-30 | Accessibility | Reduced-motion guard + kontras + skip link | Perbaikan WCAG AA | 🟡 | Easy | 2 | T-11 | FE | Todo |
 | T-31 | UX | Rename mode & IA | Quick Split/Group Bills/Trip Tracker + nav | 🟡 | Easy | 2 | T-08 | PM/FE | Todo |
 | T-32 | Frontend | Atomic Design refactor | atoms/molecules/organisms | 🟡 | Medium | 4 | T-12 | FE | Todo |
-| T-33 | Frontend | Unified state layer | Satukan localStorage/cloud persistence | 🟡 | Hard | 5 | T-32 | FE | Todo |
-| T-34 | Backend | Realtime Travel | Supabase Realtime kolaborasi live | 🟡 | Hard | 5 | T-23 | BE | Todo |
+| T-33 | Frontend | Unified state layer | Satukan localStorage/cloud persistence — **wajib bangun di atas travel-outbox, jangan ganti** | 🟡 | Hard | 5 | T-32 | FE | Todo |
+| T-34 | Backend | Realtime Travel | Supabase Realtime kolaborasi live — **prioritas turun ke Low** (change-request workflow sudah tutup korupsi konkuren) | 🟢 | Hard | 5 | T-23 | BE | Todo |
 | T-35 | Monetization | PDF export (Pro) | Export ringkasan trip | 🟡 | Medium | 2 | T-05 | FE/BE | Todo |
 | T-36 | Growth | Social proof + FAQ | Counter split & FAQ di landing | 🟡 | Easy | 2 | T-20 | GRW/FE | Todo |
 | T-37 | Infra | Monitoring & alerting | Uptime + alert channel | 🟠 | Medium | 2 | T-19 | DEV | Todo |
@@ -679,7 +757,7 @@ Roadmap 13 fase (0–12) berjalan paralel dalam tiga gelombang; Phase 9 (Securit
 | Landing (`/`) | Client-only, 3-mode, hero generik | RSC, hero AI, 1 CTA, footer korporat |
 | Single (`/single`) | localStorage, multi-step | Integrasi ke flow terpadu, peak moment |
 | Multiple (`/multiple`) | localStorage, sidebar | Rename "Group Bills", empty state |
-| Travel (`/travel`) | Cloud sync, kaya fitur | Realtime, resume state, discoverability |
+| Travel (`/travel`) | Cloud sync, offline outbox, change-request approval | Resume state, discoverability, integrasi ke dashboard (realtime opsional/Low) |
 | History (`/history`) | Auth-only | Empty state, filter, integrasi dashboard |
 | **Dashboard** (baru) | **Tidak ada** | **Bangun: saldo, aktivitas, trip aktif** |
 | **Onboarding** (baru) | **Tidak ada** | **Wizard 3 langkah** |
@@ -767,28 +845,35 @@ Backend memerlukan versioning, caching Redis, background jobs, realtime, notifik
 
 ```
 User 1───* Trip 1───* TripReceipt 1───* TripReceiptItem
-  │           │             
+  │           │
   │           ├───* TripPayment
   │           ├───* TripMember *───1 User
   │           ├───* TripInvite
-  │           └───* Participant *───0..1 User
+  │           ├───* TripChangeRequest  (ADA di main — ops:Json, biarkan JSON)
+  │           └───* Participant *───0..1 User   (target normalisasi participantsJson)
   │
-  ├───* Subscription (baru)
+  ├───* ActivityEvent      (ADA di main — monitoring; pertimbangkan partisi/TTL)
+  ├───* Subscription (baru — untuk Stripe)
   ├───* Notification (baru)
   └───* AdminAuditLog (actor)
 
+User.lastLoginAt  (ADA di main — sumber "active today")
 SharedSummary *───1 User (createdBy)
 ```
+
+> [!NOTE]
+> **Legend:** *(ADA di main)* = sudah diimplementasi, dipertahankan · *(baru)* = perlu dibuat · *(target normalisasi)* = migrasi dari JSON blob.
+> `TripChangeRequest.ops` sengaja **tetap JSON** — ia adalah log perubahan immutable (bukan data query-kritis), sehingga dikecualikan dari rencana normalisasi.
 
 ## 11.2 Rencana per Aspek
 
 | Aspek | Aksi |
 |---|---|
-| **Table** | Normalisasi `TripReceipt.payload` → `TripReceiptItem`; tabel `Participant`, `Notification`, `Subscription`, `UserEvent` |
-| **Relationship** | Ganti `participantsJson` dengan FK `Participant` |
-| **Index** | `TripPayment.tripId`, `SharedSummary.expiresAt`, `AdminAuditLog.actorId/targetUserId`, `Receipt.tripId` |
+| **Table** | Normalisasi `TripReceipt.payload` → `TripReceiptItem`; tabel `Participant`, `Notification`, `Subscription`. **Sudah ada:** `TripChangeRequest`, `ActivityEvent` (pertahankan). Kecualikan `TripChangeRequest.ops` dari normalisasi (log immutable). |
+| **Relationship** | Ganti `participantsJson` dengan FK `Participant`. FK `TripChangeRequest.tripId` & `ActivityEvent.userId` sudah `ON DELETE CASCADE` (baik). |
+| **Index** | `TripPayment.tripId`, `SharedSummary.expiresAt`, `AdminAuditLog.actorId/targetUserId`, `Receipt.tripId`. **Sudah ada:** `TripChangeRequest[tripId,status]`, `ActivityEvent[createdAt]` & `[userId,createdAt]`. |
 | **Constraint** | FK enforcement, unique code, not-null pada kolom keuangan |
-| **Migration** | Konsolidasi SQL manual ke Prisma Migrate; hentikan apply manual |
+| **Migration** | **Urgensi naik:** konsolidasi 4+ SQL manual (termasuk `2026-07-add-activity-log.sql`, `2026-07-add-trip-change-requests.sql`) ke Prisma Migrate; hentikan apply manual via Supabase SQL editor |
 | **Backup** | Verifikasi backup otomatis Supabase + restore drill |
 | **Audit Trail** | Pertahankan `AdminAuditLog` (append-only, email denormalized); tambah audit akses data untuk GDPR/PDPA |
 | **Soft Delete** | Pertahankan di Trip/Receipt; terapkan pola konsisten di tabel baru |
@@ -832,7 +917,7 @@ Infrastruktur bertumpu pada Vercel + Supabase + Upstash dengan pipeline CI/CD fo
 | Jenis | Cakupan | Alat | Target |
 |---|---|---|---|
 | **Unit** | Fungsi `lib/` (kalkulasi, settle-up, validasi) | Vitest | Coverage ≥ 80% pada `lib/` |
-| **Integration** | API route + Prisma (DB test) | Vitest + test DB | Flow CRUD trip/receipt/payment |
+| **Integration** | API route + Prisma (DB test) | Vitest + test DB | Flow CRUD trip/receipt/payment. **Prioritas:** rute baru yang belum teruji — change-request approve/decline, activity beacon. |
 | **E2E** | sign-in → split → settle → share | Playwright | Semua flow kritis hijau |
 | **Regression** | Snapshot flow utama tiap rilis | Playwright | Jalan di CI |
 | **Performance** | LCP/CLS/TTFB | Lighthouse CI | Lighthouse ≥ 90 |
@@ -980,8 +1065,8 @@ Evolusi produk: v1.0 fondasi & monetisasi, v2.0 social & realtime & pembayaran l
 > Dokumen ini diturunkan dari audit produk menyeluruh. Poin-poin inti audit dipertahankan penuh di **Bab 3 (Ringkasan Hasil Audit)** dan tersebar pada Bab 8–12. Skor asli dan verdict investasi direkam di bawah ini agar tidak ada informasi yang hilang.
 
 ### A.1 Skor Audit
-- Overall: **41/100**
-- UX 4 · UI 6 · Engineering 6 · Architecture 5 · Scalability 4 · Security 5 · SaaS Readiness 2 · Conversion 2 · Premium Feeling 5 · Investor Readiness 2.
+- Overall v1.0: **41/100** → v1.1: **43/100** (lihat Bab 0.4)
+- UX 4 · UI 6 · Engineering 6 · Architecture 5→**6** · Scalability 4 · Security 5 · SaaS Readiness 2 · Conversion 2 · Premium Feeling 5 · Investor Readiness 2.
 
 ### A.2 Verdict Investasi
 **CONDITIONAL NO → path to YES dalam 6 bulan** jika: Stripe live (Plus tier), AI scanning menjadi hero, dashboard pasca-login ada, share-to-WhatsApp live, rate limit terdistribusi, 1.000+ active users dengan retensi terukur, footer korporat.
@@ -1001,8 +1086,11 @@ Evolusi produk: v1.0 fondasi & monetisasi, v2.0 social & realtime & pembayaran l
 ### A.4 Analisis Kompetitif (ringkas)
 Splitwise (8/10, brand & social graph), Revolut (8/10, money movement), Settle Up (6/10, graph viz), Tricount (6/10, simplicity). **Wedge Splitzy:** AI scanning + Travel multi-currency + web-first + pasar SEA.
 
-### A.5 Referensi Teknis Codebase
-Next.js 16 App Router, React 19, TS 5.9, Supabase, Prisma (Postgres ap-southeast-1), Gemini AI, Radix UI, Vitest. Middleware di `src/proxy.ts`. 31 API route. Model: User/Trip/TripReceipt/TripPayment/TripInvite/TripMember/Receipt/ReceiptItem/ItemAssignment/SharedSummary/AdminAuditLog. Free plan 15 AI scan/bln.
+### A.5 Referensi Teknis Codebase (diperbarui v1.1)
+Next.js 16 App Router, React 19, TS 5.9, Supabase, Prisma (Postgres ap-southeast-1), Gemini AI, Radix UI, Vitest. Middleware di `src/proxy.ts`. Free plan 15 AI scan/bln (inert).
+**Model (14, +2 sejak v1.0):** User (+`lastLoginAt`), Trip, TripReceipt, TripPayment, TripInvite, TripMember, **TripChangeRequest (baru)**, Receipt, ReceiptItem, ItemAssignment, SharedSummary, AdminAuditLog, **ActivityEvent (baru)**.
+**Kapabilitas baru di `main`:** change-request approval workflow (`change-ops.ts`, `apply-change-ops.ts`, 3 rute + `ChangeRequests.tsx`), travel outbox offline-sync (`travel-outbox.ts`), activity monitoring (`activity*.ts`, 2 rute).
+**Dependency tak ada (dikonfirmasi):** Stripe, Redis/Upstash/KV, Sentry, PostHog/analytics SDK, Resend/email, Playwright. Tidak ada `.github/workflows`. `next.config.mjs` tanpa security headers.
 
 ### Ringkasan Bab 19
 
@@ -1021,16 +1109,17 @@ Lampiran merekam skor, verdict, temuan kritis, analisis kompetitif, dan referens
 
 ```
 ╔══════════════════════════════════════════════════════════════════╗
-║  SPLITZY TRANSFORMATION · Q3 2026        Status: PLANNING          ║
+║  SPLITZY TRANSFORMATION · v1.1 (30 Jul)  Status: PLANNING          ║
 ╠══════════════════════════════════════════════════════════════════╣
-║  SKOR SAAT INI: 41/100        TARGET 6 BULAN: 80/100               ║
+║  SKOR SAAT INI: 43/100        TARGET 6 BULAN: 80/100               ║
 ║                                                                    ║
 ║  KESEHATAN DIMENSI                                                 ║
 ║  UX          ████░░░░░░ 4    Security    █████░░░░░ 5              ║
 ║  UI          ██████░░░░ 6    SaaS Ready  ██░░░░░░░░ 2  ⚠           ║
 ║  Engineering ██████░░░░ 6    Conversion  ██░░░░░░░░ 2  ⚠           ║
-║  Architecture█████░░░░░ 5    Premium     █████░░░░░ 5              ║
+║  Architecture██████░░░░ 6    Premium     █████░░░░░ 5              ║
 ║  Scalability ████░░░░░░ 4    Investor    ██░░░░░░░░ 2  ⚠           ║
+║  (+2 sejak v1.0: change-request, outbox, activity monitoring)     ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║  5 MASALAH EKSISTENSIAL                                            ║
 ║  🔴 Tidak ada monetisasi (Stripe/pricing)                         ║
