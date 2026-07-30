@@ -205,4 +205,56 @@ describe("useTravelData — cloud", () => {
     expect(result.current.trips[0].payments).toHaveLength(1);
     expect(result.current.trips[0].payments![0].id).toBe("pay-1");
   });
+
+  it("addReceipt: durable via the outbox and synced to the server", async () => {
+    asAuthed();
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ trips: [cloudTrip("t1")] })) // loadCloud
+      .mockResolvedValueOnce(jsonRes({ id: "r1" }, { status: 201 })); // POST /receipts
+
+    const { result } = renderHook(() => useTravelData());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.addReceipt("t1", receipt("r1"));
+    });
+
+    // Optimistically visible straight away…
+    expect(result.current.trips[0].receipts.map((r) => r.id)).toEqual(["r1"]);
+    // …persisted to the local mirror (survives reload)…
+    expect(localStorage.getItem("splitzy-travel-mirror")).toContain("r1");
+    // …and drained to the server, after which nothing is pending.
+    await waitFor(() => expect(result.current.pendingSync).toBe(false));
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      "/api/travel/t1/receipts",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("addReceipt: offline stays durable and pending, without hitting the network", async () => {
+    asAuthed();
+    Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+    try {
+      global.fetch = vi.fn().mockResolvedValueOnce(jsonRes({ trips: [cloudTrip("t1")] })); // loadCloud only
+
+      const { result } = renderHook(() => useTravelData());
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      await act(async () => {
+        await result.current.addReceipt("t1", receipt("r1"));
+      });
+
+      // The receipt is saved locally and flagged as pending sync — no data lost —
+      // and no receipt request was attempted while offline.
+      expect(result.current.trips[0].receipts).toHaveLength(1);
+      expect(result.current.pendingSync).toBe(true);
+      expect(result.current.isOnline).toBe(false);
+      expect(global.fetch).toHaveBeenCalledTimes(1); // just the initial load
+      // The op is persisted so it survives a reload until connectivity returns.
+      expect(localStorage.getItem("splitzy-travel-outbox")).toContain("r1");
+    } finally {
+      Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
+    }
+  });
 });

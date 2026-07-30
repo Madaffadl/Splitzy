@@ -5,7 +5,7 @@ import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api
 import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { validateTripReceiptPayload } from "@/lib/travel-cloud";
-import { getTripAccess } from "@/lib/trip-access";
+import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -27,6 +27,8 @@ export async function PUT(
 
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();
+  const gate = requireOwnerWrite(access);
+  if (gate) return gate;
 
   const trip = await prisma.trip.findUnique({ where: { id }, select: { participantsJson: true } });
   const participants = (trip?.participantsJson as unknown as { id: string }[] | null) ?? [];
@@ -68,6 +70,8 @@ export async function DELETE(
 
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();
+  const gate = requireOwnerWrite(access);
+  if (gate) return gate;
 
   const result = await prisma.tripReceipt.deleteMany({ where: { id: rid, tripId: id } });
   if (result.count === 0) return notFound();

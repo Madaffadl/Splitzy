@@ -30,8 +30,13 @@ export function applyPaymentsToBalances(
             ? roundTo2(p.amount * p.fxRate)
             : roundTo2(p.amount);
         if (!(idrAmount > 0)) continue;
-        if (next.has(p.from)) next.set(p.from, roundTo2((next.get(p.from) ?? 0) + idrAmount));
-        if (next.has(p.to)) next.set(p.to, roundTo2((next.get(p.to) ?? 0) - idrAmount));
+        // Apply only when BOTH endpoints are tracked participants. A payment that
+        // references a removed participant would otherwise be half-applied (one
+        // side moves, the other doesn't), silently breaking conservation so the
+        // net balances no longer sum to zero.
+        if (!next.has(p.from) || !next.has(p.to)) continue;
+        next.set(p.from, roundTo2((next.get(p.from) ?? 0) + idrAmount));
+        next.set(p.to, roundTo2((next.get(p.to) ?? 0) - idrAmount));
     }
     return next;
 }
@@ -73,9 +78,21 @@ export function calculateItemShares(item: ReceiptItem): Map<string, number> {
         return shares;
     }
 
-    const sharePerPerson = item.total / item.assignedToIds.length;
+    const sharePerPerson = roundTo2(item.total / item.assignedToIds.length);
+    let runningSum = 0;
     for (const participantId of item.assignedToIds) {
-        shares.set(participantId, roundTo2(sharePerPerson));
+        shares.set(participantId, sharePerPerson);
+        runningSum = roundTo2(runningSum + sharePerPerson);
+    }
+
+    // Fix rounding: an indivisible total (e.g. 100 / 3 = 33.33 × 3 = 99.99) would
+    // otherwise leave the shares short of the item total, so the payer under-fronts
+    // by a cent. Push the remainder onto the first assignee so shares reconcile
+    // exactly to item.total (mirrors the qty-based branch above).
+    const remainder = roundTo2(item.total - runningSum);
+    if (remainder !== 0) {
+        const first = item.assignedToIds[0];
+        shares.set(first, roundTo2((shares.get(first) ?? 0) + remainder));
     }
 
     return shares;

@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   // on ReceiptItem & ItemAssignment so children clean up automatically.
   // Shared links are purged the moment they expire (their own TTL governs
   // lifetime), independent of the soft-delete retention window above.
-  const [receiptsDeleted, tripsDeleted, sharesDeleted] = await prisma.$transaction([
+  const [receiptsDeleted, tripsDeleted, sharesDeleted, activityDeleted] = await prisma.$transaction([
     prisma.receipt.deleteMany({
       where: { deletedAt: { lt: cutoff, not: null } },
     }),
@@ -57,6 +57,10 @@ export async function POST(request: NextRequest) {
     prisma.sharedSummary.deleteMany({
       where: { expiresAt: { lt: now } },
     }),
+    // Activity log is telemetry, not user data — sweep by age (not soft-delete).
+    prisma.activityEvent.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    }),
   ]);
 
   return NextResponse.json({
@@ -65,6 +69,7 @@ export async function POST(request: NextRequest) {
     receiptsDeleted: receiptsDeleted.count,
     tripsDeleted: tripsDeleted.count,
     expiredSharesDeleted: sharesDeleted.count,
+    activityEventsDeleted: activityDeleted.count,
   });
 }
 

@@ -5,7 +5,7 @@ import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api
 import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { validateTripReceiptPayload } from "@/lib/travel-cloud";
-import { getTripAccess } from "@/lib/trip-access";
+import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -22,6 +22,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();
+  const gate = requireOwnerWrite(access);
+  if (gate) return gate;
 
   const trip = await prisma.trip.findUnique({ where: { id }, select: { participantsJson: true } });
   const participants = (trip?.participantsJson as unknown as { id: string }[] | null) ?? [];
@@ -40,21 +42,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const receiptId = (payload as { id: string }).id;
+  if (!receiptId || typeof receiptId !== "string") {
+    return apiError("BAD_REQUEST", "receipt.id is required");
+  }
 
   // Use the client-generated receipt.id as the DB row ID so the client can
   // address receipts for PUT/DELETE without a separate server-assigned rid.
   // upsert makes this idempotent (safe for retry / guest→cloud sync).
-  const row = await prisma.tripReceipt.upsert({
-    where: { id: receiptId },
-    update: { payload: payload as unknown as Prisma.InputJsonValue },
-    create: {
-      id: receiptId,
-      tripId: id,
-      payload: payload as unknown as Prisma.InputJsonValue,
-      createdById: user.id,
-    },
-    select: { id: true },
-  });
+  let row: { id: string };
+  try {
+    row = await prisma.tripReceipt.upsert({
+      where: { id: receiptId },
+      update: { payload: payload as unknown as Prisma.InputJsonValue },
+      create: {
+        id: receiptId,
+        tripId: id,
+        payload: payload as unknown as Prisma.InputJsonValue,
+        createdById: user.id,
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    console.error("[travel/receipts POST] upsert failed:", err);
+    return apiError("INTERNAL_ERROR", "Failed to save receipt — please try again");
+  }
 
   return NextResponse.json({ id: row.id }, { status: 201 });
 }

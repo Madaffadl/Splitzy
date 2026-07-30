@@ -47,6 +47,27 @@ describe("calculateItemShares", () => {
         expect(shares.size).toBe(0);
     });
 
+    it("should push the rounding remainder onto the first assignee for an indivisible split", () => {
+        const item: ReceiptItem = {
+            id: "1",
+            name: "Nasi",
+            qty: 1,
+            unitPrice: 100,
+            total: 100,
+            assignedToIds: ["a", "b", "c"],
+        };
+
+        const shares = calculateItemShares(item);
+
+        // 100 / 3 = 33.33 each; the leftover 0.01 lands on the first assignee so
+        // the shares reconcile exactly to the item total.
+        expect(shares.get("a")).toBe(33.34);
+        expect(shares.get("b")).toBe(33.33);
+        expect(shares.get("c")).toBe(33.33);
+        const sum = (shares.get("a") ?? 0) + (shares.get("b") ?? 0) + (shares.get("c") ?? 0);
+        expect(Math.round(sum * 100) / 100).toBe(100);
+    });
+
     it("should handle single person assignment", () => {
         const item: ReceiptItem = {
             id: "1",

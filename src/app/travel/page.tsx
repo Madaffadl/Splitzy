@@ -1,20 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
 import { useTravelData } from "@/hooks/useTravelData";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency } from "@/lib/calculations";
-import { findSharePayment, paidShareParticipants, sharePaymentSource } from "@/lib/settle-up";
+import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
 import { formatCurrency, cn } from "@/lib/utils";
-import { generateId } from "@/lib/utils";
+import { generateId, todayDateString } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { ParticipantManager } from "@/components/ParticipantManager";
 import { ReceiptEditor } from "@/components/ReceiptEditor";
 import { MultipleReceiptSummaryPanel, ReceiptBreakdown } from "@/components/SummaryPanel";
+import { ReviewInbox, ProposalBar } from "@/components/travel/ChangeRequests";
+import { logFeatureUsage } from "@/lib/activity-client";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
@@ -69,6 +71,42 @@ type ViewMode = "overview" | "edit-receipt" | "summary";
 interface EditingReceipt {
   receipt: Receipt;
   isNew: boolean;
+}
+
+// An in-progress receipt edit, persisted to localStorage so a refresh/crash
+// while typing doesn't lose the work. Cleared on Save or Cancel. Device-local
+// and ephemeral, so it isn't user-scoped (but is wiped on sign-out).
+const DRAFT_KEY = "splitzy-travel-draft";
+interface ReceiptDraft {
+  tripId: string;
+  receipt: Receipt;
+  isNew: boolean;
+}
+
+function readDraft(): ReceiptDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as ReceiptDraft) : null;
+  } catch {
+    return null;
+  }
+}
+function writeDraft(draft: ReceiptDraft): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // quota / disabled storage — best effort
+  }
+}
+function clearDraft(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 function parseAmount(s: string): number {
@@ -704,9 +742,93 @@ export default function TravelPage() {
       : null;
   }, [trips, travel.activeId]);
 
+  // ── Approval workflow (cloud collaboration) ────────────────────────────────
+  const activeRole = activeTrip ? travel.roleOf(activeTrip.id) : "owner";
+  const isMemberOfActive = activeRole === "member";
+  const activeProposal = activeTrip ? travel.proposals[activeTrip.id] : undefined;
+  const pendingReviews = activeTrip ? travel.changeRequests[activeTrip.id] ?? [] : [];
+  // While a member's proposal is submitted, editing is paused until the owner reviews it.
+  const editingLocked = isMemberOfActive && activeProposal?.status === "submitted";
+  const participantNameOf = useCallback(
+    (id: string) => activeTrip?.participants.find((p) => p.id === id)?.name ?? "Someone",
+    [activeTrip]
+  );
+
+  const handleSubmitProposal = useCallback(
+    async (note?: string) => {
+      if (!activeTrip) return false;
+      const ok = await travel.submitChangeRequest(activeTrip.id, note);
+      toast(
+        ok
+          ? { title: "Submitted for review", description: "The owner will approve or decline your changes.", variant: "success" }
+          : { title: "Couldn't submit", description: "Please try again.", variant: "error" }
+      );
+      return ok;
+    },
+    [activeTrip, travel, toast]
+  );
+
+  const handleDiscardProposal = useCallback(() => {
+    if (!activeTrip) return;
+    travel.discardProposal(activeTrip.id);
+    toast({ title: "Draft discarded" });
+  }, [activeTrip, travel, toast]);
+
+  const handleApprove = useCallback(
+    async (crId: string) => {
+      if (!activeTrip) return false;
+      const ok = await travel.approveChangeRequest(activeTrip.id, crId);
+      toast(
+        ok
+          ? { title: "Change approved", variant: "success" }
+          : { title: "Couldn't approve", description: "The trip may have changed since — reload and retry.", variant: "error" }
+      );
+      return ok;
+    },
+    [activeTrip, travel, toast]
+  );
+
+  const handleDecline = useCallback(
+    async (crId: string, note?: string) => {
+      if (!activeTrip) return false;
+      const ok = await travel.declineChangeRequest(activeTrip.id, crId, note);
+      toast(ok ? { title: "Change declined" } : { title: "Couldn't decline", variant: "error" });
+      return ok;
+    },
+    [activeTrip, travel, toast]
+  );
+
   useEffect(() => {
     if (viewMode !== "overview") window.scrollTo({ top: 0, behavior: "instant" });
   }, [viewMode]);
+
+  // ── Receipt draft persistence ──────────────────────────────────────────────
+  // Restore an in-progress receipt on mount (survives refresh/crash mid-edit),
+  // then keep localStorage in sync with the editor. Cancel/Save clear it.
+  const draftReadyRef = useRef(false);
+  useEffect(() => {
+    const draft = readDraft();
+    if (draft) {
+      travel.setActiveId(draft.tripId);
+      setEditingReceipt({ receipt: draft.receipt, isNew: draft.isNew });
+      setViewMode("edit-receipt");
+    }
+    draftReadyRef.current = true;
+    // Mount-only: read once and restore. Intentionally not re-run on deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!draftReadyRef.current) return; // don't clear before the restore runs
+    if (editingReceipt && viewMode === "edit-receipt") {
+      // Only rewrite once the trip has hydrated; while it's still loading, leave
+      // the restored draft untouched rather than clearing it.
+      if (activeTrip) {
+        writeDraft({ tripId: activeTrip.id, receipt: editingReceipt.receipt, isNew: editingReceipt.isNew });
+      }
+    } else {
+      clearDraft();
+    }
+  }, [editingReceipt, viewMode, activeTrip]);
 
   // ── Trip CRUD ─────────────────────────────────────────────────────────────
   const createTrip = async () => {
@@ -816,6 +938,7 @@ export default function TravelPage() {
     const receipt: Receipt = {
       id: generateId(),
       title: `Receipt ${activeTrip.receipts.length + 1}`,
+      date: todayDateString(),
       payerId: activeTrip.participants[0]?.id || "",
       items: [],
       tax: 0,
@@ -838,19 +961,39 @@ export default function TravelPage() {
     setEditingReceipt((prev) => (prev ? { ...prev, receipt: { ...prev.receipt, ...updates } } : prev));
   };
 
+  // Persist a receipt and report the *real* outcome. Navigation stays optimistic
+  // (snappy), but the success toast only fires once the server confirms the save;
+  // on failure the optimistic receipt is already rolled back by the data layer,
+  // so we surface an error with a Retry action instead of a false "saved".
+  const submitReceipt = (tripId: string, receipt: Receipt, isNew: boolean) => {
+    void (async () => {
+      const ok = isNew
+        ? await travel.addReceipt(tripId, receipt)
+        : await travel.updateReceipt(tripId, receipt);
+      if (ok) {
+        toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
+        logFeatureUsage("travel", "receipt.added");
+      } else {
+        toast({
+          title: "Couldn't save receipt",
+          description: `${receipt.title} wasn't saved. Check your connection and retry.`,
+          variant: "error",
+          duration: 8000,
+          action: { label: "Retry", onClick: () => submitReceipt(tripId, receipt, isNew) },
+        });
+      }
+    })();
+  };
+
   const saveReceipt = () => {
     if (!activeTrip || !editingReceipt) return;
     const { receipt, isNew } = editingReceipt;
-    // Fire optimistic update + background API sync, then redirect immediately.
-    // The syncStatus banner surfaces any server error without blocking the user.
-    if (isNew) {
-      void travel.addReceipt(activeTrip.id, receipt);
-    } else {
-      void travel.updateReceipt(activeTrip.id, receipt);
-    }
+    const tripId = activeTrip.id;
+    // Redirect immediately for a snappy feel; the outcome is reported by the
+    // toast inside submitReceipt once the background save resolves.
     setEditingReceipt(null);
     setViewMode("overview");
-    toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
+    submitReceipt(tripId, receipt, isNew);
   };
 
   const deleteReceipt = (id: string) => {
@@ -887,7 +1030,22 @@ export default function TravelPage() {
     if (existing) {
       void travel.deletePayment(activeTrip.id, existing.id);
     } else {
-      const amount = shareOf(receipt, participantId);
+      // B1: record only the *remaining* debt, never the full share on top of what
+      // was already paid (e.g. an earlier partial manual "B paid A 50k"). Recording
+      // the full share would over-settle and flip the payer negative — the ghost
+      // "+Rp 50.000 / -Rp 50.000" balance. remaining = owed − already-paid.
+      const ids = activeTrip.participants.map((p) => p.id);
+      const { owed, paid } = pairSettlement(activeTrip.receipts, ids, activeTrip.payments, participantId, receipt.payerId);
+      const remaining = Math.round((owed - paid) * 100) / 100;
+      if (remaining <= 0) {
+        const nameOf = (id: string) => activeTrip.participants.find((p) => p.id === id)?.name ?? "?";
+        toast({
+          title: "Already settled",
+          description: `${nameOf(participantId)} has already settled up with ${nameOf(receipt.payerId)} — no extra payment recorded.`,
+        });
+        return;
+      }
+      const amount = Math.round(Math.min(shareOf(receipt, participantId), remaining) * 100) / 100;
       if (amount <= 0) return;
       void travel.addPayment(activeTrip.id, {
         from: participantId,
@@ -909,6 +1067,7 @@ export default function TravelPage() {
       .filter((p) => p.id !== receipt.payerId)
       .map((p) => ({ id: p.id, amount: shareOf(receipt, p.id) }))
       .filter((p) => p.amount > 0);
+    const ids = activeTrip.participants.map((p) => p.id);
     const paidSet = paidShareParticipants(activeTrip.payments, receiptId);
     const allPaid = owing.length > 0 && owing.every((p) => paidSet.has(p.id));
     for (const p of owing) {
@@ -916,10 +1075,17 @@ export default function TravelPage() {
       if (allPaid && existing) {
         void travel.deletePayment(activeTrip.id, existing.id);
       } else if (!allPaid && !existing) {
+        // B1: cap to the remaining debt so an earlier (partial) payment isn't
+        // double-counted — never record more than this person still owes.
+        const { owed, paid } = pairSettlement(activeTrip.receipts, ids, activeTrip.payments, p.id, receipt.payerId);
+        const remaining = Math.round((owed - paid) * 100) / 100;
+        if (remaining <= 0) continue;
+        const amount = Math.round(Math.min(p.amount, remaining) * 100) / 100;
+        if (amount <= 0) continue;
         void travel.addPayment(activeTrip.id, {
           from: p.id,
           to: receipt.payerId,
-          amount: p.amount,
+          amount,
           source: sharePaymentSource(receiptId, p.id),
         });
       }
@@ -946,7 +1112,8 @@ export default function TravelPage() {
     void travel.deletePayment(activeTrip.id, paymentId);
   };
 
-  const canAddReceipt = (activeTrip?.participants.length ?? 0) >= 2;
+  // Editing pauses for a member while their submitted proposal awaits review.
+  const canAddReceipt = (activeTrip?.participants.length ?? 0) >= 2 && !editingLocked;
 
   // ── Trip name sync on blur ────────────────────────────────────────────────
   const commitName = async () => {
@@ -978,6 +1145,20 @@ export default function TravelPage() {
     !!tripTotals &&
     tripTotals.totalGrandTotal > 0 &&
     tripTotals.settlements.length === 0;
+
+  // Per-receipt "covered" sets: a share reads as paid if it has an explicit
+  // share payment OR the person is already fully settled with the payer (manual
+  // settle-ups included). Computed once so the receipt list reflects the whole
+  // ledger consistently. See coveredShareParticipants.
+  const coveredByReceipt = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    if (!activeTrip) return map;
+    const ids = activeTrip.participants.map((p) => p.id);
+    for (const r of activeTrip.receipts) {
+      map.set(r.id, coveredShareParticipants(activeTrip.receipts, ids, activeTrip.payments, r.id));
+    }
+    return map;
+  }, [activeTrip]);
 
   // ── Archive ───────────────────────────────────────────────────────────────
   const archiveTrip = (id: string) => {
@@ -1053,8 +1234,9 @@ export default function TravelPage() {
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
             <p className="flex-1 text-foreground/90">
-              <span className="font-semibold text-red-700 dark:text-red-300">This trip changed elsewhere.</span>{" "}
-              Reload to get the latest — unsaved local changes will be discarded.
+              <span className="font-semibold text-red-700 dark:text-red-300">This trip is out of sync.</span>{" "}
+              It may have changed on another device or tab, or a save didn&apos;t go through. Reload to get the
+              latest — unsaved local changes will be discarded.
             </p>
             <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
               <RefreshCw className="h-3.5 w-3.5" /> Reload
@@ -1071,18 +1253,30 @@ export default function TravelPage() {
               <RefreshCw className="h-3.5 w-3.5" /> Reload
             </Button>
           </div>
+        ) : travel.cloudMode && travel.pendingSync && !travel.isOnline ? (
+          // Local-first: the change is safely on this device; it just hasn't
+          // reached the server yet. Calm, not alarming — no data is at risk.
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-sm">
+            <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+            <p className="text-foreground/90">
+              <span className="font-semibold text-sky-700 dark:text-sky-300">Saved on this device.</span>{" "}
+              You&apos;re offline — changes will sync to your account when you reconnect.
+            </p>
+          </div>
         ) : travel.cloudMode ? (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-            {travel.syncStatus === "saving" ? (
+            {travel.syncStatus === "saving" || travel.pendingSync ? (
               <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-emerald-600 dark:text-emerald-400" />
             ) : (
               <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
             )}
             <p className="text-foreground/90">
               <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                {travel.syncStatus === "saving" ? "Saving…" : "Saved to your account."}
+                {travel.syncStatus === "saving" || travel.pendingSync ? "Saving…" : "Saved to your account."}
               </span>{" "}
-              {travel.syncStatus === "saving" ? "Syncing your changes." : "Trips sync across devices automatically."}
+              {travel.syncStatus === "saving" || travel.pendingSync
+                ? "Syncing your changes."
+                : "Trips sync across devices automatically."}
             </p>
           </div>
         ) : (
@@ -1252,6 +1446,26 @@ export default function TravelPage() {
 
         {/* ── Trip workspace: overview ── */}
         {activeTrip && viewMode === "overview" && (
+          <div className="space-y-6">
+            {/* Approval workflow: owner review inbox + member proposal status */}
+            {travel.cloudMode && activeRole === "owner" && (
+              <ReviewInbox
+                requests={pendingReviews}
+                tripVersion={activeTrip.version}
+                nameOf={participantNameOf}
+                onApprove={handleApprove}
+                onDecline={handleDecline}
+              />
+            )}
+            {travel.cloudMode && isMemberOfActive && (
+              <ProposalBar
+                proposal={activeProposal}
+                nameOf={participantNameOf}
+                onSubmit={handleSubmitProposal}
+                onDiscard={handleDiscardProposal}
+              />
+            )}
+
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               {/* Trip details + budget */}
@@ -1396,7 +1610,7 @@ export default function TravelPage() {
                           index={i}
                           onEdit={() => editReceipt(r.id)}
                           onDelete={() => setDeleteReceiptId(r.id)}
-                          paidParticipantIds={paidShareParticipants(activeTrip.payments, r.id)}
+                          paidParticipantIds={coveredByReceipt.get(r.id)}
                           onToggleAllPaid={() => toggleReceiptPaid(r.id)}
                           onTogglePaidShare={(pid) => togglePaidShare(r.id, pid)}
                         />
@@ -1409,7 +1623,7 @@ export default function TravelPage() {
               {/* Settle-up payments */}
               <SettleUpCard
                 participants={activeTrip.participants}
-                payments={activeTrip.payments ?? []}
+                payments={(activeTrip.payments ?? []).filter(isManualPayment)}
                 defaultCurrency={activeTrip.defaultCurrency}
                 onAdd={addSettleUp}
                 onDelete={deleteSettleUp}
@@ -1493,6 +1707,7 @@ export default function TravelPage() {
                 />
               )}
             </div>
+          </div>
           </div>
         )}
 

@@ -9,6 +9,14 @@ export function generateId(): string {
     return Math.random().toString(36).substring(2, 11);
 }
 
+/** Today's date as a local `YYYY-MM-DD` string (no UTC/timezone drift). */
+export function todayDateString(): string {
+    const d = new Date();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-${day}`;
+}
+
 export function roundTo2(n: number): number {
     return Math.round(n * 100) / 100;
 }
