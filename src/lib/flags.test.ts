@@ -12,23 +12,23 @@ afterEach(() => {
 
 describe("isServerEnabled", () => {
   it("defaults to OFF when the env var is unset", () => {
-    vi.stubEnv("FLAG_STRIPE_CHECKOUT", "");
-    expect(isServerEnabled("stripeCheckout")).toBe(false);
+    vi.stubEnv("FLAG_XENDIT_CHECKOUT", "");
+    expect(isServerEnabled("xenditCheckout")).toBe(false);
   });
 
   it.each(["1", "true", "on", "yes", "TRUE", " On "])(
     "treats %j as enabled",
     (value) => {
-      vi.stubEnv("FLAG_STRIPE_CHECKOUT", value);
-      expect(isServerEnabled("stripeCheckout")).toBe(true);
+      vi.stubEnv("FLAG_XENDIT_CHECKOUT", value);
+      expect(isServerEnabled("xenditCheckout")).toBe(true);
     },
   );
 
   it.each(["0", "false", "off", "no", "", "maybe"])(
     "treats %j as disabled",
     (value) => {
-      vi.stubEnv("FLAG_STRIPE_CHECKOUT", value);
-      expect(isServerEnabled("stripeCheckout")).toBe(false);
+      vi.stubEnv("FLAG_XENDIT_CHECKOUT", value);
+      expect(isServerEnabled("xenditCheckout")).toBe(false);
     },
   );
 });
@@ -39,6 +39,6 @@ describe("flagEnvName", () => {
   });
 
   it("maps server flags to FLAG_ vars", () => {
-    expect(flagEnvName("stripeCheckout")).toBe("FLAG_STRIPE_CHECKOUT");
+    expect(flagEnvName("xenditCheckout")).toBe("FLAG_XENDIT_CHECKOUT");
   });
 });

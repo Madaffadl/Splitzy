@@ -30,7 +30,7 @@ export type PublicFlagKey =
 
 /** Server-only flags. Never exposed to the browser. */
 export type ServerFlagKey =
-  | "stripeCheckout" // Stripe checkout/portal/webhook routes (T-05)
+  | "xenditCheckout" // Xendit invoice/checkout/webhook routes (T-05)
   | "distributedRateLimit"; // Upstash-backed limiter, else in-memory (T-01)
 
 const PUBLIC_FLAG_ENV: Record<PublicFlagKey, string> = {
@@ -42,7 +42,7 @@ const PUBLIC_FLAG_ENV: Record<PublicFlagKey, string> = {
 };
 
 const SERVER_FLAG_ENV: Record<ServerFlagKey, string> = {
-  stripeCheckout: "FLAG_STRIPE_CHECKOUT",
+  xenditCheckout: "FLAG_XENDIT_CHECKOUT",
   distributedRateLimit: "FLAG_DISTRIBUTED_RATE_LIMIT",
 };
 

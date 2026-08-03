@@ -16,7 +16,17 @@
 
 ---
 
-## 1. Step 0 — Setup Isolasi (WAJIB sebelum baris kode fitur pertama)
+> [!IMPORTANT]
+> **Keputusan interim (30 Jul 2026): staging DB DITUNDA ke Sprint 6.**
+> Pembuatan Supabase staging terblokir (batas free tier tercapai, Docker belum tersedia). Untuk Sprint 1–5 kita bekerja **langsung di produksi dengan aman**, karena seluruh pekerjaan tahap ini bersifat **flag-gated + no-DB atau aditif-saja** — tidak ada operasi destruktif. Bagian §1 di bawah tetap menjadi acuan, tetapi **dieksekusi sebelum Sprint 6** (kerja normalisasi DB), bukan sekarang.
+>
+> **Dua garis merah selama fase prod-direct:**
+> 1. **DB hanya operasi ADD** — tanpa `DROP`/`ALTER TYPE`/`RENAME`/backfill massal sampai ada DB rehearsal.
+> 2. **Fitur baru selalu flag OFF saat merge** — flip ON hanya setelah uji mandiri.
+>
+> Isolasi Sprint 1–5 dijamin oleh **feature flag + migrasi aditif**, bukan DB terpisah. Sebelum Sprint 6, pasang **Docker Desktop → Supabase lokal** (gratis, tanpa batas project) untuk melatih migrasi destruktif.
+
+## 1. Setup Staging (acuan untuk Sprint 6 — bukan prasyarat Sprint 1)
 
 ### 1.1 Buat Supabase project STAGING — *(Anda, di dashboard Supabase)*
 1. Supabase Dashboard → **New Project** → nama `splitzy-staging`, region **ap-southeast-1** (sama dgn prod).
@@ -67,7 +77,7 @@ Vercel → Project → Settings → Environment Variables. **Kunci: scope per-en
 
 Kode: `src/lib/flags.ts`. Default **OFF**. Dua jenis:
 - **UI flag** `NEXT_PUBLIC_FLAG_*` → `isEnabled("dashboard")` (client & server).
-- **Server flag** `FLAG_*` → `isServerEnabled("stripeCheckout")` (server saja).
+- **Server flag** `FLAG_*` → `isServerEnabled("xenditCheckout")` (server saja).
 
 ### Pola pemakaian
 ```tsx
@@ -82,8 +92,8 @@ export default function Landing() {
 // Server: matikan route sampai siap
 import { isServerEnabled } from "@/lib/flags";
 export async function POST(req: Request) {
-  if (!isServerEnabled("stripeCheckout")) return new Response("Not found", { status: 404 });
-  // ... logika Stripe
+  if (!isServerEnabled("xenditCheckout")) return new Response("Not found", { status: 404 });
+  // ... logika Xendit (payment gateway pasar SEA: GoPay/OVO/DANA/VA/kartu)
 }
 ```
 
