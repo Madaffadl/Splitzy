@@ -60,7 +60,7 @@ export default function MaintenancePage() {
           </div>
 
           <p className="text-xs text-muted-foreground pt-8 flex items-center justify-center gap-1">
-            Made with <HandHeart className="w-3 h-3 text-red-500" /> by Madaffadl
+            Made with <HandHeart className="w-3 h-3 text-red-500" /> by the Splitzy team
           </p>
         </div>
       </div>
