@@ -67,6 +67,12 @@ const nextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
+      {
+        // Advertise the API contract version on every API response (audit
+        // Sprint 3). See docs/API_VERSIONING.md for the go-forward strategy.
+        source: "/api/:path*",
+        headers: [{ key: "X-API-Version", value: "1" }],
+      },
     ];
   },
 };

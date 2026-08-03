@@ -4,6 +4,8 @@ import { useState, useRef, useCallback } from "react";
 import type { ReceiptItem } from "@/types";
 import type { ParseResult } from "@/lib/parser";
 import { formatCurrency, generateId, roundTo2 } from "@/lib/utils";
+import { EVENTS, capture } from "@/lib/analytics";
+import { ScanQuotaPaywall } from "@/components/billing/ScanQuotaPaywall";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +45,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [parsedResult, setParsedResult] = useState<ParseResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [quotaHit, setQuotaHit] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,6 +73,8 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
   const processImage = useCallback(async (imageData: string) => {
     setStatus("processing");
     setErrorMessage("");
+    setQuotaHit(false);
+    capture(EVENTS.scanStarted);
 
     try {
       const geminiResult = await processWithGemini(imageData);
@@ -110,7 +115,11 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
 
       setParsedResult(parseResult);
       setStatus("success");
-      
+      capture(EVENTS.scanCompleted, {
+        items: items.length,
+        currency: detectedCurrency ?? "IDR",
+      });
+
       // Auto-add items after a short delay
       setTimeout(() => {
         onParsed(parseResult);
@@ -119,7 +128,8 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       console.error("Processing error:", error);
       const msg = error instanceof Error ? error.message : "";
       if (msg === "__QUOTA__") {
-        setErrorMessage("Monthly scan limit reached (15 scans/month). Sign in with a Pro account for unlimited scans.");
+        setQuotaHit(true);
+        capture(EVENTS.quotaHit);
       } else {
         setErrorMessage("Failed to process image. Please try again.");
       }
@@ -362,17 +372,21 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             </div>
           )}
           
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-            <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-amber-600 dark:text-amber-400">
-                Failed to read receipt
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {errorMessage || "Make sure the photo is clear and try again."}
-              </p>
+          {quotaHit ? (
+            <ScanQuotaPaywall />
+          ) : (
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+              <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-amber-600 dark:text-amber-400">
+                  Failed to read receipt
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {errorMessage || "Make sure the photo is clear and try again."}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Button
@@ -382,12 +396,14 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             >
               Upload New
             </Button>
-            <Button
-              type="button"
-              onClick={retryProcessing}
-            >
-              Try Again
-            </Button>
+            {!quotaHit && (
+              <Button
+                type="button"
+                onClick={retryProcessing}
+              >
+                Try Again
+              </Button>
+            )}
           </div>
         </div>
       )}
