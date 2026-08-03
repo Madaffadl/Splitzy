@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Layers, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Phone, Network, ArrowRightLeft, History } from "lucide-react";
-import { Instagram, Linkedin } from "@/components/icons/BrandIcons";
+import { Receipt, Layers, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Network, ArrowRightLeft, History } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { useAuth } from "@/hooks/useAuth";
+import { BRAND, copyrightYear } from "@/lib/brand";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
@@ -491,32 +491,29 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="px-4 sm:px-6 py-4 sm:py-6 border-t bg-card">
-        <div className="max-w-5xl mx-auto flex flex-col items-center gap-4">
+      <footer className="px-4 sm:px-6 py-6 sm:py-8 border-t bg-card">
+        <div className="max-w-5xl mx-auto flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Calculator className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
             </div>
             <div className="flex flex-col">
-              <span className="font-semibold text-xs sm:text-sm">Splitzy by Madaffadl</span>
-              <span className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">Never miss a split <span className="text-sm sm:text-base">•</span> because someone always forgets.</span>
+              <span className="font-semibold text-xs sm:text-sm">{BRAND.name}</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">{BRAND.tagline}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <a href="mailto:m.daffafadhil26@gmail.com" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-200" aria-label="Email">
-              <Mail className="h-4 w-4" />
+          <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+            <a href={`mailto:${BRAND.supportEmail}`} className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+              <Mail className="h-3.5 w-3.5" />
+              <span>Support</span>
             </a>
-            <a href="https://www.instagram.com/mdaffa_fdl?igsh=ajJ3Y3Y0Nzd3OXZn&utm_source=qr" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-pink-500 hover:bg-pink-500/10 transition-all duration-200" aria-label="Instagram">
-              <Instagram className="h-4 w-4" />
-            </a>
-            <a href="https://www.linkedin.com/in/madaffadl" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-600/10 transition-all duration-200" aria-label="LinkedIn">
-              <Linkedin className="h-4 w-4" />
-            </a>
-            <a href="https://wa.me/6285365360955" target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-green-500 hover:bg-green-500/10 transition-all duration-200" aria-label="WhatsApp">
-              <Phone className="h-4 w-4" />
-            </a>
-          </div>
+          </nav>
         </div>
+        <p className="max-w-5xl mx-auto mt-5 text-center sm:text-left text-[11px] text-muted-foreground/70">
+          © {copyrightYear()} {BRAND.name}. All rights reserved.
+        </p>
       </footer>
     </main>
   );

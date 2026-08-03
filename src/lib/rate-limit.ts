@@ -9,12 +9,16 @@
 //   * Memory grows with unique keys; we evict expired entries lazily on
 //     access and proactively cap the map size.
 //
-// TODO(Sprint 2): swap to a shared-store implementation. The public surface
-// (`checkRateLimit`, `enforceRateLimit`, `RateLimitResult`) is intentionally
-// store-agnostic so the swap is a one-file change.
+// Distributed upgrade (audit T-01): the async variants below
+// (`checkRateLimitAsync` / `enforceRateLimitAsync`) route to a shared Upstash
+// Redis store when the FLAG_DISTRIBUTED_RATE_LIMIT flag is ON and Upstash env
+// is configured, and fail open to this in-memory path otherwise. The sync
+// functions remain for callers that haven't migrated — behaviour is identical
+// when the flag is OFF.
 
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api-response";
+import { isServerEnabled } from "@/lib/flags";
 
 interface Bucket {
   timestamps: number[];
@@ -106,22 +110,21 @@ export function getClientKey(request: Request): string {
  *   const limited = enforceRateLimit(request, "trips:create", { userId: user.id });
  *   if (limited) return limited;
  */
-export function enforceRateLimit(
-  request: Request,
-  scope: string,
-  options: {
-    userId?: string | null;
-    limit?: number;
-    windowMs?: number;
-  } = {}
-): NextResponse | null {
-  const { userId, limit = 60, windowMs = 60_000 } = options;
-  // Per-user bucket if authenticated; otherwise IP-based. We don't AND them —
-  // an authenticated user behind shared NAT shouldn't be capped by their
-  // neighbors, and an anonymous IP shouldn't be inflated by other users.
+interface EnforceOptions {
+  userId?: string | null;
+  limit?: number;
+  windowMs?: number;
+}
+
+// Per-user bucket if authenticated; otherwise IP-based. We don't AND them —
+// an authenticated user behind shared NAT shouldn't be capped by their
+// neighbors, and an anonymous IP shouldn't be inflated by other users.
+function rateLimitKey(request: Request, scope: string, userId?: string | null): string {
   const subject = userId ? `u:${userId}` : `ip:${getClientKey(request)}`;
-  const result = checkRateLimit(`${scope}:${subject}`, limit, windowMs);
-  if (result.allowed) return null;
+  return `${scope}:${subject}`;
+}
+
+function rateLimitedResponse(result: RateLimitResult): NextResponse {
   return apiError(
     "RATE_LIMITED",
     "Too many requests. Please wait a moment and try again.",
@@ -132,4 +135,59 @@ export function enforceRateLimit(
       },
     }
   );
+}
+
+export function enforceRateLimit(
+  request: Request,
+  scope: string,
+  options: EnforceOptions = {}
+): NextResponse | null {
+  const { userId, limit = 60, windowMs = 60_000 } = options;
+  const result = checkRateLimit(rateLimitKey(request, scope, userId), limit, windowMs);
+  if (result.allowed) return null;
+  return rateLimitedResponse(result);
+}
+
+/**
+ * Store-aware rate limit check. When FLAG_DISTRIBUTED_RATE_LIMIT is ON and
+ * Upstash is configured, uses a shared Redis counter (consistent across all
+ * serverless instances). Otherwise — or if Redis errors — falls back to the
+ * in-memory limiter, so the request path never fails because the store is down.
+ */
+export async function checkRateLimitAsync(
+  key: string,
+  limit: number,
+  windowMs: number
+): Promise<RateLimitResult> {
+  if (isServerEnabled("distributedRateLimit")) {
+    // Imported lazily so the Upstash module never loads when the flag is OFF.
+    const { isDistributedRateLimitConfigured, checkRateLimitRedis } = await import(
+      "@/lib/rate-limit-redis"
+    );
+    if (isDistributedRateLimitConfigured()) {
+      try {
+        return await checkRateLimitRedis(key, limit, windowMs);
+      } catch (err) {
+        // Fail open to in-memory rather than dropping the request.
+        console.error("Distributed rate limit failed; using in-memory fallback:", err);
+      }
+    }
+  }
+  return checkRateLimit(key, limit, windowMs);
+}
+
+/**
+ * Async twin of enforceRateLimit that honours the distributed-store flag.
+ * Prefer this in route handlers (they are already async); the sync version
+ * stays for callers that haven't migrated.
+ */
+export async function enforceRateLimitAsync(
+  request: Request,
+  scope: string,
+  options: EnforceOptions = {}
+): Promise<NextResponse | null> {
+  const { userId, limit = 60, windowMs = 60_000 } = options;
+  const result = await checkRateLimitAsync(rateLimitKey(request, scope, userId), limit, windowMs);
+  if (result.allowed) return null;
+  return rateLimitedResponse(result);
 }

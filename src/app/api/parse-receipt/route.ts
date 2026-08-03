@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-import { enforceRateLimit } from "@/lib/rate-limit";
+import { enforceRateLimitAsync } from "@/lib/rate-limit";
 import { assertSameOrigin, getAuthUser } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
 import { parseIndonesianPrice } from "@/lib/parser";
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         const csrf = assertSameOrigin(request);
         if (csrf) return csrf;
 
-        const limited = enforceRateLimit(request, "parse-receipt", {
+        const limited = await enforceRateLimitAsync(request, "parse-receipt", {
             limit: PARSE_RATE_LIMIT,
             windowMs: PARSE_RATE_WINDOW_MS,
         });
