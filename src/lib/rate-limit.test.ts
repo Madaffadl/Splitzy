@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { checkRateLimit } from "./rate-limit";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { checkRateLimit, checkRateLimitAsync } from "./rate-limit";
 
 describe("checkRateLimit", () => {
   beforeEach(() => {
@@ -37,5 +37,37 @@ describe("checkRateLimit", () => {
 
     const after = checkRateLimit("test-key-4", 1, 1000);
     expect(after.allowed).toBe(true);
+  });
+});
+
+describe("checkRateLimitAsync (distributed flag gating)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("uses the in-memory limiter and never touches the network when the flag is OFF", async () => {
+    vi.stubEnv("FLAG_DISTRIBUTED_RATE_LIMIT", "0");
+    // Even with Upstash configured, an OFF flag must not reach out.
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://x.upstash.io");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "tok");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await checkRateLimitAsync("async-off-key", 2, 60_000);
+    expect(res.allowed).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to in-memory when the flag is ON but Upstash is unconfigured", async () => {
+    vi.stubEnv("FLAG_DISTRIBUTED_RATE_LIMIT", "1");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await checkRateLimitAsync("async-noconfig-key", 2, 60_000);
+    expect(res.allowed).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
