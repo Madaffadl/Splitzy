@@ -49,6 +49,16 @@ export default {
                 md: "calc(var(--radius) - 2px)",
                 sm: "calc(var(--radius) - 4px)",
             },
+            // Design-system typography tokens (Sprint 2). Additive: a semantic
+            // marketing type scale consumed by new surfaces (pricing, new
+            // landing). Existing text-* utilities are unchanged.
+            fontSize: {
+                "display-1": ["clamp(2.5rem, 5vw, 3.75rem)", { lineHeight: "1.05", letterSpacing: "-0.02em", fontWeight: "800" }],
+                "display-2": ["clamp(2rem, 4vw, 3rem)", { lineHeight: "1.1", letterSpacing: "-0.02em", fontWeight: "800" }],
+                "heading": ["clamp(1.5rem, 2.5vw, 2rem)", { lineHeight: "1.2", letterSpacing: "-0.01em", fontWeight: "700" }],
+                "eyebrow": ["0.8125rem", { lineHeight: "1", letterSpacing: "0.08em", fontWeight: "600" }],
+                "lead": ["1.125rem", { lineHeight: "1.6" }],
+            },
         },
     },
     plugins: [],
