@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isProActive } from "@/lib/billing/entitlements";
 
 export const FREE_SCAN_LIMIT = 15;
 
@@ -16,11 +17,19 @@ export interface ScanQuotaStatus {
 export async function checkScanQuota(userId: string): Promise<ScanQuotaStatus> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { plan: true, aiScanCount: true, aiScanResetAt: true, aiScanLimit: true },
+    select: {
+      plan: true,
+      aiScanCount: true,
+      aiScanResetAt: true,
+      aiScanLimit: true,
+      proExpiresAt: true,
+    },
   });
   if (!user) return { allowed: false, remaining: 0, resetAt: null, plan: "free" };
 
-  if (user.plan === "pro") {
+  // Active Pro = unlimited. An expired one-time Pro period falls through to the
+  // free limits below (isProActive returns false once proExpiresAt passes).
+  if (isProActive(user)) {
     return { allowed: true, remaining: Infinity, resetAt: null, plan: "pro" };
   }
 

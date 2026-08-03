@@ -23,6 +23,12 @@ model User {
   aiScanResetAt DateTime? @map("ai_scan_reset_at")
   // Per-user override; null = use plan default (15 for free, ∞ for pro).
   aiScanLimit   Int?      @map("ai_scan_limit")
+  // When the current paid Pro period lapses. null = not on a timed plan
+  // (either free, or admin-comped Pro that never expires). Set by the Xendit
+  // webhook on a successful one-time monthly payment; entitlement checks treat
+  // plan="pro" with a past proExpiresAt as expired (back to free). See
+  // lib/billing/entitlements.
+  proExpiresAt  DateTime? @map("pro_expires_at")
   // Set by admin to suspend access; null = active account.
   bannedAt      DateTime? @map("banned_at")
   // Access role: "user" (default) or "admin". Admins reach /admin + /api/admin/*.
@@ -42,8 +48,35 @@ model User {
   itemAssignments ItemAssignment[]
   sharedSummaries SharedSummary[]  @relation("SharedSummaryCreator")
   activityEvents  ActivityEvent[]  @relation("UserActivity")
+  payments        Payment[]        @relation("UserPayments")
 
   @@map("users")
+}
+
+// One-time monthly Pro payments via Xendit (audit EPIC 1 / Sprint 2). Each row
+// is one invoice: created "pending", flipped to "paid" by the Xendit webhook,
+// which then extends the buyer's User.proExpiresAt by periodDays. externalId is
+// our idempotency key (sent to Xendit as external_id); xenditId is theirs.
+model Payment {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  user       User      @relation("UserPayments", fields: [userId], references: [id], onDelete: Cascade)
+  externalId String    @unique @map("external_id")
+  xenditId   String?   @unique @map("xendit_id")
+  // Whole-rupiah amount (IDR has no minor units), e.g. 29000.
+  amount     Int
+  currency   String    @default("IDR")
+  // pending | paid | expired | failed
+  status     String    @default("pending")
+  plan       String    @default("pro")
+  periodDays Int       @default(30) @map("period_days")
+  invoiceUrl String?   @map("invoice_url")
+  paidAt     DateTime? @map("paid_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("payments")
 }
 
 model Trip {
