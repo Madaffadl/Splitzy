@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ToastProvider } from "@/components/ui/toast";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
+import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -42,6 +43,7 @@ export default function RootLayout({
           <ToastProvider>
             <AuthProvider>
               <RegisterServiceWorker />
+              <AnalyticsProvider />
               <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
                 {children}
               </div>

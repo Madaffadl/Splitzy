@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { EVENTS, capture } from "@/lib/analytics";
 
 // Client island for the pricing page. Kicks off checkout, then redirects the
 // browser to the Xendit-hosted invoice. When checkout isn't live yet (flag off
@@ -20,6 +21,7 @@ export function UpgradeButton({
   async function handleUpgrade() {
     setLoading(true);
     setError(null);
+    capture(EVENTS.upgradeClicked, { price_label: priceLabel });
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
