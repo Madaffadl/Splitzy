@@ -7,8 +7,11 @@ import {
   Layers,
   Plane,
   Receipt,
+  ScanLine,
+  ShieldCheck,
   Sparkles,
   Users,
+  Zap,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
@@ -60,6 +63,15 @@ const STEPS = [
   { icon: Users, title: "Add participants", body: "Enter everyone who's splitting the bill." },
   { icon: Receipt, title: "Add items", body: "Scan the receipt with AI or add items manually." },
   { icon: CheckCircle2, title: "See results", body: "Get who pays what with minimal transactions." },
+];
+
+// Honest trust signals — plain facts about how Splitzy works, not fabricated
+// testimonials or usage numbers.
+const TRUST = [
+  { icon: Zap, label: "Free to start" },
+  { icon: Sparkles, label: "No sign-up needed" },
+  { icon: ScanLine, label: "AI receipt scanning" },
+  { icon: ShieldCheck, label: "Your data stays private" },
 ];
 
 export function NewLanding() {
@@ -130,6 +142,21 @@ export function NewLanding() {
               Track a trip
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* Trust strip — honest value props, not fabricated proof */}
+      <section className="border-y bg-card/50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {TRUST.map((t) => {
+            const Icon = t.icon;
+            return (
+              <div key={t.label} className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Icon className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+                <span>{t.label}</span>
+              </div>
+            );
+          })}
         </div>
       </section>
 

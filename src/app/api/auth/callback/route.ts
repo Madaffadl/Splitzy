@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity-server";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -51,6 +52,11 @@ export async function GET(request: NextRequest) {
       supabaseUser.user_metadata?.avatar_url ??
       supabaseUser.user_metadata?.picture ??
       null;
+    // Detect first sign-in so we only welcome-email brand-new accounts.
+    const existing = await prisma.user.findUnique({
+      where: { googleId: supabaseUser.id },
+      select: { id: true },
+    });
     const dbUser = await prisma.user.upsert({
       where: { googleId: supabaseUser.id },
       update: { email: supabaseUser.email ?? "", name, avatarUrl, lastLoginAt: now },
@@ -65,6 +71,12 @@ export async function GET(request: NextRequest) {
     });
     // Record the sign-in in the activity log (best-effort).
     await logActivity({ userId: dbUser.id, userEmail: dbUser.email, feature: "account", type: "login" });
+    // First-time users get a welcome email (no-op unless RESEND_API_KEY is set).
+    if (!existing) {
+      await sendWelcomeEmail(dbUser.email, name).catch((e) =>
+        console.error("welcome email failed:", e)
+      );
+    }
   } catch (dbError) {
     console.error("Failed to upsert user:", dbError);
     // Don't block login if DB upsert fails — auth session is still valid

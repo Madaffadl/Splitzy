@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Calculator, Check, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Calculator, Check } from "lucide-react";
 import { isEnabled, isServerEnabled } from "@/lib/flags";
 import { isXenditConfigured } from "@/lib/billing/xendit";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/lib/billing/plans";
 import { BRAND } from "@/lib/brand";
 import { UpgradeButton } from "@/components/billing/UpgradeButton";
+import { SuccessCelebration } from "@/components/billing/SuccessCelebration";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -62,9 +63,8 @@ export default async function PricingPage({
         </div>
 
         {status === "success" && (
-          <div className="max-w-2xl mx-auto mb-8 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            Payment received — your Pro benefits are now active. Thank you!
+          <div className="max-w-2xl mx-auto mb-8">
+            <SuccessCelebration />
           </div>
         )}
         {status === "failed" && (

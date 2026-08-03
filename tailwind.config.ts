@@ -59,6 +59,16 @@ export default {
                 "eyebrow": ["0.8125rem", { lineHeight: "1", letterSpacing: "0.08em", fontWeight: "600" }],
                 "lead": ["1.125rem", { lineHeight: "1.6" }],
             },
+            // Motion design tokens (Sprint 5). Additive — a shared vocabulary of
+            // easings/durations for new components so animation feels consistent.
+            transitionTimingFunction: {
+                smooth: "cubic-bezier(0.4, 0, 0.2, 1)",
+                "bounce-soft": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+            },
+            transitionDuration: {
+                "250": "250ms",
+                "400": "400ms",
+            },
         },
     },
     plugins: [],

@@ -85,6 +85,14 @@
     @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
   }
+
+  /* Visible keyboard-focus ring (WCAG 2.4.7). Mouse clicks don't trigger
+     :focus-visible, so this only shows for keyboard/AT users. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 }
 
 /* Respect user's reduced-motion preference (WCAG 2.3.3) */

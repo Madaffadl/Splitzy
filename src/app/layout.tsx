@@ -94,10 +94,20 @@ export default function RootLayout({
               (e.g. session-expired notification) via useToast(). */}
           <ToastProvider>
             <AuthProvider>
+              {/* Skip link (WCAG 2.4.1): hidden until keyboard-focused. */}
+              <a
+                href="#main-content"
+                className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
+              >
+                Skip to content
+              </a>
               <RegisterServiceWorker />
               <AnalyticsProvider />
               <OnboardingModal />
-              <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+              <div
+                id="main-content"
+                className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5"
+              >
                 {children}
               </div>
             </AuthProvider>
