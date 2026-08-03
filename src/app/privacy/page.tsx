@@ -3,7 +3,7 @@ import { LegalPageShell } from "@/components/LegalPageShell";
 import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Splitzy",
+  title: "Privacy Policy",
   description: "How Splitzy collects, uses, and protects your data.",
 };
 

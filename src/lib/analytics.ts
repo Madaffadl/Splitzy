@@ -44,6 +44,7 @@ export const EVENTS = {
   scanCompleted: "scan_completed",
   quotaHit: "scan_quota_hit",
   splitCompleted: "split_completed",
+  shareWhatsapp: "share_whatsapp",
   upgradeClicked: "upgrade_clicked",
   pricingViewed: "pricing_viewed",
 } as const;

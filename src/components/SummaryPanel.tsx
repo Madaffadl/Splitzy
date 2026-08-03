@@ -24,7 +24,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Copy, Check, CheckCircle2, Circle, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2, X } from "lucide-react";
+import { Copy, Check, CheckCircle2, Circle, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2, X, MessageCircle } from "lucide-react";
+import { EVENTS, capture } from "@/lib/analytics";
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
@@ -863,6 +864,22 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
     }
   };
 
+  // Share straight to WhatsApp: sends the readable summary + short link via the
+  // wa.me deep link (opens the app on mobile, WhatsApp Web on desktop). This is
+  // the dominant sharing channel for the SEA audience.
+  const handleShareWhatsApp = async () => {
+    const url = await ensureShareUrl();
+    let text = generateExportText();
+    if (url) text += `\n🔗 View full breakdown:\n${url}\n`;
+    text += splitzyCopyFooter(window.location.origin);
+    capture(EVENTS.shareWhatsapp);
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   if (participantIds.length === 0 || !receipt.payerId) {
     return (
       <Card className="border-dashed">
@@ -900,6 +917,17 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
                   <Share2 className="h-3.5 w-3.5" />
                 )}
                 <span className="hidden md:inline ml-1.5">Share</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShareWhatsApp}
+                disabled={creatingLink}
+                className="h-9 px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
+                aria-label="Share the split to WhatsApp"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                <span className="hidden md:inline ml-1.5">WhatsApp</span>
               </Button>
               <Button
                 variant="accent"

@@ -4,7 +4,7 @@ import { isEnabled } from "@/lib/flags";
 import { DashboardClient } from "@/components/dashboard/DashboardClient";
 
 export const metadata: Metadata = {
-  title: "Dashboard — Splitzy",
+  title: "Dashboard",
 };
 
 // Server gate (audit Sprint 3): dark until NEXT_PUBLIC_FLAG_DASHBOARD is on.

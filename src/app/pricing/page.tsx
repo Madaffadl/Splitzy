@@ -15,7 +15,7 @@ import { BRAND } from "@/lib/brand";
 import { UpgradeButton } from "@/components/billing/UpgradeButton";
 
 export const metadata: Metadata = {
-  title: "Pricing — Splitzy",
+  title: "Pricing",
   description: "Splitzy is free to use. Upgrade to Pro for unlimited AI receipt scans.",
 };
 

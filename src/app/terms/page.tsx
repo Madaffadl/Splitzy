@@ -3,7 +3,7 @@ import { LegalPageShell } from "@/components/LegalPageShell";
 import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Splitzy",
+  title: "Terms of Service",
   description: "The terms that govern your use of Splitzy.",
 };
 
