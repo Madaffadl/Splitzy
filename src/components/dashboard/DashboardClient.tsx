@@ -18,6 +18,7 @@ import { AuthButton } from "@/components/AuthButton";
 import { BRAND } from "@/lib/brand";
 import { isEnabled } from "@/lib/flags";
 import { FREE_SCAN_LIMIT } from "@/lib/scan-quota";
+import { Spinner } from "@/components/ui/spinner";
 
 interface QuotaResponse {
   plan: string;
@@ -112,9 +113,9 @@ export function DashboardClient() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="font-semibold">AI scans this month</p>
-                    <p className="text-sm text-muted-foreground">
-                      {quota ? `${quota.remaining ?? 0} of ${FREE_SCAN_LIMIT} left` : "…"}
-                    </p>
+                    <div className="text-sm text-muted-foreground">
+                      {quota ? `${quota.remaining ?? 0} of ${FREE_SCAN_LIMIT} left` : <Spinner />}
+                    </div>
                   </div>
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
                     <div
