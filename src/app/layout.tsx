@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -7,6 +8,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+import { RefCapture } from "@/components/referral/RefCapture";
 import { BRAND } from "@/lib/brand";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -104,6 +106,9 @@ export default function RootLayout({
               <RegisterServiceWorker />
               <AnalyticsProvider />
               <OnboardingModal />
+              <Suspense fallback={null}>
+                <RefCapture />
+              </Suspense>
               <div
                 id="main-content"
                 className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5"

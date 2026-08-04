@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity-server";
 import { sendWelcomeEmail } from "@/lib/email";
+import { processReferral } from "@/lib/referral";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -71,8 +72,16 @@ export async function GET(request: NextRequest) {
     });
     // Record the sign-in in the activity log (best-effort).
     await logActivity({ userId: dbUser.id, userEmail: dbUser.email, feature: "account", type: "login" });
-    // First-time users get a welcome email (no-op unless RESEND_API_KEY is set).
     if (!existing) {
+      // Process referral if the user arrived via a ?ref= link (cookie set by RefCapture).
+      const refCode = request.cookies.get("splitzy_ref")?.value;
+      if (refCode) {
+        await processReferral(dbUser.id, refCode).catch((e) =>
+          console.error("referral processing failed:", e)
+        );
+        response.cookies.set("splitzy_ref", "", { maxAge: 0, path: "/" });
+      }
+      // Welcome email (no-op unless RESEND_API_KEY is set).
       await sendWelcomeEmail(dbUser.email, name).catch((e) =>
         console.error("welcome email failed:", e)
       );

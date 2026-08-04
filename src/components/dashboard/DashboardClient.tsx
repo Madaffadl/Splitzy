@@ -19,6 +19,7 @@ import { BRAND } from "@/lib/brand";
 import { isEnabled } from "@/lib/flags";
 import { FREE_SCAN_LIMIT } from "@/lib/scan-quota";
 import { Spinner } from "@/components/ui/spinner";
+import { ReferralCard } from "@/components/referral/ReferralCard";
 
 interface QuotaResponse {
   plan: string;
@@ -138,6 +139,11 @@ export function DashboardClient() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Referral */}
+            <div className="mb-10">
+              <ReferralCard />
             </div>
 
             {/* Quick actions */}

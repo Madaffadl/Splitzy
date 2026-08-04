@@ -29,6 +29,9 @@ model User {
   // plan="pro" with a past proExpiresAt as expired (back to free). See
   // lib/billing/entitlements.
   proExpiresAt  DateTime? @map("pro_expires_at")
+  // Unique short code for referral links (?ref=CODE). Generated lazily on
+  // first request to GET /api/me/referral — null until the user visits dashboard.
+  referralCode  String?   @unique @map("referral_code")
   // Set by admin to suspend access; null = active account.
   bannedAt      DateTime? @map("banned_at")
   // Access role: "user" (default) or "admin". Admins reach /admin + /api/admin/*.
@@ -41,6 +44,8 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
+  referrals       Referral[]       @relation("ReferralReferrer")
+  referredBy      Referral?        @relation("ReferralReferee")
   ownedTrips      Trip[]           @relation("TripOwner")
   tripMemberships TripMember[]
   createdReceipts Receipt[]        @relation("ReceiptCreator")
@@ -77,6 +82,23 @@ model Payment {
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("payments")
+}
+
+// One row per successful referral. referee_id is unique — a new user can only
+// be referred once. referrer earns REFERRAL_REWARD_DAYS of Pro per referral.
+model Referral {
+  id         String    @id @default(uuid()) @db.Uuid
+  referrerId String    @map("referrer_id") @db.Uuid
+  refereeId  String    @unique @map("referee_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at")
+  rewardedAt DateTime? @map("rewarded_at")
+  rewardDays Int       @default(14) @map("reward_days")
+
+  referrer User @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee  User @relation("ReferralReferee", fields: [refereeId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId])
+  @@map("referrals")
 }
 
 model Trip {
