@@ -24,7 +24,7 @@ export async function sendEmail(opts: {
         "Content-Type": "application/json",
       },
       cache: "no-store",
-      body: JSON.stringify({ from: FROM, to: opts.to, subject: opts.subject, html: opts.html }),
+      body: JSON.stringify({ from: FROM, to: opts.to, subject: opts.subject, html: opts.html, reply_to: "adminsplitzy@gmail.com" }),
     });
     if (!res.ok) {
       console.error("Email send failed:", res.status, await res.text().catch(() => ""));

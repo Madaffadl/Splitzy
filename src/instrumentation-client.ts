@@ -15,6 +15,10 @@ if (dsn) {
     replaysOnErrorSampleRate: 0,
     environment: process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.NODE_ENV,
     sendDefaultPii: false,
+    ignoreErrors: [
+      // Known Supabase Web Locks race condition — benign, session stays valid.
+      /Lock .* was released because another request stole it/,
+    ],
   });
 }
 
