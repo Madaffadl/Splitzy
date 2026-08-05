@@ -21,13 +21,13 @@
 // same, so nothing downstream changes.
 
 /** UI-facing flags. Exposed to the browser via NEXT_PUBLIC_FLAG_* env vars. */
+//
+// Contracted (Sprint 6): newLanding, dashboard, and onboarding graduated from
+// flags to permanent features once stable in production; designSystemV2 was
+// never wired and was dropped. The remaining flags gate not-yet-launched work.
 export type PublicFlagKey =
-  | "newLanding" // RSC landing + AI-first hero (T-08, T-14)
-  | "dashboard" // post-login dashboard (T-09)
-  | "onboarding" // first-run onboarding wizard (T-10)
-  | "pricingPage" // pricing page + upgrade prompts (T-06, T-07)
-  | "designSystemV2" // new token-based components (T-11, T-12)
-  | "realtime"; // live trip collaboration via broadcast (Sprint 6)
+  | "pricingPage" // pricing page + upgrade prompts (paired with Xendit launch)
+  | "realtime"; // live trip collaboration via broadcast (Sprint 6 beta)
 
 /** Server-only flags. Never exposed to the browser. */
 export type ServerFlagKey =
@@ -35,11 +35,7 @@ export type ServerFlagKey =
   | "distributedRateLimit"; // Upstash-backed limiter, else in-memory (T-01)
 
 const PUBLIC_FLAG_ENV: Record<PublicFlagKey, string> = {
-  newLanding: "NEXT_PUBLIC_FLAG_NEW_LANDING",
-  dashboard: "NEXT_PUBLIC_FLAG_DASHBOARD",
-  onboarding: "NEXT_PUBLIC_FLAG_ONBOARDING",
   pricingPage: "NEXT_PUBLIC_FLAG_PRICING_PAGE",
-  designSystemV2: "NEXT_PUBLIC_FLAG_DESIGN_SYSTEM_V2",
   realtime: "NEXT_PUBLIC_FLAG_REALTIME",
 };
 
@@ -53,11 +49,7 @@ const SERVER_FLAG_ENV: Record<ServerFlagKey, string> = {
 // lookup is NOT inlined and reads `undefined` in the browser. So public flags
 // must be resolved through this static map, not a dynamic key.
 const PUBLIC_FLAG_VALUE: Record<PublicFlagKey, string | undefined> = {
-  newLanding: process.env.NEXT_PUBLIC_FLAG_NEW_LANDING,
-  dashboard: process.env.NEXT_PUBLIC_FLAG_DASHBOARD,
-  onboarding: process.env.NEXT_PUBLIC_FLAG_ONBOARDING,
   pricingPage: process.env.NEXT_PUBLIC_FLAG_PRICING_PAGE,
-  designSystemV2: process.env.NEXT_PUBLIC_FLAG_DESIGN_SYSTEM_V2,
   realtime: process.env.NEXT_PUBLIC_FLAG_REALTIME,
 };
 

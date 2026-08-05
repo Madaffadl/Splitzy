@@ -12,7 +12,6 @@ import {
   Wallet,
   X,
 } from "@/components/ui/icons";
-import { isEnabled } from "@/lib/flags";
 import { capture } from "@/lib/analytics";
 
 // First-run welcome (audit Sprint 4), behind NEXT_PUBLIC_FLAG_ONBOARDING.
@@ -128,7 +127,7 @@ export function OnboardingModal() {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    if (!isEnabled("onboarding") || pathname !== "/") return;
+    if (pathname !== "/") return;
     try {
       if (!localStorage.getItem(STORAGE_KEY)) {
         setOpen(true);

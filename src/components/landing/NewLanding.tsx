@@ -31,7 +31,8 @@ import {
   formatIDR,
 } from "@/lib/billing/plans";
 
-// RSC landing (audit T-14), rendered behind the `newLanding` flag. Server
+// RSC landing (audit T-14) — the permanent landing since the newLanding flag
+// was contracted in Sprint 6. Server
 // Component: no client hooks except the AuthButton/ThemeToggle/LoginBanner
 // islands. Everything below — including the product mockups and the FAQ (native
 // <details>) — is static markup so it streams immediately and needs no JS.

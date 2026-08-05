@@ -35,7 +35,7 @@ describe("isServerEnabled", () => {
 
 describe("flagEnvName", () => {
   it("maps public flags to NEXT_PUBLIC_ vars", () => {
-    expect(flagEnvName("dashboard")).toBe("NEXT_PUBLIC_FLAG_DASHBOARD");
+    expect(flagEnvName("pricingPage")).toBe("NEXT_PUBLIC_FLAG_PRICING_PAGE");
   });
 
   it("maps server flags to FLAG_ vars", () => {
