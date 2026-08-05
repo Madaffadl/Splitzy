@@ -13,7 +13,7 @@
 | **RPO** (Recovery Point Objective) | ≤ 24 jam | Kehilangan data maksimum yang bisa ditoleransi. Ditentukan oleh frekuensi backup (lihat §4). |
 | **RTO** (Recovery Time Objective) | ≤ 4 jam | Waktu maksimum dari insiden sampai layanan pulih. |
 
-> ⚠️ **Belum terverifikasi.** Target di atas mengasumsikan Supabase automatic backup aktif dengan retensi yang sesuai. **Verifikasi plan Supabase kamu** (lihat §4.1) — free tier TIDAK menyediakan backup harian otomatis. Sesuaikan RPO/RTO setelah plan dikonfirmasi.
+> **Terkonfirmasi (Agu 2026):** Supabase FREE tier (tanpa backup bawaan). RPO ≤24 jam dijamin oleh backup otomatis harian kita sendiri (§4.2), bukan Supabase. RTO ≤4 jam masih perlu divalidasi lewat DR drill (§7).
 
 ---
 
@@ -100,27 +100,35 @@ Skema dikelola **Prisma + SQL manual** yang dijalankan tangan di Supabase SQL ed
 
 ## 4. Strategi Backup
 
-### 4.1 Supabase automatic backup (verifikasi SEKARANG)
+### 4.1 Supabase automatic backup
 
-1. Supabase Dashboard → Project → **Database** → **Backups**.
-2. Konfirmasi:
-   - **Free tier:** ❌ tidak ada backup harian terjadwal. **Ini gap serius** — wajib pakai backup manual §4.2, atau upgrade.
-   - **Pro tier:** ✅ backup harian, retensi 7 hari + Point-in-Time Recovery (PITR) opsional.
-3. Catat: retensi berapa hari? PITR aktif? → tentukan RPO nyata di §0.
+Status terkonfirmasi (Agustus 2026): **FREE tier — TIDAK ada backup harian
+terjadwal.** Ini gap serius; mitigasi utama adalah backup otomatis kita sendiri
+di §4.2. (Kalau nanti upgrade ke Pro: backup harian + retensi 7 hari + PITR
+opsional → RPO bisa diturunkan.)
 
-### 4.2 Backup manual yang dimiliki app (direkomendasikan — independen dari Supabase)
+### 4.2 Backup otomatis yang dimiliki app — **AKTIF** (`.github/workflows/backup.yml`)
 
-Ambil dump berkala ke storage independen (mesin lain / cloud storage terpisah), jadi kalau **akun Supabase** hilang, data tetap aman:
+GitHub Actions mengambil dump **harian** (18:00 UTC / 01:00 WIB), **mengenkripsi**
+(AES-256, karena berisi PII), dan menyimpannya sebagai artifact (retensi 30 hari).
+Independen dari Supabase → data selamat meski akun Supabase hilang. Bisa juga
+dijalankan on-demand (tombol **Run workflow**) sebelum migrasi berisiko.
 
+**Secret repo yang wajib di-set** (GitHub → Settings → Secrets and variables → Actions):
+- `SUPABASE_DIRECT_URL` — prod DIRECT_URL (port 5432, **bukan** pooler)
+- `BACKUP_PASSPHRASE` — string random panjang; jaga seperti password DB
+
+**Mengambil & mendekripsi sebuah backup:**
 ```bash
-# Full logical dump (jalankan dari mesin tepercaya, DIRECT_URL port 5432):
-pg_dump "$DIRECT_URL" --no-owner --no-privileges -Fc -f "splitzy-$(date +%Y%m%d).dump"
-
-# Verifikasi dump bisa dibaca:
-pg_restore --list "splitzy-$(date +%Y%m%d).dump" | head
+# 1. Download artifact "db-backup-<stamp>" dari tab Actions → unzip.
+# 2. Dekripsi (butuh BACKUP_PASSPHRASE yang sama):
+gpg --batch --passphrase "<BACKUP_PASSPHRASE>" -o splitzy.dump -d splitzy-<stamp>.dump.gpg
+# 3. Verifikasi isi dump bisa dibaca:
+pg_restore --list splitzy.dump | head
 ```
 
-> **Belum otomatis.** Menjadikan ini cron (GitHub Actions terjadwal → upload ke storage terenkripsi) adalah item follow-up. Untuk sekarang, jalankan manual minimal mingguan + sebelum setiap migrasi.
+> **RPO nyata = ≤24 jam** (frekuensi backup harian). Untuk RPO lebih ketat,
+> jalankan workflow manual lebih sering atau upgrade Supabase (PITR).
 
 ---
 
@@ -145,7 +153,7 @@ Splitzy punya **soft-delete** — cek dulu sebelum restore backup:
 
 1. Buat proyek Supabase baru (region **ap-southeast-1**).
 2. Rebuild skema: §3.1 (prisma db push + 7 SQL manual).
-3. Restore data dari dump §4.2: `pg_restore --no-owner --no-privileges -d "$DIRECT_URL" splitzy-<tgl>.dump`.
+3. Restore data dari backup §4.2: dekripsi dulu (`gpg -d`), lalu `pg_restore --no-owner --no-privileges -d "$DIRECT_URL" splitzy-<stamp>.dump`.
 4. **Auth:** aktifkan Google OAuth provider, masukkan Client ID/Secret yang sama. **Penting:** user Splitzy dikaitkan via `google_id` — selama Google OAuth client sama, user lama bisa login lagi dan ter-match ke row DB mereka.
 5. Update env di Vercel (semua var Supabase §2) → redeploy.
 6. Tambahkan redirect URL prod ke Google OAuth + Supabase Auth Redirect URLs.
@@ -201,8 +209,8 @@ Saat outage terdeteksi:
 
 | Gap | Prioritas | Aksi |
 |-----|-----------|------|
-| Backup manual belum otomatis | 🔴 Tinggi | GitHub Actions terjadwal → `pg_dump` → storage terenkripsi |
-| Plan Supabase / retensi backup belum diverifikasi | 🔴 Tinggi | Cek §4.1, sesuaikan RPO |
+| ~~Backup otomatis~~ | ✅ Selesai | `.github/workflows/backup.yml` — daily encrypted dump. **Set 2 secret repo.** |
+| ~~Plan Supabase diverifikasi~~ | ✅ Selesai | Free tier dikonfirmasi; dimitigasi §4.2 |
 | `/api/health` belum di-wire ke uptime monitor | 🟡 Sedang | Daftarkan ke UptimeRobot + alert |
 | Belum pernah restore drill | 🟡 Sedang | Jalankan §7 via Neon |
 | Tidak ada script rollback (DOWN) | 🟢 Rendah | Tulis saat operasi destruktif pertama |
