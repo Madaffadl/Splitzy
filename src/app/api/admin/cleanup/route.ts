@@ -47,21 +47,27 @@ export async function POST(request: NextRequest) {
   // on ReceiptItem & ItemAssignment so children clean up automatically.
   // Shared links are purged the moment they expire (their own TTL governs
   // lifetime), independent of the soft-delete retention window above.
-  const [receiptsDeleted, tripsDeleted, sharesDeleted, activityDeleted] = await prisma.$transaction([
-    prisma.receipt.deleteMany({
-      where: { deletedAt: { lt: cutoff, not: null } },
-    }),
-    prisma.trip.deleteMany({
-      where: { deletedAt: { lt: cutoff, not: null } },
-    }),
-    prisma.sharedSummary.deleteMany({
-      where: { expiresAt: { lt: now } },
-    }),
-    // Activity log is telemetry, not user data — sweep by age (not soft-delete).
-    prisma.activityEvent.deleteMany({
-      where: { createdAt: { lt: cutoff } },
-    }),
-  ]);
+  const [receiptsDeleted, tripsDeleted, sharesDeleted, activityDeleted, invitesDeleted] =
+    await prisma.$transaction([
+      prisma.receipt.deleteMany({
+        where: { deletedAt: { lt: cutoff, not: null } },
+      }),
+      prisma.trip.deleteMany({
+        where: { deletedAt: { lt: cutoff, not: null } },
+      }),
+      prisma.sharedSummary.deleteMany({
+        where: { expiresAt: { lt: now } },
+      }),
+      // Activity log is telemetry, not user data — sweep by age (not soft-delete).
+      prisma.activityEvent.deleteMany({
+        where: { createdAt: { lt: cutoff } },
+      }),
+      // Trip invites carry their own 7-day TTL — purge the moment they expire,
+      // independent of the soft-delete retention window (they're self-expiring).
+      prisma.tripInvite.deleteMany({
+        where: { expiresAt: { lt: now } },
+      }),
+    ]);
 
   return NextResponse.json({
     cutoff: cutoff.toISOString(),
@@ -70,6 +76,7 @@ export async function POST(request: NextRequest) {
     tripsDeleted: tripsDeleted.count,
     expiredSharesDeleted: sharesDeleted.count,
     activityEventsDeleted: activityDeleted.count,
+    expiredInvitesDeleted: invitesDeleted.count,
   });
 }
 

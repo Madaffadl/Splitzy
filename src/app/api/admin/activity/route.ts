@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, forbidden } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
@@ -26,42 +27,51 @@ export async function GET(request: NextRequest) {
 
   const where = { createdAt: { gte: from, lt: to } };
 
-  // Detailed feed (capped) + a lightweight projection for accurate aggregates.
-  const [events, all] = await Promise.all([
+  // Detailed feed (capped) + exact DB-side aggregates. The aggregates use
+  // COUNT(DISTINCT …) FILTER so the summary counters are always correct
+  // regardless of window size — never truncated, and no rows shipped to Node
+  // just to be counted. The existing createdAt index serves the range scan.
+  const [events, aggRows] = await Promise.all([
     prisma.activityEvent.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: 500,
       select: { id: true, userEmail: true, feature: true, type: true, metadata: true, createdAt: true },
     }),
-    prisma.activityEvent.findMany({
-      where,
-      take: 5000,
-      select: { userId: true, feature: true, type: true },
-    }),
+    prisma.$queryRaw<
+      {
+        active_users: bigint;
+        logins: bigint;
+        single: bigint;
+        multiple: bigint;
+        travel: bigint;
+      }[]
+    >(Prisma.sql`
+      SELECT
+        COUNT(DISTINCT user_id)                                          AS active_users,
+        COUNT(DISTINCT user_id) FILTER (WHERE type = 'login')            AS logins,
+        COUNT(DISTINCT user_id) FILTER (WHERE feature = 'single')        AS single,
+        COUNT(DISTINCT user_id) FILTER (WHERE feature = 'multiple')      AS multiple,
+        COUNT(DISTINCT user_id) FILTER (WHERE feature = 'travel')        AS travel
+      FROM activity_events
+      WHERE created_at >= ${from} AND created_at < ${to}
+    `),
   ]);
 
-  // Distinct users overall, per feature, and who signed in.
-  const activeUsers = new Set<string>();
-  const logins = new Set<string>();
-  const byFeature: Record<string, Set<string>> = { single: new Set(), multiple: new Set(), travel: new Set() };
-  for (const e of all) {
-    activeUsers.add(e.userId);
-    if (e.type === "login") logins.add(e.userId);
-    if (e.feature in byFeature) byFeature[e.feature].add(e.userId);
-  }
+  const agg = aggRows[0];
 
   return NextResponse.json({
     from: from.toISOString(),
     to: to.toISOString(),
-    truncated: all.length >= 5000,
+    // Aggregates are now computed DB-side over the full window — never truncated.
+    truncated: false,
     summary: {
-      activeUsers: activeUsers.size,
-      logins: logins.size,
+      activeUsers: Number(agg?.active_users ?? 0),
+      logins: Number(agg?.logins ?? 0),
       byFeature: {
-        single: byFeature.single.size,
-        multiple: byFeature.multiple.size,
-        travel: byFeature.travel.size,
+        single: Number(agg?.single ?? 0),
+        multiple: Number(agg?.multiple ?? 0),
+        travel: Number(agg?.travel ?? 0),
       },
     },
     events: events.map((e) => ({
