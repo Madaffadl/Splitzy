@@ -4,6 +4,7 @@ import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api
 import { apiError } from "@/lib/api-response";
 import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { broadcastTripChange } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 
@@ -38,5 +39,7 @@ export async function POST(
     return apiError("BAD_REQUEST", "This change request was already reviewed.");
   }
 
+  // Notify the author's client that their request was reviewed.
+  await broadcastTripChange(id, { kind: "changeRequest", actorId: user.id });
   return NextResponse.json({ ok: true, status: "declined" });
 }

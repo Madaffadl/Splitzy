@@ -26,7 +26,8 @@ export type PublicFlagKey =
   | "dashboard" // post-login dashboard (T-09)
   | "onboarding" // first-run onboarding wizard (T-10)
   | "pricingPage" // pricing page + upgrade prompts (T-06, T-07)
-  | "designSystemV2"; // new token-based components (T-11, T-12)
+  | "designSystemV2" // new token-based components (T-11, T-12)
+  | "realtime"; // live trip collaboration via broadcast (Sprint 6)
 
 /** Server-only flags. Never exposed to the browser. */
 export type ServerFlagKey =
@@ -39,6 +40,7 @@ const PUBLIC_FLAG_ENV: Record<PublicFlagKey, string> = {
   onboarding: "NEXT_PUBLIC_FLAG_ONBOARDING",
   pricingPage: "NEXT_PUBLIC_FLAG_PRICING_PAGE",
   designSystemV2: "NEXT_PUBLIC_FLAG_DESIGN_SYSTEM_V2",
+  realtime: "NEXT_PUBLIC_FLAG_REALTIME",
 };
 
 const SERVER_FLAG_ENV: Record<ServerFlagKey, string> = {
@@ -56,6 +58,7 @@ const PUBLIC_FLAG_VALUE: Record<PublicFlagKey, string | undefined> = {
   onboarding: process.env.NEXT_PUBLIC_FLAG_ONBOARDING,
   pricingPage: process.env.NEXT_PUBLIC_FLAG_PRICING_PAGE,
   designSystemV2: process.env.NEXT_PUBLIC_FLAG_DESIGN_SYSTEM_V2,
+  realtime: process.env.NEXT_PUBLIC_FLAG_REALTIME,
 };
 
 function truthy(v: string | undefined): boolean {

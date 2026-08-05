@@ -6,6 +6,7 @@ import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { validateTripPaymentInput } from "@/lib/travel-cloud";
 import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { broadcastTripChange } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, currency: true, fxRate: true, note: true, source: true, createdAt: true },
   });
 
+  await broadcastTripChange(id, { kind: "payment", actorId: user.id });
   return NextResponse.json(
     {
       id: payment.id,

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { createClient } from "@/lib/supabase/client";
+import { isEnabled } from "@/lib/flags";
 import { TravelTrip, Receipt, Participant, TripPayment } from "@/types";
 import { generateId } from "@/lib/utils";
 import {
@@ -916,6 +918,52 @@ export function useTravelData() {
     if (roleOf(cloudActiveId) !== "owner") return;
     void loadChangeRequests(cloudActiveId);
   }, [isAuthenticated, cloudActiveId, roleOf, loadChangeRequests]);
+
+  // ── Realtime: live updates for the active trip (Sprint 6, flag-gated) ───────
+  // Subscribe to the trip's broadcast channel. When another member changes the
+  // trip, the server sends a SIGNAL (no data); we react by refetching through
+  // the normal authenticated API. Best-effort: focus/reconnect refetch is the
+  // fallback when realtime is off or a signal is dropped. One shared client for
+  // the hook's lifetime; one channel per active trip (subscribe on open,
+  // unsubscribe on switch/unmount).
+  const loadCloudRef = useRef(loadCloud);
+  useEffect(() => {
+    loadCloudRef.current = loadCloud;
+  }, [loadCloud]);
+  const rtClientRef = useRef<ReturnType<typeof createClient> | null>(null);
+
+  useEffect(() => {
+    if (!isEnabled("realtime")) return;
+    if (!isAuthenticated || !cloudActiveId) return;
+
+    if (!rtClientRef.current) rtClientRef.current = createClient();
+    const supabase = rtClientRef.current;
+    const channel = supabase.channel(`trip:${cloudActiveId}`);
+
+    // Coalesce a burst of signals into a single refetch.
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => void loadCloudRef.current(), 500);
+    };
+
+    channel
+      .on("broadcast", { event: "trip.changed" }, (msg) => {
+        const actorId = (msg?.payload as { actorId?: string } | undefined)?.actorId;
+        // Skip our own change — we already applied it optimistically.
+        if (actorId && actorId === uid) return;
+        scheduleRefetch();
+      })
+      .subscribe((status) => {
+        // On (re)connect, pull fresh state to catch any signal missed while away.
+        if (status === "SUBSCRIBED") scheduleRefetch();
+      });
+
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      void supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, cloudActiveId, uid]);
 
   // ── Guest → cloud sync ────────────────────────────────────────────────────
   // POST every local trip in parallel, then build cloud state directly from the
