@@ -39,8 +39,8 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: "/" },
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
+    icon: "/logo.png",
+    shortcut: "/logo.png",
     apple: "/logo.png",
   },
   openGraph: {
