@@ -6,7 +6,6 @@ import { LogIn, LogOut, User, Shield, LayoutDashboard } from "@/components/ui/ic
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
-import { isEnabled } from "@/lib/flags";
 
 export function AuthButton() {
   const { user, dbUser, isLoading, isAuthenticated, signIn, signOut } =
@@ -83,16 +82,14 @@ export function AuthButton() {
               {user.email}
             </p>
           </div>
-          {isEnabled("dashboard") && (
-            <Link
-              href="/dashboard"
-              onClick={() => setShowMenu(false)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border"
-            >
-              <LayoutDashboard className="h-4 w-4 text-primary" />
-              Dashboard
-            </Link>
-          )}
+          <Link
+            href="/dashboard"
+            onClick={() => setShowMenu(false)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border"
+          >
+            <LayoutDashboard className="h-4 w-4 text-primary" />
+            Dashboard
+          </Link>
           {dbUser?.isAdmin && (
             <Link
               href="/admin"
