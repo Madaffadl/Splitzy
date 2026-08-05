@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Calculator, Check } from "lucide-react";
+import { ArrowLeft, Check } from "@/components/ui/icons";
+import { Logo } from "@/components/ui/Logo";
 import { isEnabled, isServerEnabled } from "@/lib/flags";
 import { isXenditConfigured } from "@/lib/billing/xendit";
 import {
@@ -37,9 +38,7 @@ export default async function PricingPage({
       <header className="px-4 sm:px-6 py-4 glass sticky top-0 z-50 border-b">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
-              <Calculator className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <Logo size="md" />
             <span className="font-bold text-lg tracking-tight">{BRAND.name}</span>
           </Link>
           <Link

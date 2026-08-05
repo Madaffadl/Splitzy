@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 // UI for the member-approval workflow:
 //   ChangeOpList  — renders a batch of ChangeOp as a human-readable diff.
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, X, Clock, GitPullRequestArrow, AlertTriangle, PlusCircle, MinusCircle, PencilLine, Trash2 } from "lucide-react";
+import { Check, X, Clock, GitPullRequestArrow, AlertTriangle, PlusCircle, MinusCircle, PencilLine, Trash2 } from "@/components/ui/icons";
 
 function money(amount?: number, currency?: string): string | null {
   if (amount == null) return null;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect } from "react";
@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { ReceiptHistoryList } from "@/components/ReceiptHistoryList";
-import { ArrowLeft, History, Loader2 } from "lucide-react";
+import { ArrowLeft, History, Loader2 } from "@/components/ui/icons";
 
 export default function HistoryPage() {
   const { isAuthenticated, isLoading } = useAuth();

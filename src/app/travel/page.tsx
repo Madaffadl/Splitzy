@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
@@ -61,7 +61,7 @@ import {
   PartyPopper,
   Sparkles,
   Camera,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { TRAVEL_CURRENCIES } from "@/lib/currencies";
 import { setTripPref, archivedTripIds } from "@/lib/trip-prefs";
 import { AppFooter } from "@/components/AppFooter";

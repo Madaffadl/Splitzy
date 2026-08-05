@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { SearchX, Home, ArrowLeft, Sparkles } from "lucide-react";
+import { SearchX, Home, ArrowLeft, Sparkles } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 
 export default function NotFound() {

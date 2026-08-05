@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Calculator, AlertCircle } from "lucide-react";
+import { ArrowLeft, Calculator, AlertCircle } from "@/components/ui/icons";
 import { decodeShare, type SharePayload } from "@/lib/share";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import { ThemeToggle } from "@/components/ThemeToggle";

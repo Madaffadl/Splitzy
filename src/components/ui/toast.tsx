@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
-import { CheckCircle2, AlertTriangle, Info, X } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Info, X } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 export type ToastVariant = "success" | "error" | "info";

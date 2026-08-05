@@ -1,14 +1,15 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { Receipt, Layers, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Network, ArrowRightLeft, History } from "lucide-react";
+import { Receipt, Layers, Plane, ArrowRight, Sparkles, Calculator, Users, CheckCircle2, Mail, Network, ArrowRightLeft, History } from "@/components/ui/icons";
+import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { useAuth } from "@/hooks/useAuth";
 import { BRAND, copyrightYear } from "@/lib/brand";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { LogIn } from "@/components/ui/icons";
 
 function LoginBanner() {
   const { isAuthenticated, signIn } = useAuth();
@@ -84,9 +85,7 @@ export function LegacyLanding() {
       <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-50">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25 animate-glow-pulse">
-              <Calculator className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-            </div>
+            <Logo size="md" />
             <div className="flex flex-col">
               <span className="font-bold text-base sm:text-lg tracking-tight">Splitzy</span>
               <span className="text-[10px] text-muted-foreground font-medium -mt-0.5 hidden sm:block">Split Bills Easily</span>
@@ -494,9 +493,7 @@ export function LegacyLanding() {
       <footer className="px-4 sm:px-6 py-6 sm:py-8 border-t bg-card">
         <div className="max-w-5xl mx-auto flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Calculator className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
-            </div>
+            <Logo size="sm" className="h-7 w-7 sm:h-8 sm:w-8" />
             <div className="flex flex-col">
               <span className="font-semibold text-xs sm:text-sm">{BRAND.name}</span>
               <span className="text-[10px] sm:text-xs text-muted-foreground">{BRAND.tagline}</span>

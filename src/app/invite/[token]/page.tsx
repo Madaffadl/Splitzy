@@ -7,7 +7,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Plane, Loader2, CheckCircle2, AlertCircle, UserPlus } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, UserPlus } from "@/components/ui/icons";
+import { Logo } from "@/components/ui/Logo";
+import { BRAND } from "@/lib/brand";
 
 interface InviteInfo {
   tripId: string;
@@ -74,10 +76,8 @@ export default function InvitePage() {
       <header className="px-3 sm:px-6 py-3 sm:py-4 border-b glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-              <Plane className="h-4 w-4 text-white" />
-            </div>
-            <span className="font-semibold text-sm sm:text-base">Splitzy</span>
+            <Logo size="md" />
+            <span className="font-semibold text-sm sm:text-base">{BRAND.name}</span>
           </Link>
           <ThemeToggle />
         </div>

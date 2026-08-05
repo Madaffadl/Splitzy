@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import {
@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Tag } from "lucide-react";
+import { Plus, Trash2, Tag } from "@/components/ui/icons";
 
 interface DiscountsInputProps {
   discounts: Discount[];

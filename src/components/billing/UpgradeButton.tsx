@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles } from "@/components/ui/icons";
 import { EVENTS, capture } from "@/lib/analytics";
 
 // Client island for the pricing page. Kicks off checkout, then redirects the

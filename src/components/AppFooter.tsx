@@ -1,6 +1,7 @@
-import Link from "next/link";
-import { Calculator, Mail } from "lucide-react";
+﻿import Link from "next/link";
+import { Mail } from "@/components/ui/icons";
 import { BRAND, copyrightYear } from "@/lib/brand";
+import { Logo } from "@/components/ui/Logo";
 
 // Shared footer used across the single, trip, and history pages. Keep all
 // links and styling in one place — the previous copy-paste in three pages
@@ -13,9 +14,7 @@ export function AppFooter() {
     <footer className="px-6 py-4 border-t bg-card/50 backdrop-blur-sm">
       <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <div className="h-6 w-6 rounded-md bg-primary/10 flex items-center justify-center">
-            <Calculator className="h-3 w-3 text-primary" />
-          </div>
+          <Logo size="sm" />
           <span className="text-xs font-medium text-muted-foreground">
             © {copyrightYear()} {BRAND.name}
           </span>

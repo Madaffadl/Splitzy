@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -35,7 +35,7 @@ import {
   Edit2,
   Users,
   Info,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
 
 // A "split" here is one named group of receipts shared by the same people and

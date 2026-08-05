@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Receipt, ScanLine, Share2, X } from "lucide-react";
+import { Receipt, ScanLine, Share2, X } from "@/components/ui/icons";
 import { isEnabled } from "@/lib/flags";
 import { capture } from "@/lib/analytics";
 

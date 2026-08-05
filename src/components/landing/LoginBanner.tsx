@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useSearchParams } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { LogIn } from "@/components/ui/icons";
 import { useAuth } from "@/hooks/useAuth";
 
 // Small client island for the otherwise-RSC new landing: shows a "sign in"

@@ -1,5 +1,6 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 import Link from "next/link";
+import { Logo } from "@/components/ui/Logo";
 import {
   ArrowRight,
   Calculator,
@@ -12,7 +13,7 @@ import {
   Sparkles,
   Users,
   Zap,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { BRAND, copyrightYear } from "@/lib/brand";
@@ -81,9 +82,7 @@ export function NewLanding() {
       <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-50 border-b">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 sm:gap-3">
-            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
-              <Calculator className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-            </div>
+            <Logo size="md" />
             <div className="flex flex-col">
               <span className="font-bold text-base sm:text-lg tracking-tight">{BRAND.name}</span>
               <span className="text-[10px] text-muted-foreground font-medium -mt-0.5 hidden sm:block">
@@ -250,9 +249,7 @@ export function NewLanding() {
       <footer className="px-4 sm:px-6 py-8 border-t bg-card">
         <div className="max-w-5xl mx-auto flex flex-col items-center gap-5 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Calculator className="h-4 w-4 text-primary" />
-            </div>
+            <Logo size="sm" />
             <div className="flex flex-col">
               <span className="font-semibold text-sm">{BRAND.name}</span>
               <span className="text-xs text-muted-foreground">{BRAND.tagline}</span>

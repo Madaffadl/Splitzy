@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useId, useMemo, useState } from "react";
 import { Participant } from "@/types";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useNameSuggestions } from "@/hooks/useNameSuggestions";
-import { X, Plus, Users, UserPlus, History } from "lucide-react";
+import { X, Plus, Users, UserPlus, History } from "@/components/ui/icons";
 
 interface ParticipantManagerProps {
   participants: Participant[];

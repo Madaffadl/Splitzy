@@ -1,6 +1,7 @@
-import Link from "next/link";
-import { ArrowLeft, Calculator } from "lucide-react";
+﻿import Link from "next/link";
+import { ArrowLeft } from "@/components/ui/icons";
 import { BRAND } from "@/lib/brand";
+import { Logo } from "@/components/ui/Logo";
 
 // Shared chrome for the /privacy and /terms pages so both stay visually
 // consistent and pick up future header/footer tweaks in one place.
@@ -18,9 +19,7 @@ export function LegalPageShell({
       <header className="px-4 sm:px-6 py-4 glass sticky top-0 z-50 border-b">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
-              <Calculator className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <Logo size="md" />
             <span className="font-bold text-lg tracking-tight">{BRAND.name}</span>
           </Link>
           <Link

@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "@/components/ui/icons";
 import { isEnabled } from "@/lib/flags";
 import { EVENTS, capture } from "@/lib/analytics";
 import { FREE_SCAN_LIMIT } from "@/lib/scan-quota";

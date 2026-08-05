@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { cn } from "@/lib/utils";
-import { Check, Sparkles } from "lucide-react";
+import { Check, Sparkles } from "@/components/ui/icons";
 
 export interface Step {
   id: string;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { LogIn, Lock } from "lucide-react";
+import { LogIn, Lock } from "@/components/ui/icons";
 
 interface GuestLimitDialogProps {
   open: boolean;

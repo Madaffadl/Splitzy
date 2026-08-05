@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useCallback, useRef } from "react";
 import { Receipt, Participant, PaymentInfo } from "@/types";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, X, Loader2, RefreshCw, CheckCircle2, AlertCircle, Globe } from "lucide-react";
+import { Check, X, Loader2, RefreshCw, CheckCircle2, AlertCircle, Globe } from "@/components/ui/icons";
 import { TRAVEL_CURRENCIES, getCurrencyMeta } from "@/lib/currencies";
 
 interface ScanDetection {

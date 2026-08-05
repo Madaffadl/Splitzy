@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Calculator, AlertCircle, Clock } from "lucide-react";
+import { ArrowLeft, Calculator, AlertCircle, Clock } from "@/components/ui/icons";
 import { prisma } from "@/lib/prisma";
 import { parseSharedSummaryPayload } from "@/lib/shared-summary";
 import { SummaryPanel, MultipleReceiptSummaryPanel } from "@/components/SummaryPanel";

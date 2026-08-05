@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useRef, useCallback } from "react";
 import type { ReceiptItem } from "@/types";
@@ -18,7 +18,7 @@ import {
   ImageIcon,
   Sparkles,
   ShieldCheck,
-} from "lucide-react";
+} from "@/components/ui/icons";
 
 interface ReceiptInputProps {
   onParsed: (result: ParseResult) => void;

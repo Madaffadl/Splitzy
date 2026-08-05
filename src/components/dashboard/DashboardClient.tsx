@@ -1,17 +1,17 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Logo } from "@/components/ui/Logo";
 import {
   ArrowRight,
-  Calculator,
   History,
   Layers,
   LogIn,
   Plane,
   Receipt,
   Sparkles,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
@@ -58,9 +58,7 @@ export function DashboardClient() {
       <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-50 border-b">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/25">
-              <Calculator className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <Logo size="md" />
             <span className="font-bold text-lg tracking-tight">{BRAND.name}</span>
           </Link>
           <div className="flex items-center gap-3 sm:gap-4">

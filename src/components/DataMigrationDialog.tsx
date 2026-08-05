@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRef, useState } from "react";
 import {
@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Upload, X, Loader2, CheckCircle2 } from "lucide-react";
+import { Upload, X, Loader2, CheckCircle2 } from "@/components/ui/icons";
 import { localDataService } from "@/lib/data/local-data-service";
 import { supabaseDataService } from "@/lib/data/supabase-data-service";
 

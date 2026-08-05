@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -39,7 +39,7 @@ import {
   Receipt as ReceiptIcon,
   PartyPopper,
   Sparkles,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
 
 const STEPS: Step[] = [

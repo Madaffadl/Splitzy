@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -39,7 +39,7 @@ import {
   AlertTriangle,
   History,
   Activity as ActivityIcon,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 

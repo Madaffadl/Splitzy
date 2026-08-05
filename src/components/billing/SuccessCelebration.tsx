@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "@/components/ui/icons";
 import { capture } from "@/lib/analytics";
 
 // Peak-end "moment" (Sprint 5): a small celebration when a Pro upgrade lands

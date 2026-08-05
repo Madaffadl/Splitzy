@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { ReceiptHistoryCard } from "@/components/ReceiptHistoryCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Receipt, Loader2, X } from "lucide-react";
+import { Search, Receipt, Loader2, X } from "@/components/ui/icons";
 
 interface ReceiptItem {
   id: string;

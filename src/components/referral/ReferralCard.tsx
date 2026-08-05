@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
-import { Copy, Check, Gift, Users } from "lucide-react";
+import { Copy, Check, Gift, Users } from "@/components/ui/icons";
 
 interface ReferralData {
   code: string;

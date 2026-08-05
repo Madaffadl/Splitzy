@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { AlertCircle, RotateCcw, Home, Sparkles } from "lucide-react";
+import { AlertCircle, RotateCcw, Home, Sparkles } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 
 export default function Error({

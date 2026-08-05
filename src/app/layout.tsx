@@ -38,6 +38,10 @@ export const metadata: Metadata = {
     "receipt scanner",
   ],
   alternates: { canonical: "/" },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/logo.png",
+  },
   openGraph: {
     type: "website",
     url: BRAND.siteUrl,
@@ -45,11 +49,13 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
     locale: "en_US",
+    images: [{ url: "/logo.png", width: 1920, height: 2194, alt: "Splitzy" }],
   },
   twitter: {
     card: "summary_large_image",
     title: TITLE,
     description: DESCRIPTION,
+    images: ["/logo.png"],
   },
   robots: { index: true, follow: true },
 };

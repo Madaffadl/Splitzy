@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Receipt, Calendar, Users, ArrowRight } from "lucide-react";
+import { Receipt, Calendar, Users, ArrowRight } from "@/components/ui/icons";
 import { formatCurrency } from "@/lib/utils";
 
 interface ReceiptHistoryCardProps {
