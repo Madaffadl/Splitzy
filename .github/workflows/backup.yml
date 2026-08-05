@@ -1,0 +1,73 @@
+# Owned, independent database backup (Sprint 6 DR follow-up).
+#
+# WHY: the production DB is on Supabase FREE tier, which has NO scheduled
+# backups. This job takes a daily encrypted logical dump and stores it as a
+# GitHub artifact — independent of Supabase, so the data survives even a total
+# Supabase account loss. See docs/DISASTER_RECOVERY.md §4.2.
+#
+# The dump is ENCRYPTED (AES-256, symmetric) before upload because it contains
+# user PII — a raw dump must never sit in an artifact. Restore needs the same
+# passphrase (see §5.3 of the runbook).
+#
+# REQUIRED REPO SECRETS (Settings → Secrets and variables → Actions):
+#   SUPABASE_DIRECT_URL  — the prod DIRECT_URL (port 5432, NOT the pooler)
+#   BACKUP_PASSPHRASE    — a long random string; guard it like the DB password
+#
+# Run on-demand before any risky migration via the "Run workflow" button.
+name: Database Backup
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # daily 18:00 UTC (01:00 WIB)
+  workflow_dispatch: {}
+
+# Never run two backups at once.
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Dump, verify, and encrypt
+        env:
+          DIRECT_URL: ${{ secrets.SUPABASE_DIRECT_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DIRECT_URL:-}" ] || [ -z "${BACKUP_PASSPHRASE:-}" ]; then
+            echo "::error::Missing SUPABASE_DIRECT_URL or BACKUP_PASSPHRASE secret."
+            exit 1
+          fi
+          STAMP="$(date -u +%Y%m%d-%H%M)"
+          DUMP="splitzy-${STAMP}.dump"
+
+          echo "Dumping via pinned pg client (newer client dumps older server safely)…"
+          # -Fc = custom format (compressed, selective restore). Read-only op.
+          docker run --rm -e DBURL="$DIRECT_URL" postgres:17 \
+            sh -c 'pg_dump "$DBURL" --no-owner --no-privileges -Fc' > "$DUMP"
+
+          SIZE="$(stat -c%s "$DUMP")"
+          echo "Dump size: ${SIZE} bytes"
+          # A healthy dump is never a few hundred bytes — guard against a silent
+          # empty/failed dump getting stored as if it were good.
+          if [ "$SIZE" -lt 2000 ]; then
+            echo "::error::Dump suspiciously small (${SIZE} bytes) — treating as failure."
+            exit 1
+          fi
+
+          echo "Encrypting (AES-256)…"
+          gpg --batch --yes --passphrase "$BACKUP_PASSPHRASE" \
+            --cipher-algo AES256 --symmetric "$DUMP"
+          rm -f "$DUMP" # never keep the plaintext dump around
+          echo "STAMP=${STAMP}" >> "$GITHUB_ENV"
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ env.STAMP }}
+          path: splitzy-${{ env.STAMP }}.dump.gpg
+          retention-days: 30
+          if-no-files-found: error
