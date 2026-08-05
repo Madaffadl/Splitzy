@@ -7,6 +7,7 @@ import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { validateTripReceiptPayload } from "@/lib/travel-cloud";
 import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { broadcastTripChange } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 
@@ -67,5 +68,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return apiError("INTERNAL_ERROR", "Failed to save receipt — please try again");
   }
 
+  await broadcastTripChange(id, { kind: "receipt", actorId: user.id });
   return NextResponse.json({ id: row.id }, { status: 201 });
 }

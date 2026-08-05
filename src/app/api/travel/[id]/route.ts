@@ -7,6 +7,7 @@ import { ValidationError, validationErrorResponse, validateParticipantsJson } fr
 import { validateBudget } from "@/lib/travel-cloud";
 import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { broadcastTripChange } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 
@@ -129,6 +130,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     return apiError("VERSION_CONFLICT", "This trip is out of sync (another device/tab, or an interrupted save). Reload and try again.");
   }
 
+  await broadcastTripChange(id, { kind: "trip", actorId: user.id, version: expectedVersion + 1 });
   return NextResponse.json({ ok: true, version: expectedVersion + 1 });
 }
 
@@ -147,5 +149,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (access.ownerId !== user.id) return forbidden();
 
   await prisma.trip.update({ where: { id }, data: { deletedAt: new Date() } });
+  await broadcastTripChange(id, { kind: "trip", actorId: user.id });
   return NextResponse.json({ ok: true });
 }

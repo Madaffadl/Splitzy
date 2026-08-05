@@ -6,6 +6,7 @@ import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { buildChangeOpsWrites } from "@/lib/apply-change-ops";
+import { broadcastTripChange } from "@/lib/realtime";
 import type { ChangeOp } from "@/lib/change-ops";
 
 export const runtime = "nodejs";
@@ -80,6 +81,8 @@ export async function POST(
       return apiError("BAD_REQUEST", "This change request was already reviewed.");
     }
 
+    // Applied to canonical trip state → notify all members (incl. the author).
+    await broadcastTripChange(id, { kind: "changeRequest", actorId: user.id, version: versionRow.version });
     return NextResponse.json({ ok: true, status: "approved", version: versionRow.version });
   } catch (err) {
     console.error("[change-requests approve] failed:", err);

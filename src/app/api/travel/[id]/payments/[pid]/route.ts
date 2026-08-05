@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api-auth";
 import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { broadcastTripChange } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 
@@ -27,5 +28,6 @@ export async function DELETE(
   const result = await prisma.tripPayment.deleteMany({ where: { id: pid, tripId: id } });
   if (result.count === 0) return notFound();
 
+  await broadcastTripChange(id, { kind: "payment", actorId: user.id });
   return NextResponse.json({ ok: true });
 }

@@ -7,6 +7,7 @@ import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { validateChangeOps } from "@/lib/travel-cloud";
 import { getTripAccess } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { broadcastTripChange } from "@/lib/realtime";
 import type { ChangeOp } from "@/lib/change-ops";
 
 export const runtime = "nodejs";
@@ -123,6 +124,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     },
   });
 
+  // Notify the owner's client that a new request is waiting for review.
+  await broadcastTripChange(id, { kind: "changeRequest", actorId: user.id });
   const [dto] = await withAuthorNames([created]);
   return NextResponse.json(dto, { status: 201 });
 }

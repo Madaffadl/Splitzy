@@ -7,6 +7,7 @@ import { ValidationError, validationErrorResponse } from "@/lib/validation";
 import { validateTripReceiptPayload } from "@/lib/travel-cloud";
 import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { broadcastTripChange } from "@/lib/realtime";
 
 export const runtime = "nodejs";
 
@@ -52,6 +53,7 @@ export async function PUT(
   });
   if (result.count === 0) return notFound();
 
+  await broadcastTripChange(id, { kind: "receipt", actorId: user.id });
   return NextResponse.json({ ok: true });
 }
 
@@ -76,5 +78,6 @@ export async function DELETE(
   const result = await prisma.tripReceipt.deleteMany({ where: { id: rid, tripId: id } });
   if (result.count === 0) return notFound();
 
+  await broadcastTripChange(id, { kind: "receipt", actorId: user.id });
   return NextResponse.json({ ok: true });
 }
