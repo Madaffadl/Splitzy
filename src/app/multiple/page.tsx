@@ -206,6 +206,7 @@ export default function MultipleReceiptPage() {
           {viewMode === "overview" ? (
             <Link
               href="/"
+              aria-label="Back to home"
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
@@ -219,6 +220,7 @@ export default function MultipleReceiptPage() {
                 setEditingReceipt(null);
                 setViewMode("overview");
               }}
+              aria-label="Back to split"
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">

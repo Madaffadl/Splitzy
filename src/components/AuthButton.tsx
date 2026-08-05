@@ -37,6 +37,7 @@ export function AuthButton() {
         size="sm"
         onClick={() => signIn()}
         className="gap-2"
+        aria-label="Sign in with Google"
       >
         <LogIn className="h-4 w-4" />
         <span className="hidden sm:inline">Sign In</span>
@@ -51,6 +52,9 @@ export function AuthButton() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setShowMenu(!showMenu)}
+        aria-label={`Account menu — ${displayName}`}
+        aria-expanded={showMenu}
+        aria-haspopup="menu"
         className="flex items-center gap-2 rounded-full border border-border/50 bg-background/80 px-2 py-1 hover:bg-muted transition-colors"
       >
         {avatarUrl ? (

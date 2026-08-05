@@ -203,6 +203,7 @@ export function ParticipantManager({
           disabled={!newName.trim()}
           size="icon"
           className="shrink-0"
+          aria-label="Add participant"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -224,6 +225,7 @@ export function ParticipantManager({
               <button
                 type="button"
                 onClick={() => removeParticipant(participant.id)}
+                aria-label={`Remove ${participant.name}`}
                 className="ml-1 h-5 w-5 rounded-full bg-transparent hover:bg-destructive/20 flex items-center justify-center transition-colors group-hover:opacity-100 opacity-70"
               >
                 <X className="h-3 w-3 text-muted-foreground hover:text-destructive transition-colors" />

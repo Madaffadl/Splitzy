@@ -32,6 +32,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <Link
             href="/"
+            aria-label="Splitzy home"
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">

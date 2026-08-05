@@ -67,8 +67,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div
         aria-live="polite"
         aria-atomic="true"
-        // bottom-24 keeps clear of the trip-mode sticky save bar (~76px tall) at all breakpoints
-        className="pointer-events-none fixed bottom-24 right-4 z-[100] flex max-w-sm flex-col gap-2 sm:right-6"
+        // bottom-24 keeps clear of the trip-mode sticky save bar (~76px tall) at all breakpoints.
+        // Pinned left+right on mobile so max-w-sm (384px) can't overflow a ~375px viewport;
+        // released to right-anchored from sm up.
+        className="pointer-events-none fixed bottom-24 left-4 right-4 z-[100] flex max-w-sm flex-col gap-2 sm:left-auto sm:right-6"
       >
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />

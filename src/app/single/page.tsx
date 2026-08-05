@@ -247,6 +247,7 @@ export default function SinglePage() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link
             href="/"
+            aria-label="Back to home"
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
           >
             <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
@@ -459,7 +460,7 @@ export default function SinglePage() {
                     <p className="text-xs text-muted-foreground">Participants</p>
                   </Card>
                   <Card className="text-center p-3 sm:p-4 bg-accent/5 border-accent/20">
-                    <p className="text-2xl font-bold text-accent">{state.items.length}</p>
+                    <p className="text-2xl font-bold text-accent-strong">{state.items.length}</p>
                     <p className="text-xs text-muted-foreground">Items</p>
                   </Card>
                   <Card className="col-span-2 sm:col-span-1 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
@@ -506,15 +507,22 @@ export default function SinglePage() {
                 </p>
               )}
               <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={handleBack}
-                  disabled={currentStep === 0 || isTransitioning}
-                  size="lg"
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
+                {/* Step 0 already has the header "Back" (to home); a second,
+                    disabled Back here just adds a dead control — so on the first
+                    step we render a spacer instead to keep Next right-aligned. */}
+                {currentStep > 0 ? (
+                  <Button
+                    variant="outline"
+                    onClick={handleBack}
+                    disabled={isTransitioning}
+                    size="lg"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back
+                  </Button>
+                ) : (
+                  <span aria-hidden="true" />
+                )}
                 {currentStep < STEPS.length - 1 && (
                   <Button
                     onClick={handleNext}

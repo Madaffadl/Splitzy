@@ -25,6 +25,10 @@
     /* Accent - Gold/Yellow */
     --accent: 45 90% 45%;
     --accent-foreground: 75 30% 15%;
+    /* Darker gold for gold-as-text/icons on LIGHT surfaces — bright --accent
+       fails WCAG as text (~2.2:1); this passes AA (~4.7:1 on white/cream).
+       Use `text-accent-strong` for text; keep `accent`/`bg-accent` for fills. */
+    --accent-strong: 45 85% 30%;
 
     /* Muted */
     --muted: 45 15% 93%;
@@ -42,36 +46,41 @@
   }
 
   .dark {
-    --background: 75 20% 8%;
-    --foreground: 45 20% 95%;
-    --card: 75 20% 10%;
-    --card-foreground: 45 20% 95%;
-    --popover: 75 20% 10%;
-    --popover-foreground: 45 20% 95%;
+    /* Warm charcoal — neutrals keep the olive hue (75) but at low saturation
+       (~5-6%) so surfaces read as charcoal, not green. Brand olive/gold live in
+       --primary/--accent only, so they still pop against the neutral ground. */
+    --background: 75 5% 9%;
+    --foreground: 60 8% 96%;
+    --card: 75 5% 11%;
+    --card-foreground: 60 8% 96%;
+    --popover: 75 5% 11%;
+    --popover-foreground: 60 8% 96%;
 
     /* Primary - Olive Green */
     --primary: 78 50% 40%;
     --primary-foreground: 0 0% 100%;
 
     /* Secondary */
-    --secondary: 75 15% 18%;
-    --secondary-foreground: 45 20% 95%;
+    --secondary: 75 5% 17%;
+    --secondary-foreground: 60 8% 96%;
 
     /* Accent - Gold */
     --accent: 45 85% 50%;
     --accent-foreground: 75 30% 10%;
+    /* On charcoal, bright gold is already readable — keep it vivid for text. */
+    --accent-strong: 45 90% 60%;
 
     /* Muted */
-    --muted: 75 15% 18%;
-    --muted-foreground: 45 12% 70%;
+    --muted: 75 5% 17%;
+    --muted-foreground: 60 6% 68%;
 
     /* Destructive */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 100%;
 
     /* Borders */
-    --border: 75 15% 20%;
-    --input: 75 15% 20%;
+    --border: 75 6% 22%;
+    --input: 75 6% 22%;
     --ring: 78 50% 40%;
   }
 }
@@ -637,7 +646,7 @@
   position: absolute;
   border-radius: 50%;
   filter: blur(60px);
-  opacity: 0.5;
+  opacity: 0.3;
   pointer-events: none;
 }
 
@@ -802,10 +811,11 @@
 }
 
 .hover-lift:hover {
-  transform: translateY(-8px);
+  transform: translateY(-3px);
   box-shadow:
-    0 20px 40px hsl(var(--foreground) / 0.1),
-    0 10px 20px hsl(var(--foreground) / 0.05);
+    0 2px 4px hsl(var(--foreground) / 0.04),
+    0 8px 16px hsl(var(--foreground) / 0.06),
+    0 16px 32px hsl(var(--foreground) / 0.06);
 }
 
 /* Custom Text Animations for the Final CTA */

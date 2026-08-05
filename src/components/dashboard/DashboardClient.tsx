@@ -30,7 +30,7 @@ interface QuotaResponse {
 
 const MODES = [
   { href: "/single", icon: Receipt, title: "Single Receipt", accent: "text-primary", bg: "from-primary/20 to-primary/5" },
-  { href: "/multiple", icon: Layers, title: "Multiple Receipts", accent: "text-accent", bg: "from-accent/20 to-accent/5" },
+  { href: "/multiple", icon: Layers, title: "Multiple Receipts", accent: "text-accent-strong", bg: "from-accent/20 to-accent/5" },
   { href: "/travel", icon: Plane, title: "Travel Spend", accent: "text-emerald-600 dark:text-emerald-400", bg: "from-emerald-500/20 to-emerald-500/5" },
 ];
 
@@ -62,7 +62,7 @@ export function DashboardClient() {
             <span className="font-bold text-lg tracking-tight">{BRAND.name}</span>
           </Link>
           <div className="flex items-center gap-3 sm:gap-4">
-            <Link href="/history" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/history" aria-label="Receipt history" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <History className="h-4 w-4" />
               <span className="hidden sm:inline">History</span>
             </Link>

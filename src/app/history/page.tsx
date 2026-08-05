@@ -1,33 +1,15 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
+import { Button } from "@/components/ui/button";
 import { ReceiptHistoryList } from "@/components/ReceiptHistoryList";
-import { ArrowLeft, History, Loader2 } from "@/components/ui/icons";
+import { ArrowLeft, History, Loader2, LogIn } from "@/components/ui/icons";
 
 export default function HistoryPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    // Wait for auth resolution before redirecting; guests get sent to landing
-    // with the login banner (and a redirect param so they come back here after).
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/?login=required&redirect=/history");
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  if (isLoading || !isAuthenticated) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
-      </main>
-    );
-  }
+  const { isAuthenticated, isLoading, signIn } = useAuth();
 
   return (
     <main className="min-h-screen bg-background flex flex-col">
@@ -36,6 +18,7 @@ export default function HistoryPage() {
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <Link
             href="/"
+            aria-label="Back to home"
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
           >
             <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
@@ -48,9 +31,7 @@ export default function HistoryPage() {
               <History className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-sm sm:text-base">
-                Receipt History
-              </span>
+              <span className="font-bold text-sm sm:text-base">Receipt History</span>
               <span className="text-[10px] text-muted-foreground hidden sm:block">
                 Your past splits
               </span>
@@ -65,7 +46,37 @@ export default function HistoryPage() {
 
       {/* Content */}
       <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow w-full">
-        <ReceiptHistoryList />
+        {isLoading ? (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+          </div>
+        ) : !isAuthenticated ? (
+          // Focused sign-in gate — keep the user on /history with a clear reason to
+          // sign in, instead of bouncing them to the full marketing landing.
+          <div className="flex flex-col items-center justify-center text-center py-16 sm:py-24">
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center mb-5">
+              <History className="h-8 w-8 text-primary" />
+            </div>
+            <h1 className="text-heading mb-2">See your receipt history</h1>
+            <p className="text-muted-foreground max-w-sm mb-6">
+              Sign in with Google to view your past splits and keep them synced across
+              all your devices.
+            </p>
+            <Button onClick={() => signIn("/history")} size="lg" className="gap-2">
+              <LogIn className="h-4 w-4" />
+              Sign in with Google
+            </Button>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Just want to split a bill?{" "}
+              <Link href="/single" className="text-primary hover:underline">
+                Start here
+              </Link>
+              .
+            </p>
+          </div>
+        ) : (
+          <ReceiptHistoryList />
+        )}
       </div>
     </main>
   );

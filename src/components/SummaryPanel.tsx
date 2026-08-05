@@ -952,7 +952,7 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 tabular-nums">
         {/* Totals */}
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="text-muted-foreground">Subtotal</div>
@@ -1629,7 +1629,7 @@ export function MultipleReceiptSummaryPanel({
             Summary
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 tabular-nums">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Total spent</span>
             <span className="text-lg font-bold text-primary">Rp {formatCurrency(totalGrandTotal)}</span>
@@ -1733,7 +1733,7 @@ export function MultipleReceiptSummaryPanel({
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 tabular-nums">
         {/* Split Stats */}
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="text-muted-foreground">Receipts</div>

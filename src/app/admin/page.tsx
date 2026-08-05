@@ -915,7 +915,7 @@ export default function AdminPage() {
     <main className="min-h-screen flex flex-col">
       <header className="px-3 sm:px-6 py-3 sm:py-4 border-b glass sticky top-0 z-30">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/" aria-label="Back to home" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
             <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
               <ArrowLeft className="h-4 w-4" />
             </div>

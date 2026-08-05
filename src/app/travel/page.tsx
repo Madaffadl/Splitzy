@@ -1185,6 +1185,7 @@ export default function TravelPage() {
           {activeTrip && viewMode !== "overview" ? (
             <button
               onClick={() => { setEditingReceipt(null); setViewMode("overview"); }}
+              aria-label="Back to trip"
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
@@ -1195,6 +1196,7 @@ export default function TravelPage() {
           ) : activeTrip ? (
             <button
               onClick={closeTrip}
+              aria-label="Back to all trips"
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
@@ -1203,7 +1205,7 @@ export default function TravelPage() {
               <span className="hidden sm:inline text-sm font-medium">All trips</span>
             </button>
           ) : (
-            <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/" aria-label="Back to home" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
               <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>

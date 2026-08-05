@@ -95,6 +95,7 @@ export function LegacyLanding() {
             {isAuthenticated && (
               <Link
                 href="/history"
+                aria-label="Receipt history"
                 className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <History className="h-4 w-4" />

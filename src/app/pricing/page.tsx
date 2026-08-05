@@ -1,7 +1,7 @@
 ﻿import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Check } from "@/components/ui/icons";
+import { ArrowLeft, ArrowRight, Check, ShieldCheck } from "@/components/ui/icons";
 import { Logo } from "@/components/ui/Logo";
 import { isEnabled, isServerEnabled } from "@/lib/flags";
 import { isXenditConfigured } from "@/lib/billing/xendit";
@@ -20,6 +20,31 @@ export const metadata: Metadata = {
   title: "Pricing",
   description: "Splitzy is free to use. Upgrade to Pro for unlimited AI receipt scans.",
 };
+
+// Objection-handling FAQ. All answers are accurate to the billing model in
+// src/lib/billing/plans.ts (one-time Rp 29.000 → 30 days of Pro, no auto-renew).
+const PRICING_FAQ = [
+  {
+    q: "Is Splitzy really free?",
+    a: "Yes — splitting single bills, multiple receipts, and whole trips is free forever. Pro only lifts the AI-scan limit; every other feature stays free.",
+  },
+  {
+    q: "What happens when I run out of AI scans?",
+    a: "You get 15 AI receipt scans per month on Free. When they run out you can still add items manually for free, and your scans reset at the start of the next month. Go Pro for unlimited scans.",
+  },
+  {
+    q: "Is Pro a subscription?",
+    a: "No. Pro is a one-time payment that grants 30 days of unlimited scans. It never auto-renews — you only pay again if and when you want to. No lock-in, no surprise charges.",
+  },
+  {
+    q: "What payment methods can I use?",
+    a: "Payments are handled securely by Xendit: GoPay, OVO, DANA, bank transfer, and cards.",
+  },
+  {
+    q: "What if my payment fails?",
+    a: "No charge is made unless the payment completes. If something goes wrong you can simply try again — you stay on Free in the meantime.",
+  },
+];
 
 export default async function PricingPage({
   searchParams,
@@ -59,6 +84,11 @@ export default async function PricingPage({
             Everything you need to split bills is free. Upgrade only if you want
             unlimited AI receipt scans.
           </p>
+          {/* The differentiator vs typical apps: no annual lock-in, no auto-renew */}
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            No subscription · No auto-renew · Pay only when you need it
+          </div>
         </div>
 
         {status === "success" && (
@@ -123,7 +153,26 @@ export default async function PricingPage({
           </div>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-8">
+        {/* FAQ — native <details>, no client JS */}
+        <div className="max-w-2xl mx-auto mt-16">
+          <h2 className="text-heading text-center mb-8">Pricing questions</h2>
+          <div className="space-y-3">
+            {PRICING_FAQ.map((item) => (
+              <details
+                key={item.q}
+                className="group rounded-xl border bg-card px-5 py-4 [&_summary::-webkit-details-marker]:hidden"
+              >
+                <summary className="flex cursor-pointer items-center justify-between gap-4 font-semibold list-none">
+                  {item.q}
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+                </summary>
+                <p className="mt-3 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground mt-12">
           Payments are processed securely by Xendit (GoPay, OVO, DANA, bank
           transfer, and cards). See our{" "}
           <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">

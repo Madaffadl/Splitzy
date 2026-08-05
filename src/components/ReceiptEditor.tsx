@@ -238,7 +238,7 @@ export function ReceiptEditor({
 
                 {isForeignCurrency && (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm text-muted-foreground whitespace-nowrap">
                         1 {currencyMeta.symbol} =
                       </span>
