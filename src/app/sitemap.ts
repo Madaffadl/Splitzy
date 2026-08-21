@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { BRAND } from "@/lib/brand";
+import { isEnabled } from "@/lib/flags";
 import {
   BILINGUAL_ROUTES,
   HTML_LANG,
@@ -61,10 +62,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // keyword target ("split bill banyak struk"), so making it publicly
     // viewable in a read-only state would be worth doing — that is a product
     // decision, not an SEO change.
-    { path: "/pricing", priority: 0.6, changeFrequency: "monthly" },
     { path: "/privacy", priority: 0.3, changeFrequency: "yearly" },
     { path: "/terms", priority: 0.3, changeFrequency: "yearly" },
   ];
+
+  // /pricing is gated by the pricingPage flag and calls notFound() when it is
+  // off. It is currently on in production, but listing it unconditionally would
+  // advertise a 404 to Google the moment the flag is flipped — so the sitemap
+  // has to ask the same question the page does.
+  if (isEnabled("pricingPage")) {
+    singleUrl.push({
+      path: "/pricing",
+      priority: 0.6,
+      changeFrequency: "monthly",
+    });
+  }
 
   return [
     ...bilingual,
