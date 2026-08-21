@@ -19,9 +19,9 @@ import { SuccessCelebration } from "@/components/billing/SuccessCelebration";
 export const metadata: Metadata = {
   // Absolute: the title already contains the brand, so skip the
   // "%s · Splitzy" template rather than shipping "… Splitzy · Splitzy".
-  title: { absolute: "Harga Splitzy — Gratis, Pro Rp 29.000 / 30 Hari" },
+  title: { absolute: "Splitzy Pricing — Free, Pro Rp 29.000 / 30 Days" },
   description:
-    "Splitzy gratis dipakai untuk membagi tagihan. Upgrade ke Pro seharga Rp 29.000 per 30 hari hanya untuk scan struk AI tanpa batas — sekali bayar, tanpa langganan otomatis.",
+    "Splitzy is free to split bills. Upgrade to Pro at Rp 29.000 per 30 days for unlimited AI receipt scans — a one-time payment, with no automatic subscription.",
   alternates: { canonical: "/pricing" },
 };
 

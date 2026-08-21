@@ -15,7 +15,13 @@
 // added only once the numbers come from real data.
 
 import { BRAND, BRAND_PROFILES } from "@/lib/brand";
-import { HTML_LANG, localePath, type Locale } from "@/lib/i18n/config";
+import {
+  DEFAULT_LOCALE,
+  HTML_LANG,
+  PREFIXED_LOCALE,
+  localePath,
+  type Locale,
+} from "@/lib/i18n/config";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { FREE_PLAN, PRO_PLAN } from "@/lib/billing/plans";
 
@@ -67,9 +73,9 @@ function webSiteNode(): JsonLdNode {
     name: BRAND.name,
     alternateName: "Splitzy — Split Bill",
     description:
-      "Aplikasi web gratis untuk membagi tagihan patungan dan pengeluaran trip secara adil.",
-    // The site is served in both languages; Indonesian is x-default.
-    inLanguage: [HTML_LANG.id, HTML_LANG.en],
+      "Free web app for splitting shared bills and trip expenses fairly.",
+    // The site is served in both languages; the default locale is x-default.
+    inLanguage: [HTML_LANG[DEFAULT_LOCALE], HTML_LANG[PREFIXED_LOCALE]],
     publisher: { "@id": NODE.organization },
   };
 }
@@ -84,7 +90,7 @@ function softwareApplicationNode(dict: Dictionary): JsonLdNode {
     applicationSubCategory: "Bill Splitting",
     operatingSystem: "Web browser (Android, iOS, Windows, macOS)",
     browserRequirements: "Requires JavaScript.",
-    inLanguage: [HTML_LANG.id, HTML_LANG.en],
+    inLanguage: [HTML_LANG[DEFAULT_LOCALE], HTML_LANG[PREFIXED_LOCALE]],
     description: dict.meta.home.description,
     publisher: { "@id": NODE.organization },
     isPartOf: { "@id": NODE.website },
@@ -135,8 +141,8 @@ export function siteGraph(dict: Dictionary): JsonLdNode {
 }
 
 /**
- * A page node tied into the site graph. `route` is the canonical Indonesian
- * route; the URL is resolved for `locale`.
+ * A page node tied into the site graph. `route` is the un-prefixed route; the
+ * URL is resolved for `locale`.
  */
 export function webPageGraph(options: {
   locale: Locale;

@@ -5,7 +5,7 @@ import { test, expect, type Page } from "@playwright/test";
 // depending on auth or the database.
 //
 // Locators here avoid asserting on marketing copy wherever possible. The
-// landing page is bilingual (Indonesian at /, English at /en) and its wording
+// landing page is bilingual (English at /, Indonesian at /id) and its wording
 // changes often; tests pinned to a specific English phrase break on every copy
 // edit and, worse, can pass for the wrong reason — the previous version of this
 // file asserted a /Split Bills/i heading that was actually being satisfied by
@@ -37,7 +37,7 @@ async function canonicalPath(page: Page): Promise<string> {
 
 // ── Rendering ──────────────────────────────────────────────────────────────
 
-test("Indonesian landing renders the hero and mode cards", async ({ page }) => {
+test("English landing renders the hero and mode cards", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/Splitzy/);
 
@@ -45,24 +45,24 @@ test("Indonesian landing renders the hero and mode cards", async ({ page }) => {
   const h1 = page.locator("h1");
   await expect(h1).toHaveCount(1);
   await expect(h1).toBeVisible();
-  await expect(h1).toContainText(/bagi tagihan/i);
+  await expect(h1).toContainText(/split the bill/i);
 
   // Mode cards located by destination, so they survive copy and language edits.
   await expect(page.locator('main a[href="/single"]').first()).toBeVisible();
   await expect(page.locator('main a[href="/travel"]').first()).toBeVisible();
 });
 
-test("English landing renders at /en", async ({ page }) => {
-  await page.goto("/en");
+test("Indonesian landing renders at /id", async ({ page }) => {
+  await page.goto("/id");
   await expect(page).toHaveTitle(/Splitzy/);
 
   const h1 = page.locator("h1");
   await expect(h1).toHaveCount(1);
-  await expect(h1).toContainText(/split the bill/i);
+  await expect(h1).toContainText(/bagi tagihan/i);
 });
 
 test("brand entity pages render in both languages", async ({ page }) => {
-  for (const route of ["/about", "/faq", "/en/about", "/en/faq"]) {
+  for (const route of ["/about", "/faq", "/id/about", "/id/faq"]) {
     const res = await page.goto(route);
     expect(res?.status(), `${route} should render`).toBeLessThan(400);
     await expect(page.locator("h1"), `${route} needs an h1`).toHaveCount(1);
@@ -112,11 +112,11 @@ test("pricing page honours its feature flag", async ({ page }) => {
 
 const INDEXABLE_ROUTES = [
   "/",
-  "/en",
+  "/id",
   "/about",
-  "/en/about",
+  "/id/about",
   "/faq",
-  "/en/faq",
+  "/id/faq",
   "/single",
   "/travel",
   "/privacy",
@@ -161,10 +161,10 @@ test("bilingual pages declare reciprocal hreflang", async ({ page }) => {
   // hreflang only works when both directions agree; a one-way annotation is
   // silently ignored by Google.
   for (const [route, alternates] of [
-    ["/", { "id-ID": "/", en: "/en" }],
-    ["/en", { "id-ID": "/", en: "/en" }],
-    ["/about", { "id-ID": "/about", en: "/en/about" }],
-    ["/en/about", { "id-ID": "/about", en: "/en/about" }],
+    ["/", { "id-ID": "/id", en: "/" }],
+    ["/id", { "id-ID": "/id", en: "/" }],
+    ["/about", { "id-ID": "/id/about", en: "/about" }],
+    ["/id/about", { "id-ID": "/id/about", en: "/about" }],
   ] as const) {
     await page.goto(route);
     for (const [lang, expected] of Object.entries(alternates)) {
@@ -177,11 +177,32 @@ test("bilingual pages declare reciprocal hreflang", async ({ page }) => {
         `${route} hreflang=${lang}`
       ).toBe(expected);
     }
+    // x-default must point at the default-locale (un-prefixed) version.
     const xDefault = await page
       .locator('link[rel="alternate"][hreflang="x-default"]')
       .first()
       .getAttribute("href");
     expect(xDefault, `${route} needs an x-default`).toBeTruthy();
+    expect(
+      new URL(xDefault!).pathname,
+      `${route} x-default must be the un-prefixed URL`
+    ).toBe(alternates.en);
+  }
+});
+
+test("retired /en URLs redirect to the un-prefixed English tree", async ({
+  request,
+}) => {
+  // English briefly lived at /en. Those URLs were submitted to Search Console,
+  // so they must 301 rather than 404 after the default locale was flipped.
+  for (const [from, to] of [
+    ["/en", "/"],
+    ["/en/about", "/about"],
+    ["/en/faq", "/faq"],
+  ]) {
+    const res = await request.get(from, { maxRedirects: 0 });
+    expect(res.status(), `${from} should 301`).toBe(301);
+    expect(new URL(res.headers()["location"], "http://x").pathname).toBe(to);
   }
 });
 
@@ -189,7 +210,7 @@ test("pages carry the Splitzy entity graph", async ({ page }) => {
   // "Splitzy" is a contested brand name, so the Organization/WebSite/
   // SoftwareApplication graph is how Google tells this product apart from the
   // unrelated apps sharing the name. Losing it is a silent, expensive failure.
-  for (const route of ["/", "/en", "/about", "/faq", "/single"]) {
+  for (const route of ["/", "/id", "/about", "/faq", "/single"]) {
     await page.goto(route);
     const blocks = await page
       .locator('script[type="application/ld+json"]')

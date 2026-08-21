@@ -11,15 +11,20 @@ import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { RefCapture } from "@/components/referral/RefCapture";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { BRAND } from "@/lib/brand";
-import { DEFAULT_LOCALE, HTML_LANG, OG_LOCALE } from "@/lib/i18n/config";
+import {
+  DEFAULT_LOCALE,
+  HTML_LANG,
+  OG_LOCALE,
+  PREFIXED_LOCALE,
+} from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { siteGraph } from "@/lib/seo/structured-data";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// Site-wide defaults. Indonesian is the primary language (see
-// src/lib/i18n/config.ts for why), so the fallback title/description are
-// Indonesian and og:locale is id_ID with English as the alternate.
+// Site-wide defaults, all derived from DEFAULT_LOCALE so that flipping the
+// default language re-points the fallback title, description, og:locale and
+// <html lang> in one place. Nothing here may hardcode a language.
 const DEFAULT_DICT = getDictionary(DEFAULT_LOCALE);
 
 export const metadata: Metadata = {
@@ -27,27 +32,28 @@ export const metadata: Metadata = {
   metadataBase: new URL(BRAND.siteUrl),
   title: {
     default: DEFAULT_DICT.meta.home.title,
-    // Page-level titles render as "Harga · Splitzy", etc.
+    // Page-level titles render as "Pricing · Splitzy", etc.
     template: "%s · Splitzy",
   },
   description: DEFAULT_DICT.meta.home.description,
   applicationName: "Splitzy",
-  // Indonesian search terms first — these are the queries the target market
-  // actually types. Kept short and honest; keyword stuffing is not a ranking
-  // factor and a bloated list only dilutes the signal.
+  // English terms lead, matching the default locale, but the Indonesian queries
+  // stay because Indonesia remains the actual market. Kept short and honest:
+  // Google ignores this tag entirely, so it exists for the minor engines that
+  // still read it and there is nothing to gain from stuffing it.
   keywords: [
     "splitzy",
     "split bill",
+    "bill splitter",
+    "split expenses",
+    "who owes what",
+    "receipt scanner",
+    "group trip expenses",
     "aplikasi split bill",
     "bagi tagihan",
     "hitung patungan",
     "patungan",
-    "split bill online",
     "scan struk",
-    "bagi tagihan makan",
-    "catat pengeluaran trip",
-    "bill splitter",
-    "who owes what",
   ],
   // ⚠️ NO site-wide `alternates.canonical` here. Next merges layout metadata
   // into every page, so a canonical set at this level made EVERY page declare
@@ -64,8 +70,8 @@ export const metadata: Metadata = {
     siteName: "Splitzy",
     title: DEFAULT_DICT.meta.home.title,
     description: DEFAULT_DICT.meta.home.description,
-    locale: OG_LOCALE.id,
-    alternateLocale: [OG_LOCALE.en],
+    locale: OG_LOCALE[DEFAULT_LOCALE],
+    alternateLocale: [OG_LOCALE[PREFIXED_LOCALE]],
     // Images come from the app/opengraph-image.tsx file convention (a proper
     // 1200×630 card). Do not set them here — explicit metadata beats the file
     // convention, and the raw logo is a 1920×2194 portrait that every social
@@ -122,11 +128,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Indonesian is the site's default language and owns the un-prefixed URLs.
-  // The /en tree marks its own subtree with lang="en" (see src/app/en/page.tsx
-  // for why that is done on the content wrapper rather than here).
+  // The default locale owns the un-prefixed URLs and sets the document language.
+  // The prefixed tree marks its own subtree lang (see src/app/id/page.tsx for why
+  // that is done on the content wrapper rather than here).
   return (
-    <html lang={HTML_LANG.id} suppressHydrationWarning>
+    <html lang={HTML_LANG[DEFAULT_LOCALE]} suppressHydrationWarning>
       {supabaseOrigin && (
         <>
           <link rel="preconnect" href={supabaseOrigin} crossOrigin="anonymous" />

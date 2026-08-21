@@ -31,11 +31,35 @@ function canonicalHostRedirect(request: NextRequest): NextResponse | null {
   return NextResponse.redirect(url, 301);
 }
 
+// Legacy /en/* redirect.
+//
+// English briefly lived at /en while Indonesian owned the root; the default was
+// flipped on 2026-08-21, so English now serves from the un-prefixed URLs and
+// Indonesian moved to /id. Those /en URLs were already submitted to Google
+// Search Console, so they must not 404 — a 301 preserves anything Google
+// crawled and hands the signal to the new location.
+//
+// Safe to delete once Search Console shows no traffic or coverage entries for
+// /en, realistically several months out.
+function legacyEnglishPrefixRedirect(request: NextRequest): NextResponse | null {
+  const { pathname } = request.nextUrl;
+  if (pathname !== "/en" && !pathname.startsWith("/en/")) return null;
+
+  const url = request.nextUrl.clone();
+  // "/en" → "/", "/en/about" → "/about". Same content, same language.
+  url.pathname = pathname.slice("/en".length) || "/";
+  return NextResponse.redirect(url, 301);
+}
+
 export default async function proxy(request: NextRequest) {
   // 0. Canonical host. Runs first so a request to the apex is redirected in one
   //    hop, rather than chaining through the maintenance/auth redirects below.
   const hostRedirect = canonicalHostRedirect(request);
   if (hostRedirect) return hostRedirect;
+
+  // 0b. Retired /en prefix → the un-prefixed English tree.
+  const legacyRedirect = legacyEnglishPrefixRedirect(request);
+  if (legacyRedirect) return legacyRedirect;
 
   // 1. Maintenance mode check
   const isMaintenanceMode = process.env.MAINTENANCE_MODE === "true";

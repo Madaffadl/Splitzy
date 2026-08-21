@@ -13,7 +13,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: dict.meta.home.title,
     short_name: "Splitzy",
     description: dict.meta.home.description,
-    lang: HTML_LANG.id,
+    lang: HTML_LANG[DEFAULT_LOCALE],
     dir: "ltr",
     start_url: "/",
     scope: "/",

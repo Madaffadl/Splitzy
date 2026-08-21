@@ -5,11 +5,11 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 import { bilingualPageMetadata } from "@/lib/seo/metadata";
 import { faqGraph, webPageGraph } from "@/lib/seo/structured-data";
 
-// The Indonesian landing page. Indonesian owns the un-prefixed URL because
-// Indonesia is the market we can actually win the "splitzy" query in — see the
-// strategy note in src/lib/i18n/config.ts. English lives at /en.
+// The English landing page. English is the default locale and so owns the
+// un-prefixed URL; Indonesian lives at /id. See src/lib/i18n/config.ts for the
+// SEO trade-off this represents.
 
-const LOCALE = "id" as const;
+const LOCALE = "en" as const;
 const dict = getDictionary(LOCALE);
 
 export const metadata: Metadata = bilingualPageMetadata({

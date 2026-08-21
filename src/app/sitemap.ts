@@ -3,7 +3,9 @@ import { BRAND } from "@/lib/brand";
 import { isEnabled } from "@/lib/flags";
 import {
   BILINGUAL_ROUTES,
+  DEFAULT_LOCALE,
   HTML_LANG,
+  PREFIXED_LOCALE,
   localePath,
   type BilingualRoute,
 } from "@/lib/i18n/config";
@@ -34,13 +36,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       [HTML_LANG.en]: `${base}${localePath("en", route)}`,
     };
 
-    return (["id", "en"] as const).map((locale) => ({
+    // Default locale first, and weighted above the prefixed tree — it is the
+    // version we want treated as the primary. Derived from DEFAULT_LOCALE so
+    // flipping the default cannot leave this pointing at the wrong language.
+    return [DEFAULT_LOCALE, PREFIXED_LOCALE].map((locale) => ({
       url: `${base}${localePath(locale, route)}`,
       lastModified: now,
       changeFrequency,
-      // The English tree is a secondary market, so it ranks below its
-      // Indonesian counterpart.
-      priority: locale === "id" ? priority : priority * 0.8,
+      priority: locale === DEFAULT_LOCALE ? priority : priority * 0.8,
       alternates: { languages },
     }));
   });

@@ -4,7 +4,7 @@ import { HTML_LANG } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { bilingualPageMetadata } from "@/lib/seo/metadata";
 
-const LOCALE = "en" as const;
+const LOCALE = "id" as const;
 const dict = getDictionary(LOCALE);
 
 export const metadata: Metadata = bilingualPageMetadata({
@@ -16,9 +16,9 @@ export const metadata: Metadata = bilingualPageMetadata({
   titleAbsolute: true,
 });
 
-export default function EnglishFaqPage() {
+export default function IndonesianFaqPage() {
   return (
-    <div lang={HTML_LANG.en}>
+    <div lang={HTML_LANG.id}>
       <FaqContent locale={LOCALE} />
     </div>
   );
