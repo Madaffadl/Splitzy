@@ -9,35 +9,51 @@ import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { RefCapture } from "@/components/referral/RefCapture";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { BRAND } from "@/lib/brand";
+import { DEFAULT_LOCALE, HTML_LANG, OG_LOCALE } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { siteGraph } from "@/lib/seo/structured-data";
 
 const inter = Inter({ subsets: ["latin"] });
 
-const TITLE = "Splitzy — Split Bills With Friends";
-const DESCRIPTION =
-  "Split dining or trip expenses fairly with friends. Calculate who owes what with minimal transactions.";
+// Site-wide defaults. Indonesian is the primary language (see
+// src/lib/i18n/config.ts for why), so the fallback title/description are
+// Indonesian and og:locale is id_ID with English as the alternate.
+const DEFAULT_DICT = getDictionary(DEFAULT_LOCALE);
 
 export const metadata: Metadata = {
   // metadataBase lets Next resolve relative OG/canonical URLs to absolute ones.
   metadataBase: new URL(BRAND.siteUrl),
   title: {
-    default: TITLE,
-    // Page-level titles render as "Pricing · Splitzy", etc.
+    default: DEFAULT_DICT.meta.home.title,
+    // Page-level titles render as "Harga · Splitzy", etc.
     template: "%s · Splitzy",
   },
-  description: DESCRIPTION,
+  description: DEFAULT_DICT.meta.home.description,
   applicationName: "Splitzy",
+  // Indonesian search terms first — these are the queries the target market
+  // actually types. Kept short and honest; keyword stuffing is not a ranking
+  // factor and a bloated list only dilutes the signal.
   keywords: [
+    "splitzy",
     "split bill",
-    "bill splitter",
-    "split expenses",
-    "patungan",
+    "aplikasi split bill",
     "bagi tagihan",
-    "travel expenses",
+    "hitung patungan",
+    "patungan",
+    "split bill online",
+    "scan struk",
+    "bagi tagihan makan",
+    "catat pengeluaran trip",
+    "bill splitter",
     "who owes what",
-    "receipt scanner",
   ],
-  alternates: { canonical: "/" },
+  // ⚠️ NO site-wide `alternates.canonical` here. Next merges layout metadata
+  // into every page, so a canonical set at this level made EVERY page declare
+  // the homepage as its canonical URL — an explicit "this page is a duplicate,
+  // don't index it" for /single, /pricing, /privacy and the rest. Canonicals
+  // must be declared per page; see src/lib/seo/metadata.ts.
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",
@@ -45,20 +61,41 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    url: BRAND.siteUrl,
     siteName: "Splitzy",
-    title: TITLE,
-    description: DESCRIPTION,
-    locale: "en_US",
-    images: [{ url: "/logo.png", width: 1920, height: 2194, alt: "Splitzy" }],
+    title: DEFAULT_DICT.meta.home.title,
+    description: DEFAULT_DICT.meta.home.description,
+    locale: OG_LOCALE.id,
+    alternateLocale: [OG_LOCALE.en],
+    // Images come from the app/opengraph-image.tsx file convention (a proper
+    // 1200×630 card). Do not set them here — explicit metadata beats the file
+    // convention, and the raw logo is a 1920×2194 portrait that every social
+    // platform crops badly.
   },
   twitter: {
     card: "summary_large_image",
-    title: TITLE,
-    description: DESCRIPTION,
-    images: ["/logo.png"],
+    title: DEFAULT_DICT.meta.home.title,
+    description: DEFAULT_DICT.meta.home.description,
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      // Allow full-length snippets, large image previews, and video previews —
+      // the defaults are conservative and cost us SERP real estate.
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
+  // Set NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION to the token from Google Search
+  // Console ("HTML tag" method) to verify ownership. Until the property is
+  // verified we are blind: no index coverage, no query data, no way to submit
+  // the sitemap.
+  verification: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }
+    : undefined,
 };
 
 export const viewport = {
@@ -85,8 +122,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Indonesian is the site's default language and owns the un-prefixed URLs.
+  // The /en tree marks its own subtree with lang="en" (see src/app/en/page.tsx
+  // for why that is done on the content wrapper rather than here).
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={HTML_LANG.id} suppressHydrationWarning>
       {supabaseOrigin && (
         <>
           <link rel="preconnect" href={supabaseOrigin} crossOrigin="anonymous" />
@@ -94,6 +134,10 @@ export default function RootLayout({
         </>
       )}
       <body className={inter.className}>
+        {/* Site-wide entity graph (Organization + WebSite + SoftwareApplication).
+            Emitted from the layout so every route — including the tool pages —
+            carries the same claim on the contested "Splitzy" name. */}
+        <JsonLd data={siteGraph(DEFAULT_DICT)} />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

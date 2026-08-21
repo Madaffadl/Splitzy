@@ -1,7 +1,42 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+// Canonical-host redirect (SEO Sprint 7).
+//
+// Both https://splitzy.my.id and https://www.splitzy.my.id were serving the site
+// with a 200, so identical content lived at two hostnames. Google then has to
+// pick a canonical itself and splits any accumulated link signals across the
+// two. The rel=canonical tag already pointed at www, but a canonical tag is only
+// a *hint* — a 301 is a directive, and it stops the duplicate being crawled at
+// all.
+//
+// Deliberately an exact string comparison rather than a `has: [{ type: "host" }]`
+// rule in next.config.mjs: that value is pattern-matched, and a pattern that also
+// matched "www.splitzy.my.id" would cause an infinite redirect loop in
+// production. An equality check cannot loop.
+const APEX_HOST = "splitzy.my.id";
+const CANONICAL_HOST = "www.splitzy.my.id";
+
+function canonicalHostRedirect(request: NextRequest): NextResponse | null {
+  // `host` has no port on Vercel; strip one anyway for local parity.
+  const host = request.headers.get("host")?.split(":")[0];
+  if (host !== APEX_HOST) return null;
+
+  const url = request.nextUrl.clone();
+  url.protocol = "https";
+  url.host = CANONICAL_HOST;
+  url.port = "";
+  // 301 rather than 308: both are permanent and Google treats them identically,
+  // and 301 is what every SEO auditing tool expects to see here.
+  return NextResponse.redirect(url, 301);
+}
+
 export default async function proxy(request: NextRequest) {
+  // 0. Canonical host. Runs first so a request to the apex is redirected in one
+  //    hop, rather than chaining through the maintenance/auth redirects below.
+  const hostRedirect = canonicalHostRedirect(request);
+  if (hostRedirect) return hostRedirect;
+
   // 1. Maintenance mode check
   const isMaintenanceMode = process.env.MAINTENANCE_MODE === "true";
 

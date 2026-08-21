@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
-import { LegalPageShell } from "@/components/LegalPageShell";
+import { ContentPageShell } from "@/components/ContentPageShell";
 import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
   description: "The terms that govern your use of Splitzy.",
+  alternates: { canonical: "/terms" },
 };
 
 const LAST_UPDATED = "3 August 2026";
 
 export default function TermsPage() {
   return (
-    <LegalPageShell title="Terms of Service" lastUpdated={LAST_UPDATED}>
+    <ContentPageShell title="Terms of Service" lastUpdated={LAST_UPDATED}>
       <p>
         These Terms of Service (&ldquo;Terms&rdquo;) govern your use of{" "}
         {BRAND.name}. By accessing or using the service, you agree to be bound
@@ -109,6 +110,6 @@ export default function TermsPage() {
           <a href={`mailto:${BRAND.supportEmail}`}>{BRAND.supportEmail}</a>.
         </p>
       </section>
-    </LegalPageShell>
+    </ContentPageShell>
   );
 }

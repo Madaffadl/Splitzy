@@ -17,8 +17,12 @@ import { UpgradeButton } from "@/components/billing/UpgradeButton";
 import { SuccessCelebration } from "@/components/billing/SuccessCelebration";
 
 export const metadata: Metadata = {
-  title: "Pricing",
-  description: "Splitzy is free to use. Upgrade to Pro for unlimited AI receipt scans.",
+  // Absolute: the title already contains the brand, so skip the
+  // "%s · Splitzy" template rather than shipping "… Splitzy · Splitzy".
+  title: { absolute: "Harga Splitzy — Gratis, Pro Rp 29.000 / 30 Hari" },
+  description:
+    "Splitzy gratis dipakai untuk membagi tagihan. Upgrade ke Pro seharga Rp 29.000 per 30 hari hanya untuk scan struk AI tanpa batas — sekali bayar, tanpa langganan otomatis.",
+  alternates: { canonical: "/pricing" },
 };
 
 // Objection-handling FAQ. All answers are accurate to the billing model in

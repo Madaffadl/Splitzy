@@ -63,7 +63,7 @@ interface EditingReceipt {
   isNew: boolean;
 }
 
-export default function MultipleReceiptPage() {
+export function MultipleReceiptView() {
   const [state, setState, resetState] = useHybridState<MultipleState>(
     "splitbill-multiple",
     DEFAULT_STATE

@@ -711,7 +711,7 @@ function MembersCard({
 }
 
 // ── Main page ────────────────────────────────────────────────────────────────
-export default function TravelPage() {
+export function TravelSpendView() {
   const travel = useTravelData();
   const { dbUser, signOut } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>("overview");

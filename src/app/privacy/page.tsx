@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
-import { LegalPageShell } from "@/components/LegalPageShell";
+import { ContentPageShell } from "@/components/ContentPageShell";
 import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "How Splitzy collects, uses, and protects your data.",
+  // Self-referencing canonical. Required: without it this page inherits the
+  // layout's canonical and declares itself a duplicate of the homepage.
+  alternates: { canonical: "/privacy" },
 };
 
 const LAST_UPDATED = "3 August 2026";
 
 export default function PrivacyPage() {
   return (
-    <LegalPageShell title="Privacy Policy" lastUpdated={LAST_UPDATED}>
+    <ContentPageShell title="Privacy Policy" lastUpdated={LAST_UPDATED}>
       <p>
         This Privacy Policy explains how {BRAND.name} (&ldquo;we&rdquo;,
         &ldquo;us&rdquo;) collects, uses, and safeguards your information when
@@ -134,6 +137,6 @@ export default function PrivacyPage() {
           <a href={`mailto:${BRAND.supportEmail}`}>{BRAND.supportEmail}</a>.
         </p>
       </section>
-    </LegalPageShell>
+    </ContentPageShell>
   );
 }

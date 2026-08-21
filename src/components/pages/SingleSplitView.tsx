@@ -70,7 +70,7 @@ const DEFAULT_STATE: SingleState = {
   discounts: [],
 };
 
-export default function SinglePage() {
+export function SingleSplitView() {
   const [state, setState, resetState] = useHybridState<SingleState>(
     "splitbill-single",
     DEFAULT_STATE
