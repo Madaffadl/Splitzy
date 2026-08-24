@@ -10,6 +10,7 @@ import {
 } from "@/lib/validation";
 import { apiError } from "@/lib/api-response";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { validateTripReceiptPayload } from "@/lib/travel-cloud";
 
 interface LocalItem {
   id: string;
@@ -18,6 +19,7 @@ interface LocalItem {
   unitPrice: number;
   total: number;
   assignedToIds: string[];
+  assignments?: { participantId: string; qty: number }[];
 }
 
 interface LocalReceipt {
@@ -28,15 +30,24 @@ interface LocalReceipt {
   items: LocalItem[];
   tax: number;
   service: number;
+  discounts?: unknown[];
+  fees?: unknown[];
+  currency?: string;
+  fxRate?: number;
 }
 
 interface LocalSingleState {
   participants: ValidatedParticipant[];
   items: LocalItem[];
   title: string;
+  date?: string;
   tax: number;
   service: number;
   payerId: string;
+  discounts?: unknown[];
+  fees?: unknown[];
+  currency?: string;
+  fxRate?: number;
 }
 
 interface LocalTripState {
@@ -171,6 +182,37 @@ export async function POST(request: NextRequest) {
     return isNaN(d.getTime()) ? null : d;
   };
 
+  /**
+   * Build the lossless JSON document for one receipt.
+   *
+   * Validated with the SAME helper the Travel cloud path uses, so both places
+   * that persist a receipt agree on the shape — and so assignments, fees and
+   * discounts are checked against the participant list rather than trusted.
+   *
+   * Throws ValidationError, which the caller turns into a 400. Failing loudly
+   * matters here: the client only clears localStorage after a success response,
+   * so a rejected import leaves the user's data intact, whereas quietly
+   * dropping the parts that don't validate is the exact bug being fixed.
+   */
+  const buildPayload = (
+    receipt: LocalReceipt,
+    participants: ValidatedParticipant[] | null,
+    field: string
+  ): Prisma.InputJsonValue => {
+    const participantIds = new Set((participants ?? []).map((p) => p.id));
+    try {
+      return validateTripReceiptPayload(
+        receipt,
+        participantIds
+      ) as unknown as Prisma.InputJsonValue;
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        throw new ValidationError(`${field}.${err.field}`, err.message);
+      }
+      throw err;
+    }
+  };
+
   try {
     const importedCount = await prisma.$transaction(async (tx) => {
       let count = 0;
@@ -182,10 +224,28 @@ export async function POST(request: NextRequest) {
             payerId: user.id,
             tax: single.tax || 0,
             service: single.service || 0,
+            date: parseReceiptDate(single.date),
             createdById: user.id,
             participantsJson:
               (singleParticipants as unknown as Prisma.InputJsonValue) ??
               Prisma.JsonNull,
+            payloadJson: buildPayload(
+              {
+                id: "single",
+                title: single.title || "Imported Receipt",
+                date: single.date,
+                payerId: single.payerId,
+                items: single.items,
+                tax: single.tax || 0,
+                service: single.service || 0,
+                discounts: single.discounts,
+                fees: single.fees,
+                currency: single.currency,
+                fxRate: single.fxRate,
+              },
+              singleParticipants,
+              "single"
+            ),
             items: {
               create: single.items.map((item, index) => ({
                 name: item.name,
@@ -227,6 +287,11 @@ export async function POST(request: NextRequest) {
               participantsJson:
                 (tripParticipants as unknown as Prisma.InputJsonValue) ??
                 Prisma.JsonNull,
+              payloadJson: buildPayload(
+                receipt,
+                tripParticipants,
+                `trip.receipts[${receipt.id}]`
+              ),
               items: {
                 create: receipt.items.map((item, index) => ({
                   name: item.name,
@@ -253,6 +318,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ imported: importedCount });
   } catch (error) {
+    // A payload that fails validation is the user's data being unusual, not the
+    // server breaking — say which field so the report is actionable. The
+    // transaction has rolled back and localStorage is untouched either way.
+    if (error instanceof ValidationError) {
+      const { body: errBody, status } = validationErrorResponse(error);
+      return NextResponse.json(errBody, { status });
+    }
     console.error("Import failed:", error);
     return apiError(
       "INTERNAL_ERROR",

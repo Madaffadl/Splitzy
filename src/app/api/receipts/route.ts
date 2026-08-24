@@ -42,6 +42,40 @@ function decodeCursor(raw: string): { createdAt: Date; id: string } | null {
 //   * `?page=<n>` (legacy) — offset pagination, fine for first dozen pages.
 //
 // Cursor mode skips the COUNT(*) query and returns only `nextCursor`/`hasMore`.
+/**
+ * Headline amount for a row in the history list.
+ *
+ * `tax + service` alone — what this used to return — omits the items entirely,
+ * so a Rp 500.000 dinner with Rp 50.000 tax was listed as "Rp 50.000". When the
+ * receipt has a JSON payload we can total it properly, fees included.
+ */
+function summariseAmount(row: {
+  tax: number;
+  service: number;
+  payloadJson: Prisma.JsonValue | null;
+}): number {
+  const payload = row.payloadJson as {
+    items?: { total?: unknown }[];
+    tax?: unknown;
+    service?: unknown;
+    fees?: { amount?: unknown }[];
+  } | null;
+
+  if (!payload) return row.tax + row.service;
+
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const items = (payload.items ?? []).reduce((sum, i) => sum + num(i?.total), 0);
+  const fees = (payload.fees ?? []).reduce((sum, f) => sum + num(f?.amount), 0);
+  // Face value of the bill; manual discounts are a per-person credit and are
+  // deliberately not netted off a list-level headline.
+  return Math.round((items + num(payload.tax) + num(payload.service) + fees) * 100) / 100;
+}
+
+/** How many people this receipt was split between. Was hardcoded to 0. */
+function countParticipants(row: { participantsJson: Prisma.JsonValue | null }): number {
+  return Array.isArray(row.participantsJson) ? row.participantsJson.length : 0;
+}
+
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request);
   if (!user) return unauthorized();
@@ -114,6 +148,8 @@ export async function GET(request: NextRequest) {
         date: true,
         createdAt: true,
         tripId: true,
+        payloadJson: true,
+        participantsJson: true,
         trip: { select: { name: true } },
         _count: { select: { items: true } },
       },
@@ -132,8 +168,8 @@ export async function GET(request: NextRequest) {
         id: r.id,
         title: r.title,
         date: r.date?.toISOString() ?? null,
-        totalAmount: r.tax + r.service,
-        participantCount: 0,
+        totalAmount: summariseAmount(r),
+        participantCount: countParticipants(r),
         createdAt: r.createdAt.toISOString(),
         tripName: r.trip?.name ?? null,
         tripId: r.tripId,
@@ -160,6 +196,8 @@ export async function GET(request: NextRequest) {
         date: true,
         createdAt: true,
         tripId: true,
+        payloadJson: true,
+        participantsJson: true,
         trip: { select: { name: true } },
         _count: { select: { items: true } },
       },
@@ -175,8 +213,8 @@ export async function GET(request: NextRequest) {
       id: r.id,
       title: r.title,
       date: r.date?.toISOString() ?? null,
-      totalAmount: r.tax + r.service,
-      participantCount: 0,
+      totalAmount: summariseAmount(r),
+      participantCount: countParticipants(r),
       createdAt: r.createdAt.toISOString(),
       tripName: r.trip?.name ?? null,
       tripId: r.tripId,

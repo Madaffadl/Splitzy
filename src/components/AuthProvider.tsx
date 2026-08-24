@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { AuthContext, useAuthProvider } from "@/hooks/useAuth";
 import { DataMigrationDialog } from "@/components/DataMigrationDialog";
 import { localDataService } from "@/lib/data/local-data-service";
+import { isEnabled } from "@/lib/flags";
 import { useToast } from "@/components/ui/toast";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -25,8 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Just logged in: check if there's localStorage data to migrate.
-    if (auth.isAuthenticated && !prevAuthenticated.current) {
+    // Just logged in: offer to migrate localStorage data to the cloud.
+    //
+    // Flag-gated and dark by default. Migration deletes the local copy once the
+    // server confirms the write, so anything the import fails to carry across is
+    // gone for good — it must be proven lossless against the real database
+    // before this is switched on. See the `dataMigration` flag for the history.
+    if (
+      isEnabled("dataMigration") &&
+      auth.isAuthenticated &&
+      !prevAuthenticated.current
+    ) {
       try {
         if (localDataService.hasLocalData()) {
           setShowMigration(true);

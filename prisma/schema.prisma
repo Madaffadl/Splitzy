@@ -249,6 +249,18 @@ model Receipt {
   service          Float     @default(0)
   date             DateTime?
   participantsJson Json?     @map("participants_json")
+  // The complete client-side Receipt (items with their per-person assignments,
+  // fees, discounts, currency + locked fxRate) as one JSON document.
+  //
+  // The relational columns above cannot represent a real split: ItemAssignment
+  // has a foreign key to User, so it can only say "an account holder consumed
+  // this", while a split is between arbitrary named people who mostly have no
+  // account. Importing a guest split therefore dropped every assignment, fee
+  // and discount on the floor. This mirrors TripReceipt.payload, which is how
+  // the Travel path has always stored receipts losslessly.
+  //
+  // Null on legacy rows — readers fall back to the relational columns.
+  payloadJson      Json?     @map("payload_json")
   createdById      String    @map("created_by") @db.Uuid
   // Optimistic concurrency — see Trip.version.
   version          Int       @default(1)

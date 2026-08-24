@@ -140,7 +140,27 @@ export async function GET(
     })),
   };
 
-  return NextResponse.json({ receipt: formattedReceipt });
+  // Prefer the JSON payload when present: it is the only representation that
+  // carries per-person assignments, fees and discounts. The relational columns
+  // above cannot (item_assignments is keyed on users.id, and a split is between
+  // named people who mostly have no account), so a payload-backed receipt read
+  // from them shows every participant owing 0 against a non-zero total.
+  //
+  // Server-owned metadata still comes from the row, never from client JSON.
+  const payload = receipt.payloadJson as Record<string, unknown> | null;
+  const response = payload
+    ? {
+        ...payload,
+        id: receipt.id,
+        version: receipt.version,
+        createdById: receipt.createdById,
+        tripId: receipt.tripId,
+        tripName: receipt.trip?.name ?? null,
+        participants,
+      }
+    : formattedReceipt;
+
+  return NextResponse.json({ receipt: response });
 }
 
 // PUT /api/receipts/[id] - Update receipt

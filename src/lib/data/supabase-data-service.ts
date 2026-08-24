@@ -124,7 +124,11 @@ export const supabaseDataService = {
       body: JSON.stringify({ ...data, idempotencyKey }),
     });
     if (!res.ok) {
-      throw new Error("Failed to import data");
+      // Surface the server's message. A validation failure names the field that
+      // could not be imported, which is the only actionable thing the user has
+      // — "Failed to import data" told them nothing and hid a real diagnosis.
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error || "Failed to import data.");
     }
     return res.json();
   },

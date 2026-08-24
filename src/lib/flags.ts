@@ -27,7 +27,15 @@
 // never wired and was dropped. The remaining flags gate not-yet-launched work.
 export type PublicFlagKey =
   | "pricingPage" // pricing page + upgrade prompts (paired with Xendit launch)
-  | "realtime"; // live trip collaboration via broadcast (Sprint 6 beta)
+  | "realtime" // live trip collaboration via broadcast (Sprint 6 beta)
+  // Guest localStorage → cloud migration prompt on first sign-in.
+  //
+  // Held OFF because the import used to drop item assignments, fees and
+  // discounts and THEN clear localStorage, destroying the split beyond
+  // recovery. The import is lossless again (it now stores the whole receipt
+  // as JSON), but this stays dark until that has been verified against the
+  // real database — which is exactly what a flag is for.
+  | "dataMigration";
 
 /** Server-only flags. Never exposed to the browser. */
 export type ServerFlagKey =
@@ -37,6 +45,7 @@ export type ServerFlagKey =
 const PUBLIC_FLAG_ENV: Record<PublicFlagKey, string> = {
   pricingPage: "NEXT_PUBLIC_FLAG_PRICING_PAGE",
   realtime: "NEXT_PUBLIC_FLAG_REALTIME",
+  dataMigration: "NEXT_PUBLIC_FLAG_DATA_MIGRATION",
 };
 
 const SERVER_FLAG_ENV: Record<ServerFlagKey, string> = {
@@ -51,6 +60,7 @@ const SERVER_FLAG_ENV: Record<ServerFlagKey, string> = {
 const PUBLIC_FLAG_VALUE: Record<PublicFlagKey, string | undefined> = {
   pricingPage: process.env.NEXT_PUBLIC_FLAG_PRICING_PAGE,
   realtime: process.env.NEXT_PUBLIC_FLAG_REALTIME,
+  dataMigration: process.env.NEXT_PUBLIC_FLAG_DATA_MIGRATION,
 };
 
 function truthy(v: string | undefined): boolean {
