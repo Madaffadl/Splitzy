@@ -170,7 +170,11 @@ function shouldSkipLine(line: string): boolean {
         // Other noise
         /^[-=_*#]{3,}/,  // Separator lines
         /^\d+$/, // Just numbers
-        /^[A-Z]{2,3}\s*\d+/, // Receipt numbers like "TRX001"
+        // Receipt/order/invoice numbers: 3+ uppercase letters immediately followed
+        // by digits (e.g. TRX001, INV123). Requires digits RIGHT after letters so
+        // tax/service abbreviations that have a space before the amount (PPN 5.000,
+        // VAT 7.000, SC 4.000, SVC 5.000, PB1 10% 5.000) are NOT caught here.
+        /^[A-Z]{3,}\d+/,
         /^\d{2}[\/\-]\d{2}[\/\-]\d{2,4}/, // Dates
         /^\d{2}:\d{2}/, // Times
     ];
@@ -183,10 +187,12 @@ function shouldSkipLine(line: string): boolean {
  */
 function extractTax(line: string): number | null {
     const taxPatterns = [
+        // First: "Pajak 11%  2.750" / "PB1 10%  5.000" — percent group + actual amount.
+        // Uses \s+ (not \s*) so "Tax 8.000" doesn't false-match (no space after "8").
+        /^(tax|pajak|pb1|ppn|vat|pbr)\s*\(?(\d+%?)\)?\s+([\d.,]+)/i,
         /^(tax|pajak|pb1|ppn|vat|pbr)\s*[:\s]\s*([\d.,]+)/i,
         /^(tax|pajak|pb1|ppn|vat|pbr)\s+([\d.,]+)/i,
         /(tax|pajak|pb1|ppn|vat|pbr)\s*[:\s]?\s*([\d.,]+)\s*$/i,
-        /^(tax|pajak|pb1|ppn|vat|pbr)\s*\(?(\d+%?)\)?\s*([\d.,]+)/i,
     ];
 
     for (const pattern of taxPatterns) {
@@ -206,10 +212,11 @@ function extractTax(line: string): number | null {
  */
 function extractService(line: string): number | null {
     const servicePatterns = [
+        // First: "SC 10%  5.000" / "Service Charge 10% 30.000"
+        /^(service\s*charge|service|sc|svc)\s*\(?(\d+%?)\)?\s+([\d.,]+)/i,
         /^(service\s*charge|service|sc|svc)\s*[:\s]\s*([\d.,]+)/i,
         /^(service\s*charge|service|sc|svc)\s+([\d.,]+)/i,
         /(service\s*charge|service|sc|svc)\s*[:\s]?\s*([\d.,]+)\s*$/i,
-        /^(service\s*charge|service|sc|svc)\s*\(?(\d+%?)\)?\s*([\d.,]+)/i,
     ];
 
     for (const pattern of servicePatterns) {
@@ -312,22 +319,23 @@ export class TextReceiptParser implements ReceiptParser {
             .filter(l => l.length > 0);
 
         for (const line of lines) {
-            // Skip unwanted lines
-            if (shouldSkipLine(line)) {
-                continue;
-            }
-
-            // Check for tax
+            // Check tax and service BEFORE the general skip check: their abbreviations
+            // (PB1, PPN, VAT, SC, SVC) can superficially resemble receipt numbers and
+            // would be dropped by shouldSkipLine if we checked it first.
             const taxValue = extractTax(line);
             if (taxValue !== null) {
                 tax = roundTo2(taxValue);
                 continue;
             }
 
-            // Check for service
             const serviceValue = extractService(line);
             if (serviceValue !== null) {
                 service = roundTo2(serviceValue);
+                continue;
+            }
+
+            // Skip headers, footers, totals, payment lines, etc.
+            if (shouldSkipLine(line)) {
                 continue;
             }
 
