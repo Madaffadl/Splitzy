@@ -17,7 +17,7 @@ export const id = {
     home: {
       title: "Splitzy — Aplikasi Split Bill & Bagi Tagihan Patungan",
       description:
-        "Splitzy membagi tagihan patungan secara adil. Scan struk, pilih siapa makan apa, dan langsung tahu siapa berutang ke siapa — dengan transfer paling sedikit. Gratis, tanpa perlu daftar.",
+        "Splitzy membagi tagihan patungan secara adil. AI membaca struk — pilih siapa makan apa — langsung tahu siapa berutang ke siapa. Gratis, tanpa perlu daftar.",
     },
     about: {
       title: "Tentang Splitzy — Apa Itu dan Bagaimana Cara Kerjanya",

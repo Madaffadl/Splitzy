@@ -60,11 +60,10 @@ export const metadata: Metadata = {
   // the homepage as its canonical URL — an explicit "this page is a duplicate,
   // don't index it" for /single, /pricing, /privacy and the rest. Canonicals
   // must be declared per page; see src/lib/seo/metadata.ts.
-  icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
-  },
+  //
+  // Icons are handled by src/app/icon.tsx (file convention) — do not add
+  // `icons` here. The original logo.png is 1920×2194 (portrait) and Google
+  // rejects non-square favicons, showing a generic globe instead.
   openGraph: {
     type: "website",
     siteName: "Splitzy",

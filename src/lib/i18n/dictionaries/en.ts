@@ -15,7 +15,7 @@ export const en: Dictionary = {
     home: {
       title: "Splitzy — Split Bills & Share Expenses Fairly",
       description:
-        "Splitzy splits shared bills fairly. Scan the receipt, tap who had what, and see exactly who owes whom — in the fewest transfers. Free, no sign-up needed.",
+        "Splitzy splits shared bills fairly. AI reads your receipt — tap who had what — see exactly who owes whom in the fewest transfers. Free, no sign-up needed.",
     },
     about: {
       title: "About Splitzy — What It Is and How It Works",
