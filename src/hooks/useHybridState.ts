@@ -1,6 +1,6 @@
 "use client";
 
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { useLocalStorage, type PersistError } from "@/hooks/useLocalStorage";
 import { useAuth } from "@/hooks/useAuth";
 
 /**
@@ -10,12 +10,19 @@ import { useAuth } from "@/hooks/useAuth";
  *   but can be extended to sync with Supabase in the future.
  *
  * The key insight: we preserve the exact same [value, setter, reset] API
- * so pages don't need to change their logic at all.
+ * so pages don't need to change their logic at all. The 4th element reports a
+ * failed persist (full or unusable storage) so a page can warn the user rather
+ * than let their work quietly stop being saved.
  */
 export function useHybridState<T>(
   localKey: string,
   initialValue: T
-): [T, (value: T | ((prev: T) => T)) => void, () => void] {
+): [
+  T,
+  (value: T | ((prev: T) => T)) => void,
+  () => void,
+  PersistError | null
+] {
   // For now, both guest and authenticated users use localStorage
   // as the working state. Authenticated users additionally persist
   // completed receipts to Supabase via the data service (called
@@ -23,10 +30,10 @@ export function useHybridState<T>(
   //
   // This keeps the hook simple and backwards-compatible while still
   // supporting the full auth + backend flow at the application level.
-  const [storedValue, setValue, resetValue] = useLocalStorage<T>(
+  const [storedValue, setValue, resetValue, persistError] = useLocalStorage<T>(
     localKey,
     initialValue
   );
 
-  return [storedValue, setValue, resetValue];
+  return [storedValue, setValue, resetValue, persistError];
 }

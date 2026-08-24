@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, Trip, PaymentInfo } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
+import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
 import { logFeatureUsage } from "@/lib/activity-client";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -64,10 +65,11 @@ interface EditingReceipt {
 }
 
 export function MultipleReceiptView() {
-  const [state, setState, resetState] = useHybridState<MultipleState>(
+  const [state, setState, resetState, persistError] = useHybridState<MultipleState>(
     "splitbill-multiple",
     DEFAULT_STATE
   );
+  usePersistErrorToast(persistError);
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState<string | null>(null);

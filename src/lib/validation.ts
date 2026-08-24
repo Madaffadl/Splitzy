@@ -2,7 +2,7 @@
 // Avoids adding zod as a dependency for the small number of POST/PUT shapes
 // we actually validate. If validation needs grow, swap to zod.
 
-import type { Participant, PaymentInfo } from "@/types";
+import type { Discount, Participant, PaymentInfo, ReceiptFee } from "@/types";
 
 export class ValidationError extends Error {
   constructor(public field: string, message: string) {
@@ -15,6 +15,11 @@ const MAX_TITLE = 200;
 const MAX_NAME = 100;
 const MAX_ITEMS_PER_RECEIPT = 200;
 const MAX_AMOUNT = 1_000_000_000; // 1 billion rupiah ceiling
+// Kept in lockstep with the same caps in shared-summary.ts so a receipt that is
+// accepted by one persistence path can't be rejected by the other.
+const MAX_FEES_PER_RECEIPT = 50;
+const MAX_DISCOUNTS_PER_RECEIPT = 100;
+const MAX_ID = 100;
 
 export interface ValidatedReceiptItem {
   name: string;
@@ -33,6 +38,10 @@ export interface ValidatedReceiptInput {
   tripId: string | null;
   participantsJson: ValidatedParticipant[] | null;
   items: ValidatedReceiptItem[];
+  /** Extra receipt fees (delivery, platform, packaging). Absent when none. */
+  fees?: ReceiptFee[];
+  /** Receipt/item/participant-scoped discounts. Absent when none. */
+  discounts?: Discount[];
 }
 
 function asString(value: unknown, field: string, max: number, allowEmpty = false): string {
@@ -199,6 +208,96 @@ export function validateTripCreate(body: unknown): { name: string } {
   return { name: asString(b.name, "name", MAX_NAME) };
 }
 
+/**
+ * Validate the extra-fees array on a receipt body.
+ *
+ * `undefined` means "no fees on this receipt" — an absent, empty, or non-array
+ * value all collapse to that, because a receipt without fees is the normal case
+ * and must not be a 400. A present-but-malformed *entry*, though, does throw:
+ * silently dropping a fee would understate what everybody owes.
+ */
+export function validateFees(value: unknown, field = "fees"): ReceiptFee[] | undefined {
+  if (value == null || !Array.isArray(value) || value.length === 0) return undefined;
+  if (value.length > MAX_FEES_PER_RECEIPT) {
+    throw new ValidationError(field, `too many fees (max ${MAX_FEES_PER_RECEIPT})`);
+  }
+
+  return value.map((raw, i): ReceiptFee => {
+    const f = `${field}[${i}]`;
+    if (!raw || typeof raw !== "object") throw new ValidationError(f, "must be an object");
+    const entry = raw as Record<string, unknown>;
+
+    const amount = asMoney(entry.amount, `${f}.amount`);
+    if (amount <= 0) throw new ValidationError(`${f}.amount`, "must be positive");
+
+    return {
+      id: asString(entry.id, `${f}.id`, MAX_ID),
+      label: asString(entry.label, `${f}.label`, MAX_NAME),
+      amount,
+      // Anything other than an explicit "proportional" splits equally — the
+      // right default for delivery/platform fees, which don't scale with what
+      // an individual ordered.
+      splitMethod: entry.splitMethod === "proportional" ? "proportional" : "equal",
+    };
+  });
+}
+
+/**
+ * Validate the discounts array on a receipt body.
+ *
+ * Percent discounts are bounded to 0-100 so a typo (`value: 1000`) can't wipe a
+ * whole bill; amount discounts share the standard money ceiling. Item- and
+ * participant-scoped discounts require a `targetId`, but it is NOT cross-checked
+ * here: on this relational path items are assigned fresh database ids on insert,
+ * so the client's ids aren't resolvable yet. The calculation engine already
+ * ignores a discount whose target it can't find, so an unmatched id degrades to
+ * "no discount applied" rather than a wrong total.
+ */
+export function validateDiscounts(value: unknown, field = "discounts"): Discount[] | undefined {
+  if (value == null || !Array.isArray(value) || value.length === 0) return undefined;
+  if (value.length > MAX_DISCOUNTS_PER_RECEIPT) {
+    throw new ValidationError(field, `too many discounts (max ${MAX_DISCOUNTS_PER_RECEIPT})`);
+  }
+
+  return value.map((raw, i): Discount => {
+    const f = `${field}[${i}]`;
+    if (!raw || typeof raw !== "object") throw new ValidationError(f, "must be an object");
+    const d = raw as Record<string, unknown>;
+
+    if (d.scope !== "receipt" && d.scope !== "item" && d.scope !== "participant") {
+      throw new ValidationError(`${f}.scope`, "must be receipt, item, or participant");
+    }
+    if (d.type !== "amount" && d.type !== "percent") {
+      throw new ValidationError(`${f}.type`, "must be amount or percent");
+    }
+
+    let discountValue: number;
+    if (d.type === "percent") {
+      const n = typeof d.value === "number" ? d.value : parseFloat(String(d.value ?? "0"));
+      if (!Number.isFinite(n) || n < 0 || n > 100) {
+        throw new ValidationError(`${f}.value`, "percent must be between 0 and 100");
+      }
+      discountValue = n;
+    } else {
+      discountValue = asMoney(d.value, `${f}.value`);
+    }
+
+    const targetId =
+      d.scope === "receipt" ? undefined : asString(d.targetId, `${f}.targetId`, MAX_ID);
+    const label =
+      d.label != null && d.label !== "" ? asString(d.label, `${f}.label`, MAX_NAME) : undefined;
+
+    return {
+      id: asString(d.id, `${f}.id`, MAX_ID),
+      scope: d.scope,
+      type: d.type,
+      value: discountValue,
+      ...(targetId ? { targetId } : {}),
+      ...(label ? { label } : {}),
+    };
+  });
+}
+
 export function validateReceiptCreate(body: unknown): ValidatedReceiptInput {
   if (!body || typeof body !== "object") {
     throw new ValidationError("body", "must be an object");
@@ -271,6 +370,9 @@ export function validateReceiptCreate(body: unknown): ValidatedReceiptInput {
     });
   }
 
+  const fees = validateFees(b.fees);
+  const discounts = validateDiscounts(b.discounts);
+
   return {
     title: asString(b.title, "title", MAX_TITLE),
     payerId,
@@ -280,6 +382,8 @@ export function validateReceiptCreate(body: unknown): ValidatedReceiptInput {
     tripId: asOptionalId(b.tripId, "tripId"),
     participantsJson,
     items,
+    ...(fees ? { fees } : {}),
+    ...(discounts ? { discounts } : {}),
   };
 }
 
@@ -289,6 +393,8 @@ export interface ValidatedReceiptPatch {
   tax?: number;
   service?: number;
   date?: string | null;
+  fees?: ReceiptFee[];
+  discounts?: Discount[];
   /**
    * Version observed by the client. Required for safe concurrent edits — see
    * the optimistic-locking flow in PUT /api/receipts/[id]. Optional in the
@@ -330,6 +436,14 @@ export function validateReceiptPatch(body: unknown): ValidatedReceiptPatch {
       }
       out.date = parsed.toISOString();
     }
+  }
+  if (b.fees !== undefined) {
+    const fees = validateFees(b.fees);
+    if (fees) out.fees = fees;
+  }
+  if (b.discounts !== undefined) {
+    const discounts = validateDiscounts(b.discounts);
+    if (discounts) out.discounts = discounts;
   }
   if (b.expectedVersion !== undefined) {
     out.expectedVersion = asVersion(b.expectedVersion, "expectedVersion");

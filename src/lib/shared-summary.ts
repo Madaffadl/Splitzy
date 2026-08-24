@@ -393,6 +393,8 @@ export function validateSharedReceipts(
       }
     }
 
+    const fees = validateFees(r.fees, `receipts[${ri}].fees`);
+
     return {
       id: asString(r.id, `receipts[${ri}].id`, MAX_ID),
       title: asString(r.title, `receipts[${ri}].title`, MAX_TITLE),
@@ -402,7 +404,7 @@ export function validateSharedReceipts(
       service: asMoney(r.service ?? 0, `receipts[${ri}].service`),
       items,
       ...(discounts ? { discounts } : {}),
-      ...(validateFees(r.fees, `receipts[${ri}].fees`) ? { fees: validateFees(r.fees, `receipts[${ri}].fees`) } : {}),
+      ...(fees ? { fees } : {}),
       ...(currency ? { currency, ...(fxRate !== undefined ? { fxRate } : {}) } : {}),
     };
   });

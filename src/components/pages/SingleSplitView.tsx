@@ -4,8 +4,10 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, PaymentInfo, Discount, ReceiptFee } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
+import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
+import { getReceiptSummary } from "@/lib/calculations";
 import { logFeatureUsage } from "@/lib/activity-client";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
@@ -73,10 +75,11 @@ const DEFAULT_STATE: SingleState = {
 };
 
 export function SingleSplitView() {
-  const [state, setState, resetState] = useHybridState<SingleState>(
+  const [state, setState, resetState, persistError] = useHybridState<SingleState>(
     "splitbill-single",
     DEFAULT_STATE
   );
+  usePersistErrorToast(persistError);
   const [currentStep, setCurrentStep] = useState(0);
   // Guards rapid double-clicks on Next/Stepper. Without it, two clicks within
   // the same render frame could fire `incrementCount()` twice and skip a step.
@@ -99,6 +102,15 @@ export function SingleSplitView() {
       fees: state.fees ?? [],
     }),
     [state]
+  );
+
+  // Headline total for the Quick Stats card. Derived from the SAME helper the
+  // SummaryPanel below uses, so the two figures on this screen can never drift
+  // (a hand-rolled sum here previously omitted fees and read unitPrice × qty
+  // instead of item.total).
+  const summary = useMemo(
+    () => getReceiptSummary(receipt, state.participants.map((p) => p.id)),
+    [receipt, state.participants]
   );
 
   const canProceed = useMemo(() => {
@@ -477,11 +489,7 @@ export function SingleSplitView() {
                   </Card>
                   <Card className="col-span-2 sm:col-span-1 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
                     <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 break-all sm:break-normal">
-                      Rp {formatCurrency(
-                        state.items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0)
-                          + state.tax
-                          + state.service
-                      )}
+                      Rp {formatCurrency(summary.grandTotal)}
                     </p>
                     <p className="text-xs text-muted-foreground">Total Bill</p>
                   </Card>
