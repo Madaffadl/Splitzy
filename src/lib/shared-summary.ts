@@ -13,6 +13,11 @@
 // (defending against a malformed/legacy row in the Json column).
 
 import { ValidationError, validateParticipantsJson } from "@/lib/validation";
+import {
+  MAX_AMOUNT,
+  MAX_DISCOUNTS_PER_RECEIPT,
+  MAX_FEES_PER_RECEIPT,
+} from "@/lib/limits";
 import type { Receipt, ReceiptItem, Discount, ReceiptFee, Participant, PaymentInfo, TripPayment } from "@/types";
 
 export const SHARE_TTL_DAYS = 14;
@@ -26,8 +31,6 @@ const MAX_ID = 100;
 const MAX_RECEIPTS = 100;
 const MAX_ITEMS_PER_RECEIPT = 200;
 const MAX_ASSIGNEES_PER_ITEM = 100;
-const MAX_DISCOUNTS_PER_RECEIPT = 100;
-const MAX_AMOUNT = 1_000_000_000; // 1 billion rupiah ceiling
 
 // Hard cap on the serialized snapshot. ~256KB comfortably fits a 100-receipt
 // trip and stops a client from writing a multi-MB blob into Postgres.
@@ -298,8 +301,6 @@ export function validateSharedPayments(
   }
   return out.length > 0 ? out : undefined;
 }
-
-const MAX_FEES_PER_RECEIPT = 50;
 
 function validateFees(value: unknown, field: string): ReceiptFee[] | undefined {
   if (value == null) return undefined;

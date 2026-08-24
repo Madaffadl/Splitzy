@@ -9,6 +9,7 @@ import {
   Participant,
 } from "@/types";
 import { cn, generateId } from "@/lib/utils";
+import { canAddDiscount, discountInputError } from "@/lib/input-limits";
 import { formatDiscountValue, describeDiscountTarget } from "@/lib/discounts";
 import { getCurrencyMeta } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
@@ -60,11 +61,19 @@ export function DiscountsInput({
   };
 
   const numericValue = parseValue(value);
-  const needsTarget = scope === "item" || scope === "participant";
-  const canAdd =
-    numericValue > 0 &&
-    !(type === "percent" && numericValue > 100) &&
-    (!needsTarget || !!targetId);
+
+  // Rules live in lib/input-limits so they can be tested and so they read from
+  // the same caps the server enforces. A 150% discount and an unselected item
+  // used to look identical from the outside — both just greyed the button out.
+  const discountCheck = {
+    value,
+    type,
+    scope,
+    targetId,
+    existingCount: discounts.length,
+  };
+  const discountError = discountInputError(discountCheck);
+  const canAdd = canAddDiscount(discountCheck);
 
   const handleAdd = () => {
     if (!canAdd) return;
@@ -264,6 +273,12 @@ export function DiscountsInput({
             placeholder="e.g. GoFood voucher"
           />
         </div>
+
+        {discountError && (
+          <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+            {discountError}
+          </p>
+        )}
 
         <Button
           type="button"

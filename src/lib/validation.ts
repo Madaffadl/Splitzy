@@ -3,6 +3,11 @@
 // we actually validate. If validation needs grow, swap to zod.
 
 import type { Discount, Participant, PaymentInfo, ReceiptFee } from "@/types";
+import {
+  MAX_AMOUNT,
+  MAX_DISCOUNTS_PER_RECEIPT,
+  MAX_FEES_PER_RECEIPT,
+} from "@/lib/limits";
 
 export class ValidationError extends Error {
   constructor(public field: string, message: string) {
@@ -14,11 +19,6 @@ export class ValidationError extends Error {
 const MAX_TITLE = 200;
 const MAX_NAME = 100;
 const MAX_ITEMS_PER_RECEIPT = 200;
-const MAX_AMOUNT = 1_000_000_000; // 1 billion rupiah ceiling
-// Kept in lockstep with the same caps in shared-summary.ts so a receipt that is
-// accepted by one persistence path can't be rejected by the other.
-const MAX_FEES_PER_RECEIPT = 50;
-const MAX_DISCOUNTS_PER_RECEIPT = 100;
 const MAX_ID = 100;
 
 export interface ValidatedReceiptItem {

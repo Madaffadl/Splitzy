@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Participant, ReceiptFee } from "@/types";
 import { formatCurrency, generateId } from "@/lib/utils";
+import { canAddFee, feeInputError } from "@/lib/input-limits";
 import { Info, Plus, Trash2 } from "@/components/ui/icons";
 import { getCurrencyMeta } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,18 @@ export function FeesInput({
     const val = parseFloat(s.replace(/\./g, "").replace(/,/g, "."));
     return isNaN(val) || val < 0 ? 0 : val;
   };
+
+  // Rules live in lib/input-limits so they can be tested and so they read from
+  // the same caps the server enforces. `feeError` is the reason the Add button
+  // won't work, stated for the user; null when there's nothing to say.
+  const feeCheck = {
+    label: newFeeLabel,
+    amount: newFeeAmount,
+    existingCount: fees.length,
+    symbol,
+  };
+  const feeError = feeInputError(feeCheck);
+  const addFeeAllowed = canAddFee(feeCheck);
 
   return (
     <div className="space-y-6">
@@ -197,13 +210,18 @@ export function FeesInput({
               variant="outline"
               size="icon"
               className="h-9 w-9 shrink-0"
-              disabled={!newFeeLabel.trim() || !newFeeAmount.trim()}
+              disabled={!addFeeAllowed}
+              aria-label="Add fee"
               onClick={() => {
-                const val = parseAmount(newFeeAmount);
-                if (!newFeeLabel.trim() || val <= 0) return;
+                if (!addFeeAllowed) return;
                 onFeesChange([
                   ...fees,
-                  { id: generateId(), label: newFeeLabel.trim(), amount: val, splitMethod: newFeeSplit },
+                  {
+                    id: generateId(),
+                    label: newFeeLabel.trim(),
+                    amount: parseAmount(newFeeAmount),
+                    splitMethod: newFeeSplit,
+                  },
                 ]);
                 setNewFeeLabel("");
                 setNewFeeAmount("");
@@ -212,6 +230,12 @@ export function FeesInput({
               <Plus className="h-4 w-4" />
             </Button>
           </div>
+
+          {feeError && (
+            <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+              {feeError}
+            </p>
+          )}
         </div>
       )}
 
