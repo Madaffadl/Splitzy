@@ -6,7 +6,7 @@ import Image from "next/image";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
 import { useTravelData } from "@/hooks/useTravelData";
 import { useAuth } from "@/hooks/useAuth";
-import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency } from "@/lib/calculations";
+import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
 import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
 import { formatCurrency, cn } from "@/lib/utils";
 import { generateId, todayDateString } from "@/lib/utils";
@@ -377,8 +377,11 @@ function SettleUpCard({
   const canSubmit = from && to && from !== to && parseAmount(amount) > 0 && rateOk;
 
   const displayAmount = (p: TripPayment) => {
-    if (p.currency && p.currency !== "IDR" && p.fxRate) {
-      const idr = p.amount * p.fxRate;
+    // Guard on `> 0` via the shared helper: a stored rate of 0 or a negative
+    // rate used to slip through the bare truthiness check and render a
+    // nonsensical (or negative) rupiah equivalent.
+    if (p.currency && p.currency !== "IDR" && p.fxRate && p.fxRate > 0) {
+      const idr = paymentInBaseCurrency(p);
       const sym = TRAVEL_CURRENCIES.find((c) => c.code === p.currency)?.symbol ?? p.currency;
       return (
         <span>

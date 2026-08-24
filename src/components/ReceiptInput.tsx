@@ -109,6 +109,12 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       if (errBody?.code === "QUOTA_EXCEEDED") {
         throw new Error("__QUOTA__");
       }
+      // A timeout says nothing about the photo, so don't imply it was bad —
+      // "couldn't read the image" would send the user off re-cropping a
+      // perfectly good receipt.
+      if (errBody?.code === "UPSTREAM_TIMEOUT") {
+        throw new Error("__TIMEOUT__");
+      }
       throw new Error("Failed to process image");
     }
 
@@ -207,6 +213,10 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       if (msg === "__QUOTA__") {
         setQuotaHit(true);
         capture(EVENTS.quotaHit);
+      } else if (msg === "__TIMEOUT__") {
+        // Nothing was wrong with the photo — say so, or the user will waste
+        // time re-shooting a receipt that would have scanned fine.
+        setErrorMessage("Scanning took too long. Please try again.");
       } else {
         setErrorMessage("Failed to process image. Please try again.");
       }

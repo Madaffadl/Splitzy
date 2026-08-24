@@ -5,7 +5,11 @@
 // render the checkbox state and remove the payment when unchecked.
 
 import { Receipt, TripPayment } from "@/types";
-import { calculatePersonTotals, receiptInBaseCurrency } from "@/lib/calculations";
+import {
+  calculatePersonTotals,
+  receiptInBaseCurrency,
+  paymentInBaseCurrency,
+} from "@/lib/calculations";
 import { roundTo2 } from "@/lib/utils";
 
 const SHARE_PREFIX = "share:";
@@ -56,12 +60,15 @@ export function paidShareParticipants(
   return out;
 }
 
-/** IDR value of a payment — foreign amounts converted via their locked fxRate. */
-export function paymentIdrAmount(p: TripPayment): number {
-  return p.currency && p.currency !== "IDR" && p.fxRate && p.fxRate > 0
-    ? roundTo2(p.amount * p.fxRate)
-    : roundTo2(p.amount);
-}
+/**
+ * IDR value of a payment — foreign amounts converted via their locked fxRate.
+ *
+ * Kept as a named re-export for its existing callers, but the rule itself lives
+ * in calculations.ts next to the balance math that has to agree with it. Two
+ * hand-maintained copies of a conversion is exactly how display and ledger
+ * drift apart.
+ */
+export const paymentIdrAmount = paymentInBaseCurrency;
 
 /**
  * `from`'s effective (post-discount) share of one receipt, in IDR. 0 when they

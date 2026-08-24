@@ -622,11 +622,33 @@ export interface TripTotals {
     totalPaid: number;       // actual cash fronted (grandTotal − discount)
 }
 
+/** True when a receipt is in a currency other than the IDR base. */
+export function isForeignReceipt(receipt: Receipt): boolean {
+    return Boolean(receipt.currency && receipt.currency !== "IDR");
+}
+
+/**
+ * A foreign receipt that cannot be converted, because no usable rate is locked
+ * (missing, zero, negative, or non-finite).
+ *
+ * `receiptInBaseCurrency` returns such a receipt untouched, so its NATIVE
+ * amounts flow into IDR aggregates at 1:1 — a ฿1.000 dinner lands in the trip
+ * total as Rp 1.000. Nothing about that is recoverable from the numbers alone,
+ * so any surface that shows a converted total has to check this and say so
+ * rather than let a wrong figure look authoritative.
+ */
+export function needsFxRate(receipt: Receipt): boolean {
+    return (
+        isForeignReceipt(receipt) &&
+        !(typeof receipt.fxRate === "number" && Number.isFinite(receipt.fxRate) && receipt.fxRate > 0)
+    );
+}
+
 /**
  * Convert a receipt's monetary fields into the trip's base currency (IDR) using
  * its locked fxRate, returning a new receipt whose `currency`/`fxRate` are
  * cleared. Non-foreign receipts (IDR, or missing/invalid rate) are returned
- * unchanged.
+ * unchanged — see `needsFxRate` for why the latter needs surfacing.
  *
  * ANY aggregation across multiple receipts MUST run each receipt through this
  * first — otherwise native amounts of different currencies get summed together
@@ -634,10 +656,7 @@ export interface TripTotals {
  * trip-level view converts identically and can't drift.
  */
 export function receiptInBaseCurrency(receipt: Receipt): Receipt {
-    const rate =
-        receipt.currency && receipt.currency !== "IDR" && receipt.fxRate && receipt.fxRate > 0
-            ? receipt.fxRate
-            : 1;
+    const rate = isForeignReceipt(receipt) && !needsFxRate(receipt) ? receipt.fxRate! : 1;
     if (rate === 1) return receipt;
     return {
         ...receipt,

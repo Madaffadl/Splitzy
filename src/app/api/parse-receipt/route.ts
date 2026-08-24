@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimitAsync } from "@/lib/rate-limit";
 import { assertSameOrigin, getAuthUser } from "@/lib/api-auth";
-import { apiError } from "@/lib/api-response";
+import { apiError, isAbortError } from "@/lib/api-response";
 import { parseIndonesianPrice } from "@/lib/parser";
 import { checkScanQuota, incrementScanCount } from "@/lib/scan-quota";
 
@@ -18,6 +18,21 @@ const PARSE_RATE_WINDOW_MS = 60_000;
 // certainly accidental or abusive.
 const MAX_IMAGE_BASE64_LENGTH = 7_000_000;
 const ALLOWED_MIME = /^image\/(jpeg|jpg|png|webp|heic|heif)$/i;
+
+// Hard ceiling on the vision call. Without one, a slow or hung Gemini response
+// pins this serverless worker until the platform kills it; enough concurrent
+// scans and there are no workers left to serve anything else.
+//
+// Kept below `maxDuration` so OUR timeout fires first and the user gets a
+// specific "took too long, try again" instead of an opaque platform 504.
+// Note the SDK aborts client-side only: the upstream call still completes and
+// is still billed, so this protects capacity, not cost — that's what the rate
+// limit above is for.
+const GEMINI_TIMEOUT_MS = 45_000;
+
+// Vision on a photo legitimately takes longer than a normal request, so opt out
+// of the short default. Must exceed GEMINI_TIMEOUT_MS by enough to send a reply.
+export const maxDuration = 60;
 
 // Robust JSON extractor: Gemini may wrap JSON in markdown fences (```json ... ```)
 // or include narrative text. We strip code fences first, then walk the string
@@ -181,15 +196,18 @@ Rules:
 
 Extract now:`;
 
-        const result = await model.generateContent([
-            {
-                inlineData: {
-                    mimeType,
-                    data: base64Data,
+        const result = await model.generateContent(
+            [
+                {
+                    inlineData: {
+                        mimeType,
+                        data: base64Data,
+                    },
                 },
-            },
-            prompt,
-        ]);
+                prompt,
+            ],
+            { timeout: GEMINI_TIMEOUT_MS }
+        );
 
         const response = await result.response;
         const text = response.text();
@@ -315,6 +333,17 @@ Extract now:`;
             discounts: cleanedDiscounts,
         });
     } catch (error) {
+        // A timeout is transient and retrying usually works, so it gets its own
+        // code and message. Lumping it into INTERNAL_ERROR told the user their
+        // receipt was unreadable, which sent them off cropping a photo that was
+        // fine all along.
+        if (isAbortError(error)) {
+            console.warn(`Gemini timed out after ${GEMINI_TIMEOUT_MS}ms`);
+            return apiError(
+                "UPSTREAM_TIMEOUT",
+                "Scanning took too long. Please try again."
+            );
+        }
         console.error("Gemini API error:", error);
         return apiError("INTERNAL_ERROR", "Failed to process image");
     }

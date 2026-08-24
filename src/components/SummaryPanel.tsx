@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { Receipt, Participant, PersonShareDetail, PaymentInfo, TripPayment } from "@/types";
-import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, buildSettlementTrace, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
+import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, buildSettlementTrace, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency, needsFxRate } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/currencies";
 import {
@@ -795,9 +795,9 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
     // rate to know what they actually owe.
     if (receipt.currency && receipt.currency !== "IDR") {
       text += `\n💱 Amounts in ${receipt.currency}`;
-      if (receipt.fxRate) {
-        text += ` · ≈ Rp ${formatCurrency(summary.amountPaid * receipt.fxRate)} total`;
-        text += ` at 1 ${receipt.currency} = Rp ${receipt.fxRate.toLocaleString("id-ID", {
+      if (!needsFxRate(receipt)) {
+        text += ` · ≈ Rp ${formatCurrency(summary.amountPaid * receipt.fxRate!)} total`;
+        text += ` at 1 ${receipt.currency} = Rp ${receipt.fxRate!.toLocaleString("id-ID", {
           maximumFractionDigits: 4,
         })}\n`;
       } else {
@@ -1027,10 +1027,13 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
           <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
             <Wallet className="h-3 w-3 shrink-0" />
             Amounts in {receipt.currency}
-            {receipt.fxRate ? (
+            {/* needsFxRate (not a bare truthiness test) so a stored 0 or a
+                negative rate prompts for a rate instead of rendering a bogus
+                — possibly negative — rupiah equivalent. */}
+            {!needsFxRate(receipt) ? (
               <>
-                {" · "}≈ Rp {formatCurrency(summary.amountPaid * receipt.fxRate)} at 1 {receipt.currency} = Rp{" "}
-                {receipt.fxRate.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
+                {" · "}≈ Rp {formatCurrency(summary.amountPaid * receipt.fxRate!)} at 1 {receipt.currency} = Rp{" "}
+                {receipt.fxRate!.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
               </>
             ) : (
               <span className="text-amber-600 dark:text-amber-400">· set an exchange rate to convert</span>
@@ -1272,18 +1275,34 @@ export function MultipleReceiptSummaryPanel({
   // Only surfaced when a foreign currency is present — a pure-IDR trip needs no
   // breakdown. Makes the "converted to IDR" total auditable and builds trust.
   const currencyBreakdown = useMemo(() => {
-    const groups = new Map<string, { native: number; base: number; rate?: number }>();
+    const groups = new Map<
+      string,
+      { native: number; base: number; rate?: number; unconverted: number }
+    >();
     for (const r of receipts) {
       const code = r.currency && r.currency !== "IDR" ? r.currency : "IDR";
       const native = getReceiptSummary(r, participantIds).amountPaid;
       const base = getReceiptSummary(receiptInBaseCurrency(r), participantIds).amountPaid;
-      const g = groups.get(code) ?? { native: 0, base: 0, rate: r.fxRate };
+      const g = groups.get(code) ?? { native: 0, base: 0, rate: r.fxRate, unconverted: 0 };
       g.native = Math.round((g.native + native) * 100) / 100;
       g.base = Math.round((g.base + base) * 100) / 100;
+      // Prefer a real rate for the label if any receipt in this group has one.
+      if (g.rate == null && r.fxRate) g.rate = r.fxRate;
+      // Count receipts whose native amount got folded into the IDR total at 1:1
+      // because no rate is set — the group's `base` is wrong by that much.
+      if (needsFxRate(r)) g.unconverted += 1;
       groups.set(code, g);
     }
     return groups;
   }, [receipts, participantIds]);
+
+  // Receipts in a foreign currency with no usable rate. Their native amounts are
+  // being counted as rupiah 1:1, so the headline total is understated and we say
+  // so instead of presenting it as final.
+  const unconvertedReceipts = useMemo(
+    () => receipts.filter((r) => needsFxRate(r)),
+    [receipts]
+  );
 
   const hasForeignCurrency = useMemo(
     () => Array.from(currencyBreakdown.keys()).some((c) => c !== "IDR"),
@@ -1318,13 +1337,33 @@ export function MultipleReceiptSummaryPanel({
                 ) : (
                   <>
                     {formatMoney(g.native, code)}{" "}
-                    <span className="text-muted-foreground">≈ Rp {formatCurrency(g.base)}</span>
+                    {/* Only claim a rupiah equivalent when every receipt in this
+                        group actually has a rate — otherwise the figure would be
+                        the native amount relabelled, which is worse than blank. */}
+                    {g.unconverted > 0 ? (
+                      <span className="text-amber-600 dark:text-amber-400">rate needed</span>
+                    ) : (
+                      <span className="text-muted-foreground">≈ Rp {formatCurrency(g.base)}</span>
+                    )}
                   </>
                 )}
               </span>
             </div>
           ))}
       </div>
+      {unconvertedReceipts.length > 0 && (
+        <p className="flex items-start gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+          <span aria-hidden="true">⚠️</span>
+          <span>
+            {unconvertedReceipts.length === 1
+              ? `“${unconvertedReceipts[0].title || "1 receipt"}” has no exchange rate`
+              : `${unconvertedReceipts.length} receipts have no exchange rate`}
+            {" — "}
+            their amounts are counted as rupiah 1:1, so the total below is too low.
+            Set a rate on {unconvertedReceipts.length === 1 ? "it" : "them"} to fix this.
+          </span>
+        </p>
+      )}
       <p className="text-[10px] text-muted-foreground/70 pt-0.5 border-t border-blue-200/50 dark:border-blue-900/40">
         Rates locked per receipt at scan time · settlement is in Rp
       </p>
