@@ -237,11 +237,20 @@ export function validateSharedSummaryInput(body: unknown): SharedSummaryPayload 
 }
 
 const MAX_PAYMENTS = 500;
+// Foreign-currency metadata bounds, shared by receipts and payments so both
+// normalise a currency code and locked rate the same way.
+const MAX_CURRENCY_CODE = 10;
+const MAX_FX_RATE = 1_000_000; // sanity cap (1 unit of currency = max 1M IDR)
 
 /**
  * Validate + normalize recorded settle-up payments against the participant set.
  * Entries with unknown/equal participants or non-positive amounts are dropped
  * (rather than throwing) so a stale entry never invalidates the whole payload.
+ *
+ * `currency`/`fxRate` are carried through: a payment's `amount` is NATIVE, and
+ * every settlement figure is base currency (IDR). Dropping the rate — as this
+ * used to — left the recipient of a share link reading a ฿1.000 settle-up as
+ * Rp 1.000, so their balances silently disagreed with the payer's.
  */
 export function validateSharedPayments(
   value: unknown,
@@ -262,7 +271,30 @@ export function validateSharedPayments(
       p.note != null && p.note !== "" ? asString(p.note, "payment.note", MAX_NAME) : undefined;
     const source =
       typeof p.source === "string" && p.source ? p.source.slice(0, MAX_TITLE) : undefined;
-    out.push({ id, from, to, amount, ...(note ? { note } : {}), ...(source ? { source } : {}) });
+
+    // Same normalisation as receipts: IDR is the base and needs no metadata, so
+    // only a genuinely foreign code is kept, and only with a usable rate.
+    let currency: string | undefined;
+    let fxRate: number | undefined;
+    if (typeof p.currency === "string" && p.currency.trim().length > 0) {
+      const code = p.currency.trim().toUpperCase().slice(0, MAX_CURRENCY_CODE);
+      if (code !== "IDR") {
+        currency = code;
+        if (typeof p.fxRate === "number" && p.fxRate > 0 && p.fxRate <= MAX_FX_RATE) {
+          fxRate = p.fxRate;
+        }
+      }
+    }
+
+    out.push({
+      id,
+      from,
+      to,
+      amount,
+      ...(note ? { note } : {}),
+      ...(source ? { source } : {}),
+      ...(currency ? { currency, ...(fxRate !== undefined ? { fxRate } : {}) } : {}),
+    });
   }
   return out.length > 0 ? out : undefined;
 }
@@ -379,8 +411,6 @@ export function validateSharedReceipts(
 
     // Preserve foreign currency metadata (ISO 4217 code + locked rate).
     // Only stored when the receipt is in a non-IDR currency — undefined = IDR.
-    const MAX_CURRENCY_CODE = 10;
-    const MAX_FX_RATE = 1_000_000; // sanity cap (1 unit of currency = max 1M IDR)
     let currency: string | undefined;
     let fxRate: number | undefined;
     if (typeof r.currency === "string" && r.currency.trim().length > 0) {

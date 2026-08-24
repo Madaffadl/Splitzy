@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { Receipt, Participant, PersonShareDetail, PaymentInfo, TripPayment } from "@/types";
-import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, buildSettlementTrace, computeTripTotals, receiptInBaseCurrency } from "@/lib/calculations";
+import { getReceiptSummary, minimizeTransactions, getPersonShareDetails, buildSettlementTrace, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
 import { formatCurrency, cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/currencies";
 import {
@@ -756,34 +756,53 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
   };
 
   const generateExportText = () => {
+    // Every amount goes through `money()` (not a hardcoded "Rp") because a
+    // Travel receipt can be in any currency. For IDR this renders identically
+    // to before; for a ฿/₫/$ receipt it no longer mislabels the numbers as
+    // rupiah in text that gets pasted straight into a group chat.
     let text = `💰 ${title || receipt.title || "Bill Split"}\n`;
     text += `━━━━━━━━━━━━━━━\n\n`;
-    text += `📋 Subtotal: Rp ${formatCurrency(summary.receiptSubtotal)}\n`;
-    text += `💵 Tax: Rp ${formatCurrency(receipt.tax)}\n`;
-    text += `🍽️ Service: Rp ${formatCurrency(receipt.service)}\n`;
+    text += `📋 Subtotal: ${money(summary.receiptSubtotal)}\n`;
+    text += `💵 Tax: ${money(receipt.tax)}\n`;
+    text += `🍽️ Service: ${money(receipt.service)}\n`;
     for (const fee of receipt.fees ?? []) {
-      text += `🚚 ${fee.label}: Rp ${formatCurrency(fee.amount)}\n`;
+      text += `🚚 ${fee.label}: ${money(fee.amount)}\n`;
     }
-    text += `💳 Total: Rp ${formatCurrency(summary.grandTotal)}\n`;
+    text += `💳 Total: ${money(summary.grandTotal)}\n`;
     if (summary.totalDiscount > 0) {
-      text += `🏷️ Discount: -Rp ${formatCurrency(summary.totalDiscount)}\n`;
-      text += `✅ Amount to pay: Rp ${formatCurrency(summary.amountPaid)}\n`;
+      text += `🏷️ Discount: -${money(summary.totalDiscount)}\n`;
+      text += `✅ Amount to pay: ${money(summary.amountPaid)}\n`;
     }
     text += `👤 Paid by: ${getParticipantName(receipt.payerId)}\n\n`;
     text += `📊 Per Person:\n`;
 
     for (const share of summary.shares) {
-      text += `• ${getParticipantName(share.participantId)}: Rp ${formatCurrency(share.total)}\n`;
+      text += `• ${getParticipantName(share.participantId)}: ${money(share.total)}\n`;
     }
 
     if (settlements.length > 0) {
       text += `\n💸 Settlements:\n`;
       for (const s of settlements) {
-        text += `• ${getParticipantName(s.from)} → ${getParticipantName(s.to)}: Rp ${formatCurrency(s.amount)}\n`;
+        text += `• ${getParticipantName(s.from)} → ${getParticipantName(s.to)}: ${money(s.amount)}\n`;
       }
       text += formatPaymentDestinations(recipientIds);
     } else {
       text += `\n✅ All settled!\n`;
+    }
+
+    // Mirror the on-screen foreign-currency note: the figures above are native,
+    // but settling up happens in rupiah, so whoever receives this text needs the
+    // rate to know what they actually owe.
+    if (receipt.currency && receipt.currency !== "IDR") {
+      text += `\n💱 Amounts in ${receipt.currency}`;
+      if (receipt.fxRate) {
+        text += ` · ≈ Rp ${formatCurrency(summary.amountPaid * receipt.fxRate)} total`;
+        text += ` at 1 ${receipt.currency} = Rp ${receipt.fxRate.toLocaleString("id-ID", {
+          maximumFractionDigits: 4,
+        })}\n`;
+      } else {
+        text += ` · exchange rate not set\n`;
+      }
     }
 
     return text;
@@ -1414,11 +1433,17 @@ export function MultipleReceiptSummaryPanel({
         .filter((p) => p.amount > 0)
         .map((p) => {
           const share = parseShareSource(p.source);
+          const isForeign = Boolean(p.currency && p.currency !== "IDR" && p.fxRate);
           return {
             id: p.id,
             from: p.from,
             to: p.to,
-            amount: p.amount,
+            // Base currency (IDR), matching every other figure in this panel and
+            // the balance math. `p.amount` alone is the NATIVE amount, which read
+            // as "Rp 100" for a $100 settle-up.
+            amount: paymentInBaseCurrency(p),
+            // Shown alongside so a traveler still recognises what they handed over.
+            nativeLabel: isForeign ? formatMoney(p.amount, p.currency) : null,
             note: p.note,
             receiptTitle: share ? receiptTitleById.get(share.receiptId) ?? "a receipt" : null,
           };
@@ -1525,7 +1550,8 @@ export function MultipleReceiptSummaryPanel({
         const label = p.receiptTitle
           ? `${getParticipantName(p.from)} paid their share of ${p.receiptTitle}`
           : `${getParticipantName(p.from)} paid ${getParticipantName(p.to)}${p.note ? ` (${p.note})` : ""}`;
-        text += `• ${label}: Rp ${formatCurrency(p.amount)}\n`;
+        text += `• ${label}: Rp ${formatCurrency(p.amount)}`;
+        text += p.nativeLabel ? ` (${p.nativeLabel})\n` : `\n`;
       }
     }
 
@@ -2037,6 +2063,11 @@ export function MultipleReceiptSummaryPanel({
                     <span className="flex items-center gap-1.5 shrink-0">
                       <span className="font-semibold text-emerald-700 dark:text-emerald-300">
                         Rp {formatCurrency(p.amount)}
+                        {p.nativeLabel && (
+                          <span className="ml-1 font-normal text-[11px] text-muted-foreground">
+                            ({p.nativeLabel})
+                          </span>
+                        )}
                       </span>
                       {onDeletePayment && (
                         <button

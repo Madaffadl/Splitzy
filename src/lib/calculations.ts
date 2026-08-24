@@ -14,6 +14,21 @@ import {
 import { roundTo2 } from "./utils";
 
 /**
+ * A settle-up payment's value in the base currency (IDR).
+ *
+ * Foreign payments multiply by their locked fxRate; IDR payments (and any
+ * payment with a missing/invalid rate) use `amount` as-is. Exported because
+ * DISPLAY must use the same rule as the balance math — showing the raw native
+ * `amount` next to an "Rp" label reported a $100 settle-up as "Rp 100" while
+ * the ledger had correctly moved Rp 1.600.000.
+ */
+export function paymentInBaseCurrency(payment: TripPayment): number {
+    return payment.currency && payment.currency !== "IDR" && payment.fxRate && payment.fxRate > 0
+        ? roundTo2(payment.amount * payment.fxRate)
+        : roundTo2(payment.amount);
+}
+
+/**
  * Apply recorded settle-up payments to a set of net balances (mutating a copy).
  * A payment `from → to` means `from` handed cash to `to`, so it reduces `from`'s
  * debt (moves toward 0 from negative) and reduces `to`'s credit (toward 0 from
@@ -26,10 +41,7 @@ export function applyPaymentsToBalances(
     const next = new Map(balances);
     for (const p of payments) {
         if (!p || p.from === p.to) continue;
-        // Convert to IDR: foreign payments multiply by fxRate; IDR payments use amount directly.
-        const idrAmount = p.currency && p.currency !== "IDR" && p.fxRate && p.fxRate > 0
-            ? roundTo2(p.amount * p.fxRate)
-            : roundTo2(p.amount);
+        const idrAmount = paymentInBaseCurrency(p);
         if (!(idrAmount > 0)) continue;
         // Apply only when BOTH endpoints are tracked participants. A payment that
         // references a removed participant would otherwise be half-applied (one
