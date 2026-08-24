@@ -407,6 +407,14 @@ function PersonBreakdown({
             </div>
           )}
 
+          {/* Extra fees allocation (delivery, platform, etc.) */}
+          {detail.feesAllocation > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-muted-foreground">+ Other fees share</span>
+              <span>{money(detail.feesAllocation)}</span>
+            </div>
+          )}
+
           {/* Discount credit */}
           {detail.discount > 0 && (
             <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
@@ -753,6 +761,9 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
     text += `📋 Subtotal: Rp ${formatCurrency(summary.receiptSubtotal)}\n`;
     text += `💵 Tax: Rp ${formatCurrency(receipt.tax)}\n`;
     text += `🍽️ Service: Rp ${formatCurrency(receipt.service)}\n`;
+    for (const fee of receipt.fees ?? []) {
+      text += `🚚 ${fee.label}: Rp ${formatCurrency(fee.amount)}\n`;
+    }
     text += `💳 Total: Rp ${formatCurrency(summary.grandTotal)}\n`;
     if (summary.totalDiscount > 0) {
       text += `🏷️ Discount: -Rp ${formatCurrency(summary.totalDiscount)}\n`;
@@ -963,6 +974,12 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
           <div className="text-right">{money(receipt.tax)}</div>
           <div className="text-muted-foreground">Service</div>
           <div className="text-right">{money(receipt.service)}</div>
+          {(receipt.fees ?? []).map((fee) => (
+            <>
+              <div key={`${fee.id}-label`} className="text-muted-foreground truncate">{fee.label}</div>
+              <div key={`${fee.id}-amount`} className="text-right">{money(fee.amount)}</div>
+            </>
+          ))}
           <div className="text-muted-foreground font-medium pt-2 border-t">
             Grand Total
           </div>
@@ -1358,7 +1375,8 @@ export function MultipleReceiptSummaryPanel({
       const title = receipt.title || "Untitled";
       const details = getPersonShareDetails(receipt, participantIds);
       const receiptSubtotal = receipt.items.reduce((s, i) => s + i.total, 0);
-      const grandTotal = Math.round((receiptSubtotal + receipt.tax + receipt.service) * 100) / 100;
+      const feesTotal = (receipt.fees ?? []).reduce((s, f) => s + (f.amount || 0), 0);
+      const grandTotal = Math.round((receiptSubtotal + receipt.tax + receipt.service + feesTotal) * 100) / 100;
       const receiptDiscount = Math.round(details.reduce((s, d) => s + d.discount, 0) * 100) / 100;
       const amountPaid = Math.round((grandTotal - receiptDiscount) * 100) / 100;
 

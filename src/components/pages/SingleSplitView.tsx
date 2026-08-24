@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Participant, ReceiptItem, Receipt, PaymentInfo, Discount } from "@/types";
+import { Participant, ReceiptItem, Receipt, PaymentInfo, Discount, ReceiptFee } from "@/types";
 import { useHybridState } from "@/hooks/useHybridState";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
@@ -57,6 +57,7 @@ interface SingleState {
   service: number;
   payerId: string;
   discounts: Discount[];
+  fees: ReceiptFee[];
 }
 
 const DEFAULT_STATE: SingleState = {
@@ -68,6 +69,7 @@ const DEFAULT_STATE: SingleState = {
   service: 0,
   payerId: "",
   discounts: [],
+  fees: [],
 };
 
 export function SingleSplitView() {
@@ -94,6 +96,7 @@ export function SingleSplitView() {
       tax: state.tax,
       service: state.service,
       discounts: state.discounts ?? [],
+      fees: state.fees ?? [],
     }),
     [state]
   );
@@ -232,6 +235,7 @@ export function SingleSplitView() {
       service: 18000,
       payerId: a,
       discounts: [],
+      fees: [],
     });
     toast({
       title: "Sample data loaded",
@@ -371,6 +375,12 @@ export function SingleSplitView() {
                           items: [...state.items, ...result.items],
                           tax: result.tax || state.tax,
                           service: result.service || state.service,
+                          ...(result.discounts?.length
+                            ? { discounts: [...(state.discounts ?? []), ...result.discounts] }
+                            : {}),
+                          ...(result.fees?.length
+                            ? { fees: [...(state.fees ?? []), ...result.fees] }
+                            : {}),
                         })
                       }
                     />
@@ -423,6 +433,8 @@ export function SingleSplitView() {
                       onTaxChange={(tax) => updateState({ tax })}
                       onServiceChange={(service) => updateState({ service })}
                       onPayerChange={(payerId) => updateState({ payerId })}
+                      fees={state.fees ?? []}
+                      onFeesChange={(fees) => updateState({ fees })}
                     />
                   </CardContent>
                 </Card>

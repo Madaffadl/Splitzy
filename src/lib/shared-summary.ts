@@ -13,7 +13,7 @@
 // (defending against a malformed/legacy row in the Json column).
 
 import { ValidationError, validateParticipantsJson } from "@/lib/validation";
-import type { Receipt, ReceiptItem, Discount, Participant, PaymentInfo, TripPayment } from "@/types";
+import type { Receipt, ReceiptItem, Discount, ReceiptFee, Participant, PaymentInfo, TripPayment } from "@/types";
 
 export const SHARE_TTL_DAYS = 14;
 export const SHARE_PAYLOAD_VERSION = 1 as const;
@@ -267,6 +267,33 @@ export function validateSharedPayments(
   return out.length > 0 ? out : undefined;
 }
 
+const MAX_FEES_PER_RECEIPT = 50;
+
+function validateFees(value: unknown, field: string): ReceiptFee[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) return undefined;
+  if (value.length === 0) return undefined;
+  if (value.length > MAX_FEES_PER_RECEIPT) {
+    throw new ValidationError(field, `too many fees (max ${MAX_FEES_PER_RECEIPT})`);
+  }
+
+  return value.map((raw, i): ReceiptFee => {
+    const f = `${field}[${i}]`;
+    if (!raw || typeof raw !== "object") throw new ValidationError(f, "must be an object");
+    const entry = raw as Record<string, unknown>;
+
+    const id = asString(entry.id, `${f}.id`, MAX_ID);
+    const label = asString(entry.label, `${f}.label`, MAX_NAME);
+    const amount = asMoney(entry.amount, `${f}.amount`);
+    if (amount <= 0) throw new ValidationError(`${f}.amount`, "must be positive");
+
+    const splitMethod =
+      entry.splitMethod === "proportional" ? "proportional" : "equal";
+
+    return { id, label, amount, splitMethod };
+  });
+}
+
 /**
  * Validate + normalize an array of name-based receipts against a set of valid
  * participant ids. Shared by the share payload validator and the Travel Spend
@@ -375,6 +402,7 @@ export function validateSharedReceipts(
       service: asMoney(r.service ?? 0, `receipts[${ri}].service`),
       items,
       ...(discounts ? { discounts } : {}),
+      ...(validateFees(r.fees, `receipts[${ri}].fees`) ? { fees: validateFees(r.fees, `receipts[${ri}].fees`) } : {}),
       ...(currency ? { currency, ...(fxRate !== undefined ? { fxRate } : {}) } : {}),
     };
   });

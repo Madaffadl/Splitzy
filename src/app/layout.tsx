@@ -61,9 +61,13 @@ export const metadata: Metadata = {
   // don't index it" for /single, /pricing, /privacy and the rest. Canonicals
   // must be declared per page; see src/lib/seo/metadata.ts.
   //
-  // Icons are handled by src/app/icon.tsx (file convention) — do not add
-  // `icons` here. The original logo.png is 1920×2194 (portrait) and Google
-  // rejects non-square favicons, showing a generic globe instead.
+  // icon.jpeg is a 512×512 square JPEG (Google requires square, ≥48 px).
+  // logo.png (1920×2194 portrait) is still used inside the app but cannot
+  // serve as a favicon — Google ignores non-square images and shows a globe.
+  icons: {
+    icon: "/icon.jpeg",
+    apple: "/icon.jpeg",
+  },
   openGraph: {
     type: "website",
     siteName: "Splitzy",

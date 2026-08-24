@@ -1,12 +1,13 @@
 ﻿"use client";
 
 import { useState } from "react";
-import { Participant } from "@/types";
-import { formatCurrency } from "@/lib/utils";
-import { Info } from "@/components/ui/icons";
+import { Participant, ReceiptFee } from "@/types";
+import { formatCurrency, generateId } from "@/lib/utils";
+import { Info, Plus, Trash2 } from "@/components/ui/icons";
 import { getCurrencyMeta } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,9 @@ interface FeesInputProps {
   onPayerChange: (payerId: string) => void;
   // Receipt's native currency (Travel Spend). Undefined = IDR → "Rp" prefix.
   currency?: string;
+  // Extra fees (delivery, platform, etc.) — optional, from online receipts.
+  fees?: ReceiptFee[];
+  onFeesChange?: (fees: ReceiptFee[]) => void;
 }
 
 export function FeesInput({
@@ -37,13 +41,15 @@ export function FeesInput({
   onServiceChange,
   onPayerChange,
   currency,
+  fees = [],
+  onFeesChange,
 }: FeesInputProps) {
-  // Tax/service are entered in the receipt's native currency, so the input
-  // prefix must match it (₫, ฿, …) — not a hardcoded "Rp". The stored value is
-  // native; conversion to IDR happens at the trip level (receiptInBaseCurrency).
   const symbol = getCurrencyMeta(currency).symbol;
   const [draftTax, setDraftTax] = useState<string | null>(null);
   const [draftService, setDraftService] = useState<string | null>(null);
+  const [newFeeLabel, setNewFeeLabel] = useState("");
+  const [newFeeAmount, setNewFeeAmount] = useState("");
+  const [newFeeSplit, setNewFeeSplit] = useState<"equal" | "proportional">("equal");
 
   const parseAmount = (s: string): number => {
     const val = parseFloat(s.replace(/\./g, "").replace(/,/g, "."));
@@ -118,6 +124,96 @@ export function FeesInput({
           Tax and service charges are <span className="font-medium text-foreground">scaled proportionally</span> based on each person&rsquo;s subtotal share.
         </p>
       </div>
+
+      {/* Extra fees (delivery, platform, etc.) */}
+      {onFeesChange && (
+        <div className="space-y-3 pt-2 border-t">
+          <Label className="text-sm font-medium">Other Fees</Label>
+          <p className="text-xs text-muted-foreground -mt-1">
+            Delivery fee, platform fee, packaging, etc. — typically split equally.
+          </p>
+
+          {/* Existing fees */}
+          {fees.map((fee) => (
+            <div key={fee.id} className="flex items-center gap-2 text-sm">
+              <span className="flex-1 truncate font-medium">{fee.label}</span>
+              <span className="text-muted-foreground text-xs">
+                {fee.splitMethod === "equal" ? "equal" : "proportional"}
+              </span>
+              <span className="whitespace-nowrap">{symbol} {formatCurrency(fee.amount)}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                onClick={() => onFeesChange(fees.filter((f) => f.id !== fee.id))}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+
+          {/* Add fee row */}
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Label</Label>
+              <Input
+                value={newFeeLabel}
+                onChange={(e) => setNewFeeLabel(e.target.value)}
+                placeholder="Delivery Fee"
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Amount</Label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
+                  {symbol}
+                </span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={newFeeAmount}
+                  onChange={(e) => setNewFeeAmount(e.target.value)}
+                  placeholder="0"
+                  className="pl-8 h-9 text-sm w-28"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Split</Label>
+              <Select value={newFeeSplit} onValueChange={(v) => setNewFeeSplit(v as "equal" | "proportional")}>
+                <SelectTrigger className="h-9 text-sm w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="equal">Equal</SelectItem>
+                  <SelectItem value="proportional">Proportional</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              disabled={!newFeeLabel.trim() || !newFeeAmount.trim()}
+              onClick={() => {
+                const val = parseAmount(newFeeAmount);
+                if (!newFeeLabel.trim() || val <= 0) return;
+                onFeesChange([
+                  ...fees,
+                  { id: generateId(), label: newFeeLabel.trim(), amount: val, splitMethod: newFeeSplit },
+                ]);
+                setNewFeeLabel("");
+                setNewFeeAmount("");
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Payer Selection */}
       <div className="space-y-2">

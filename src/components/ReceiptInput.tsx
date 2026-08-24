@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useState, useRef, useCallback } from "react";
-import type { ReceiptItem } from "@/types";
+import type { ReceiptItem, Discount, ReceiptFee } from "@/types";
 import type { ParseResult } from "@/lib/parser";
 import { formatCurrency, generateId, roundTo2 } from "@/lib/utils";
 import { EVENTS, capture } from "@/lib/analytics";
@@ -32,12 +32,57 @@ interface GeminiItem {
   price: number;
 }
 
+interface GeminiDiscount {
+  label: string;
+  type: "amount" | "percent";
+  value: number;
+  scope: "receipt" | "item";
+  itemName?: string;
+}
+
+interface GeminiFee {
+  label: string;
+  amount: number;
+  splitMethod: "equal" | "proportional";
+}
+
 interface GeminiResponse {
   items: GeminiItem[];
   tax: number;
   service: number;
   currency?: string;
   error?: string;
+  discounts?: GeminiDiscount[];
+  fees?: GeminiFee[];
+}
+
+async function resizeImage(dataUrl: string, maxDimension = 1920, quality = 0.85): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const { width, height } = img;
+      let targetWidth = width;
+      let targetHeight = height;
+      if (width > maxDimension || height > maxDimension) {
+        if (width >= height) {
+          targetWidth = maxDimension;
+          targetHeight = Math.round((height / width) * maxDimension);
+        } else {
+          targetHeight = maxDimension;
+          targetWidth = Math.round((width / height) * maxDimension);
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 export function ReceiptInput({ onParsed }: ReceiptInputProps) {
@@ -101,6 +146,36 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
         assignedToIds: [],
       }));
 
+      // Build Discount[] — item-scope discounts need itemName→UUID matching
+      const discounts: Discount[] = (geminiResult.discounts ?? []).map((d) => {
+        let targetId: string | undefined;
+        if (d.scope === "item" && d.itemName) {
+          const nameLower = d.itemName.toLowerCase();
+          const match = items.find(
+            (i) =>
+              i.name.toLowerCase().includes(nameLower) ||
+              nameLower.includes(i.name.toLowerCase())
+          );
+          targetId = match?.id;
+        }
+        return {
+          id: generateId(),
+          scope: targetId ? "item" : "receipt",
+          type: d.type,
+          value: d.value,
+          label: d.label,
+          ...(targetId ? { targetId } : {}),
+        } satisfies Discount;
+      });
+
+      // Build ReceiptFee[]
+      const fees: ReceiptFee[] = (geminiResult.fees ?? []).map((f) => ({
+        id: generateId(),
+        label: f.label,
+        amount: f.amount,
+        splitMethod: f.splitMethod,
+      }));
+
       const detectedCurrency =
         typeof geminiResult.currency === "string" && geminiResult.currency !== "IDR"
           ? geminiResult.currency
@@ -111,6 +186,8 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
         tax: roundTo2(geminiResult.tax),
         service: roundTo2(geminiResult.service),
         ...(detectedCurrency ? { currency: detectedCurrency } : {}),
+        ...(discounts.length > 0 ? { discounts } : {}),
+        ...(fees.length > 0 ? { fees } : {}),
       };
 
       setParsedResult(parseResult);
@@ -145,8 +222,9 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
     
     const reader = new FileReader();
     reader.onloadend = async () => {
-      const imageData = reader.result as string;
-      setImagePreview(imageData);
+      const rawData = reader.result as string;
+      setImagePreview(rawData);
+      const imageData = await resizeImage(rawData);
       await processImage(imageData);
     };
     reader.readAsDataURL(file);

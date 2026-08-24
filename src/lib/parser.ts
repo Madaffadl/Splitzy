@@ -1,4 +1,4 @@
-import { ReceiptItem } from "@/types";
+import { ReceiptItem, Discount, ReceiptFee } from "@/types";
 import { generateId, roundTo2 } from "./utils";
 
 /**
@@ -10,6 +10,10 @@ export interface ParseResult {
     service: number;
     /** ISO 4217 code detected by Gemini scan; undefined = IDR (default). */
     currency?: string;
+    /** Discounts detected from the receipt (e.g. "Diskon Member", promo codes). */
+    discounts?: Discount[];
+    /** Extra fees detected from the receipt (e.g. delivery fee, platform fee). */
+    fees?: ReceiptFee[];
 }
 
 /**

@@ -1,6 +1,7 @@
 import {
     Receipt,
     ReceiptItem,
+    ReceiptFee,
     PersonShare,
     PersonShareDetail,
     ItemBreakdown,
@@ -227,6 +228,68 @@ export function allocateTaxService(
 }
 
 /**
+ * Allocate extra receipt fees (delivery, platform, etc.) to each participant.
+ * "equal" fees split evenly regardless of item consumption.
+ * "proportional" fees mirror how tax/service are distributed.
+ */
+export function allocateFees(
+    personSubtotals: Map<string, number>,
+    receiptSubtotal: number,
+    fees: ReceiptFee[],
+    participantIds: string[]
+): Map<string, number> {
+    const allocations = new Map<string, number>();
+    for (const id of participantIds) allocations.set(id, 0);
+
+    if (!fees || fees.length === 0) return allocations;
+
+    const add = (id: string, amount: number) => {
+        if (amount <= 0) return;
+        allocations.set(id, roundTo2((allocations.get(id) || 0) + amount));
+    };
+
+    for (const fee of fees) {
+        if (!fee.amount || fee.amount <= 0) continue;
+        const n = participantIds.length;
+        if (n === 0) continue;
+
+        if (fee.splitMethod === "equal") {
+            const share = roundTo2(fee.amount / n);
+            let runningSum = 0;
+            for (const id of participantIds) {
+                add(id, share);
+                runningSum = roundTo2(runningSum + share);
+            }
+            const remainder = roundTo2(fee.amount - runningSum);
+            if (remainder !== 0) {
+                const first = participantIds[0];
+                allocations.set(first, roundTo2((allocations.get(first) || 0) + remainder));
+            }
+        } else {
+            // proportional — same algorithm as allocateTaxService
+            if (receiptSubtotal === 0) {
+                const share = roundTo2(fee.amount / n);
+                for (const id of participantIds) add(id, share);
+            } else {
+                const raw: Array<{ id: string; amount: number; subtotal: number }> = [];
+                for (const [id, sub] of personSubtotals) {
+                    raw.push({ id, amount: roundTo2((sub / receiptSubtotal) * fee.amount), subtotal: sub });
+                }
+                const sum = raw.reduce((s, a) => s + a.amount, 0);
+                const rem = roundTo2(fee.amount - sum);
+                if (rem !== 0 && raw.length > 0) {
+                    const largest = raw.reduce((max, a) => (a.subtotal > max.subtotal ? a : max));
+                    largest.amount = roundTo2(largest.amount + rem);
+                }
+                for (const alloc of raw) add(alloc.id, alloc.amount);
+            }
+        }
+    }
+
+    return allocations;
+}
+
+/**
  * Resolve every manual discount into a per-person credit (Rupiah).
  *
  * Discounts behave like money handed over at payment, so they are applied on
@@ -255,8 +318,9 @@ export function calculateDiscountCredits(
         credits.set(id, roundTo2((credits.get(id) || 0) + amount));
     };
 
+    const feesTotal = roundTo2((receipt.fees ?? []).reduce((s, f) => s + (f.amount || 0), 0));
     const grandTotal = roundTo2(
-        calculateReceiptSubtotal(receipt.items) + receipt.tax + receipt.service
+        calculateReceiptSubtotal(receipt.items) + receipt.tax + receipt.service + feesTotal
     );
     const totalBase = roundTo2(
         Array.from(baseTotals.values()).reduce((sum, v) => sum + v, 0)
@@ -304,12 +368,13 @@ export function calculateDiscountCredits(
 }
 
 /**
- * Base (pre-discount) totals per person: subtotal + tax + service.
+ * Base (pre-discount) totals per person: subtotal + tax + service + fees.
  */
 function calculateBaseTotals(
     subtotals: Map<string, number>,
     taxAllocations: Map<string, number>,
     serviceAllocations: Map<string, number>,
+    feesAllocations: Map<string, number>,
     participantIds: string[]
 ): Map<string, number> {
     const base = new Map<string, number>();
@@ -319,7 +384,8 @@ function calculateBaseTotals(
             roundTo2(
                 (subtotals.get(id) || 0) +
                     (taxAllocations.get(id) || 0) +
-                    (serviceAllocations.get(id) || 0)
+                    (serviceAllocations.get(id) || 0) +
+                    (feesAllocations.get(id) || 0)
             )
         );
     }
@@ -341,11 +407,13 @@ export function calculatePersonTotals(
         receipt.tax,
         receipt.service
     );
+    const feesAllocations = allocateFees(subtotals, receiptSubtotal, receipt.fees ?? [], participantIds);
 
     const baseTotals = calculateBaseTotals(
         subtotals,
         taxAllocations,
         serviceAllocations,
+        feesAllocations,
         participantIds
     );
     const credits = calculateDiscountCredits(receipt, participantIds, baseTotals);
@@ -356,6 +424,7 @@ export function calculatePersonTotals(
         const subtotal = subtotals.get(id) || 0;
         const taxAlloc = taxAllocations.get(id) || 0;
         const serviceAlloc = serviceAllocations.get(id) || 0;
+        const feesAlloc = feesAllocations.get(id) || 0;
         const discount = credits.get(id) || 0;
 
         shares.push({
@@ -363,8 +432,9 @@ export function calculatePersonTotals(
             subtotal,
             taxAllocation: taxAlloc,
             serviceAllocation: serviceAlloc,
+            feesAllocation: feesAlloc,
             discount,
-            total: roundTo2(subtotal + taxAlloc + serviceAlloc - discount),
+            total: roundTo2(subtotal + taxAlloc + serviceAlloc + feesAlloc - discount),
         });
     }
 
@@ -413,7 +483,8 @@ export function getReceiptSummary(
     participantIds: string[]
 ): ReceiptSummary {
     const receiptSubtotal = calculateReceiptSubtotal(receipt.items);
-    const grandTotal = roundTo2(receiptSubtotal + receipt.tax + receipt.service);
+    const feesTotal = roundTo2((receipt.fees ?? []).reduce((s, f) => s + (f.amount || 0), 0));
+    const grandTotal = roundTo2(receiptSubtotal + receipt.tax + receipt.service + feesTotal);
     const shares = calculatePersonTotals(receipt, participantIds);
     const balances = calculateReceiptBalances(receipt, participantIds);
     const totalDiscount = roundTo2(shares.reduce((sum, s) => sum + s.discount, 0));
@@ -565,6 +636,8 @@ export function receiptInBaseCurrency(receipt: Receipt): Receipt {
         })),
         tax: roundTo2(receipt.tax * rate),
         service: roundTo2(receipt.service * rate),
+        // Fee amounts are always absolute — they all scale with FX.
+        fees: receipt.fees?.map((f) => ({ ...f, amount: roundTo2(f.amount * rate) })),
         // Only fixed-amount discounts scale with FX; percentages are rate-invariant.
         discounts: receipt.discounts?.map((d) =>
             d.type === "amount" ? { ...d, value: roundTo2(d.value * rate) } : d
@@ -641,11 +714,13 @@ export function getPersonShareDetails(
         receipt.tax,
         receipt.service
     );
+    const feesAllocations = allocateFees(subtotals, receiptSubtotal, receipt.fees ?? [], participantIds);
 
     const baseTotals = calculateBaseTotals(
         subtotals,
         taxAllocations,
         serviceAllocations,
+        feesAllocations,
         participantIds
     );
     const credits = calculateDiscountCredits(receipt, participantIds, baseTotals);
@@ -656,6 +731,7 @@ export function getPersonShareDetails(
         const subtotal = subtotals.get(id) || 0;
         const taxAlloc = taxAllocations.get(id) || 0;
         const serviceAlloc = serviceAllocations.get(id) || 0;
+        const feesAlloc = feesAllocations.get(id) || 0;
 
         // Build item breakdown for this person
         const items: ItemBreakdown[] = [];
@@ -699,8 +775,9 @@ export function getPersonShareDetails(
             subtotal,
             taxAllocation: taxAlloc,
             serviceAllocation: serviceAlloc,
+            feesAllocation: feesAlloc,
             discount,
-            total: roundTo2(subtotal + taxAlloc + serviceAlloc - discount),
+            total: roundTo2(subtotal + taxAlloc + serviceAlloc + feesAlloc - discount),
             items,
         });
     }

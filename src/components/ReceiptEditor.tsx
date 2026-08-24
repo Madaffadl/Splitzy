@@ -306,9 +306,14 @@ export function ReceiptEditor({
                     items: [...receipt.items, ...result.items],
                     tax: result.tax || receipt.tax,
                     service: result.service || receipt.service,
+                    ...(result.discounts?.length
+                      ? { discounts: [...(receipt.discounts ?? []), ...result.discounts] }
+                      : {}),
+                    ...(result.fees?.length
+                      ? { fees: [...(receipt.fees ?? []), ...result.fees] }
+                      : {}),
                   };
                   if (isTravelMode && result.currency && result.currency !== "IDR") {
-                    // Set currency first so the banner references the right receipt state.
                     updates.currency = result.currency;
                     updates.fxRate = undefined;
                     onChange(updates);
@@ -340,6 +345,8 @@ export function ReceiptEditor({
                 onServiceChange={(service) => onChange({ service })}
                 onPayerChange={(payerId) => onChange({ payerId })}
                 currency={isTravelMode ? receipt.currency : undefined}
+                fees={receipt.fees ?? []}
+                onFeesChange={(fees) => onChange({ fees })}
               />
             </div>
 

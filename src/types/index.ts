@@ -37,6 +37,19 @@ export interface ReceiptItem {
     assignments?: ItemAssignment[]; // qty-per-person; used when item.qty > 1
 }
 
+// Extra fees beyond tax and service — typical of online delivery receipts
+// (delivery fee, platform fee, packaging, rain surcharge, etc.).
+// `splitMethod`: "equal" splits the fee evenly regardless of what each person
+// ordered; "proportional" distributes it in proportion to subtotal share.
+export type FeeSplitMethod = "proportional" | "equal";
+
+export interface ReceiptFee {
+    id: string;
+    label: string;
+    amount: number;
+    splitMethod: FeeSplitMethod;
+}
+
 // A manual discount not printed on the receipt (voucher, promo, coupon) that
 // behaves like money at payment time. Modeled at three scopes so the *benefit*
 // lands on the right people:
@@ -66,6 +79,8 @@ export interface Receipt {
     tax: number;
     service: number;
     discounts?: Discount[];
+    // Extra fees from online delivery receipts (delivery, platform fee, etc.)
+    fees?: ReceiptFee[];
     // Multi-currency (Travel Spend). Undefined = IDR (base currency).
     // fxRate is locked at creation time: 1 unit of currency → IDR.
     currency?: string;
@@ -134,10 +149,12 @@ export interface PersonShare {
     subtotal: number;
     taxAllocation: number;
     serviceAllocation: number;
+    // Share of extra receipt fees (delivery, platform, etc.) — 0 when none.
+    feesAllocation: number;
     // Discount credited to this person (their share of receipt/item discounts
     // plus any personal voucher), capped so `total` never goes below 0.
     discount: number;
-    // Effective amount this person owes: subtotal + tax + service − discount.
+    // Effective amount owed: subtotal + tax + service + fees − discount.
     total: number;
 }
 

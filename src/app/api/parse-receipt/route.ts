@@ -124,7 +124,9 @@ export async function POST(request: NextRequest) {
 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        const prompt = `Analyze this receipt image and extract all items with their prices.
+        const prompt = `Analyze this receipt image and extract all items, fees, and discounts.
+
+The receipt or bill may occupy only part of the image — identify the receipt area and focus your analysis on it, ignoring any background, table surface, or surroundings.
 
 Return ONLY a JSON object in this exact format, no other text:
 {
@@ -133,11 +135,17 @@ Return ONLY a JSON object in this exact format, no other text:
     {"name": "Item Name", "qty": 1, "price": 25000}
   ],
   "tax": 0,
-  "service": 0
+  "service": 0,
+  "fees": [
+    {"label": "Delivery Fee", "amount": 15000, "splitMethod": "equal"}
+  ],
+  "discounts": [
+    {"label": "Diskon Member", "type": "amount", "value": 10000, "scope": "receipt"}
+  ]
 }
 
 Rules:
-1. Extract ALL food/drink items from the receipt
+1. Extract ALL food/drink/product items from the receipt into "items".
 2. "currency" is the ISO 4217 code detected from symbols/text on the receipt:
    - "Rp", "IDR", "Rupiah" → "IDR" (default)
    - "₫", "VND", "đồng", "dong" → "VND"
@@ -151,17 +159,27 @@ Rules:
    - "£", "GBP" → "GBP"
    - "A$", "AUD" → "AUD"
    If unsure, default to "IDR".
-3. "price" should be the TOTAL price for that line item (after qty multiplication if shown)
-4. "qty" should be the quantity if shown (e.g., "2x Nasi Goreng" = qty:2), default to 1
-5. "tax" is the tax amount if shown (may be labeled as Tax, PB1, PPN, Pajak, VAT, GST)
-6. "service" is the service charge if shown (may be labeled as Service, SC, Service Charge)
-7. Return prices as plain decimal numbers — no thousand-separators, no currency symbols:
+3. "price" should be the TOTAL price for that line item (after qty multiplication if shown).
+4. "qty" should be the quantity if shown (e.g., "2x Nasi Goreng" = qty:2), default to 1.
+5. "tax" is the tax amount if shown (labeled: Tax, PB1, PPN, Pajak, VAT, GST).
+6. "service" is the service charge if shown (labeled: Service, SC, Service Charge).
+7. "fees" — capture ALL other fees that are NOT tax or service: delivery fee, platform fee, packaging fee, small order fee, rain surcharge, driver tip, handling fee, etc.
+   - "label": exact label as printed on receipt (e.g. "Delivery Fee", "Ongkos Kirim", "Biaya Layanan", "Platform Fee").
+   - "amount": fee amount as a positive number.
+   - "splitMethod": use "equal" for delivery/platform/packaging/surcharge fees (not tied to order value); use "proportional" for fees that scale with order amount.
+8. "discounts" — capture ALL discount/promo lines:
+   - "label": exact label as printed (e.g. "Diskon Member", "Promo GOFOOD", "Voucher").
+   - "type": "percent" if a % symbol is present, "amount" otherwise.
+   - "value": always POSITIVE (e.g. "-10.000" on receipt → value: 10000; "15%" → value: 15).
+   - "scope": "item" if the discount immediately follows a specific item AND clearly refers to it; "receipt" for all other cases (generic discount, voucher, promo at the bottom of the bill). When in doubt, use "receipt".
+   - "itemName": ONLY for scope "item" — the exact name of the item it applies to.
+9. Return prices as plain decimal numbers — no thousand-separators, no currency symbols:
    - IDR uses "." as thousands sep and "," as decimal: "700.000,00" → 700000; "25.000" → 25000
    - Other currencies typically use "," as thousands sep and "." as decimal: "1,234.50" → 1234.50
-8. Do NOT include subtotals, totals, payment methods, or change
-9. If you cannot read the receipt clearly, return {"currency": "IDR", "items": [], "tax": 0, "service": 0}
+10. Do NOT include subtotals, totals, payment methods, or change in "items".
+11. If you cannot read the receipt clearly, return {"currency": "IDR", "items": [], "tax": 0, "service": 0, "fees": [], "discounts": []}
 
-Extract the items now:`;
+Extract now:`;
 
         const result = await model.generateContent([
             {
@@ -244,6 +262,43 @@ Extract the items now:`;
         const taxRaw = parseFee(parsed.tax);
         const serviceRaw = parseFee(parsed.service);
 
+        // Parse extra fees (delivery, platform, etc.)
+        const cleanedFees = Array.isArray(parsed.fees)
+            ? parsed.fees
+                .slice(0, 20)
+                .map((raw: unknown) => {
+                    if (!raw || typeof raw !== "object") return null;
+                    const f = raw as Record<string, unknown>;
+                    const label = typeof f.label === "string" ? f.label.trim() : "";
+                    if (!label) return null;
+                    const amountRaw = typeof f.amount === "number" ? f.amount : parseFee(f.amount);
+                    if (!Number.isFinite(amountRaw) || amountRaw <= 0) return null;
+                    const splitMethod = f.splitMethod === "proportional" ? "proportional" : "equal";
+                    return { label, amount: amountRaw, splitMethod };
+                })
+                .filter((f): f is { label: string; amount: number; splitMethod: "equal" | "proportional" } => f !== null)
+            : [];
+
+        // Parse discounts
+        const cleanedDiscounts = Array.isArray(parsed.discounts)
+            ? parsed.discounts
+                .slice(0, 20)
+                .map((raw: unknown) => {
+                    if (!raw || typeof raw !== "object") return null;
+                    const d = raw as Record<string, unknown>;
+                    const label = typeof d.label === "string" ? d.label.trim() : "";
+                    if (!label) return null;
+                    const type = d.type === "percent" ? "percent" : "amount";
+                    const valueRaw = typeof d.value === "number" ? Math.abs(d.value) : Math.abs(parseFee(d.value));
+                    if (!Number.isFinite(valueRaw) || valueRaw <= 0) return null;
+                    if (type === "percent" && valueRaw > 100) return null;
+                    const scope = d.scope === "item" ? "item" : "receipt";
+                    const itemName = scope === "item" && typeof d.itemName === "string" ? d.itemName.trim() : undefined;
+                    return { label, type, value: valueRaw, scope, itemName };
+                })
+                .filter((d) => d !== null) as { label: string; type: "amount" | "percent"; value: number; scope: "receipt" | "item"; itemName?: string }[]
+            : [];
+
         // Count successful scans against the user's monthly quota.
         if (authUser) {
             await incrementScanCount(authUser.id).catch((err) =>
@@ -256,6 +311,8 @@ Extract the items now:`;
             items: cleanedItems,
             tax: Number.isFinite(taxRaw) && taxRaw >= 0 ? taxRaw : 0,
             service: Number.isFinite(serviceRaw) && serviceRaw >= 0 ? serviceRaw : 0,
+            fees: cleanedFees,
+            discounts: cleanedDiscounts,
         });
     } catch (error) {
         console.error("Gemini API error:", error);
