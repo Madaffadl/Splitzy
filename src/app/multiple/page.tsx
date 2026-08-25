@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { MultipleReceiptView } from "@/components/pages/MultipleReceiptView";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -30,7 +31,13 @@ export default function MultiplePage() {
           homeLabel: dict.nav.home,
         })}
       />
-      <MultipleReceiptView />
+      {/* The view reads ?resume=<id> via useSearchParams, which opts a page
+          out of static prerendering unless it sits behind a Suspense
+          boundary. The fallback is null because the view hydrates instantly
+          from localStorage — a skeleton would flash for no reason. */}
+      <Suspense fallback={null}>
+        <MultipleReceiptView />
+      </Suspense>
     </>
   );
 }

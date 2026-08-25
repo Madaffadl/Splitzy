@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { SingleSplitView } from "@/components/pages/SingleSplitView";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -37,7 +38,13 @@ export default function SinglePage() {
           homeLabel: dict.nav.home,
         })}
       />
-      <SingleSplitView />
+      {/* The view reads ?resume=<id> via useSearchParams, which opts a page
+          out of static prerendering unless it sits behind a Suspense
+          boundary. The fallback is null because the view hydrates instantly
+          from localStorage — a skeleton would flash for no reason. */}
+      <Suspense fallback={null}>
+        <SingleSplitView />
+      </Suspense>
     </>
   );
 }

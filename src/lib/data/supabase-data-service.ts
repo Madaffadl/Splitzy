@@ -1,4 +1,10 @@
-import type { ReceiptRecord, PaginatedResult, ReceiptDetail } from "./types";
+import type {
+  ReceiptRecord,
+  PaginatedResult,
+  ReceiptDetail,
+  SavedSplitPayload,
+  SaveSplitResult,
+} from "./types";
 import type { Participant, ReceiptItem } from "@/types";
 
 export const supabaseDataService = {
@@ -31,29 +37,42 @@ export const supabaseDataService = {
     return data.receipt;
   },
 
-  async createReceipt(body: {
-    title: string;
-    payerId: string;
-    tax: number;
-    service: number;
-    date?: string;
-    tripId?: string;
-    participantsJson?: Participant[];
-    items: Array<{
-      name: string;
-      qty: number;
-      unitPrice: number;
-      total: number;
-      assignedToUserIds: string[];
-    }>;
-  }): Promise<{ id: string }> {
-    const res = await fetch("/api/receipts", {
-      method: "POST",
+  /**
+   * Save a split (Single or Multiple) so it can be resumed later.
+   *
+   * Omit `id` to create, pass it with `expectedVersion` to update an existing
+   * saved split. The version guard turns a concurrent save from another device
+   * into a clear conflict rather than a silent overwrite.
+   */
+  async saveSplit(input: {
+    id?: string;
+    expectedVersion?: number;
+    payload: SavedSplitPayload;
+  }): Promise<SaveSplitResult> {
+    const url = input.id ? `/api/receipts/${input.id}` : "/api/receipts";
+    const res = await fetch(url, {
+      method: input.id ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ...input.payload,
+        ...(input.expectedVersion !== undefined
+          ? { expectedVersion: input.expectedVersion }
+          : {}),
+      }),
     });
+
     if (!res.ok) {
-      throw new Error("Failed to create receipt");
+      // Carry the server's message and code through: a version conflict needs
+      // different handling from a validation failure, and the caller can only
+      // tell them apart if we don't flatten both into one generic Error.
+      const body = (await res.json().catch(() => null)) as
+        | { error?: string; code?: string }
+        | null;
+      const err = new Error(body?.error || "Failed to save split.") as Error & {
+        code?: string;
+      };
+      err.code = body?.code;
+      throw err;
     }
     return res.json();
   },

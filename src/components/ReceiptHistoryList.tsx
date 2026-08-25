@@ -12,9 +12,12 @@ interface ReceiptItem {
   date: string | null;
   totalAmount: number;
   itemCount: number;
+  participantCount?: number;
   tripName: string | null;
   tripId: string | null;
   createdAt: string;
+  expiresAt?: string | null;
+  type?: string;
 }
 
 export function ReceiptHistoryList() {
@@ -137,8 +140,11 @@ export function ReceiptHistoryList() {
             date={receipt.date}
             totalAmount={receipt.totalAmount}
             itemCount={receipt.itemCount}
+            participantCount={receipt.participantCount}
             tripName={receipt.tripName}
             createdAt={receipt.createdAt}
+            expiresAt={receipt.expiresAt}
+            type={receipt.type}
           />
         ))}
       </div>

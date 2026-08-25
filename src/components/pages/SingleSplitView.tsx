@@ -1,9 +1,14 @@
 ﻿"use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, PaymentInfo, Discount, ReceiptFee } from "@/types";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useHybridState } from "@/hooks/useHybridState";
+import { useAuth } from "@/hooks/useAuth";
+import { useSaveSplit } from "@/hooks/useSaveSplit";
+import { supabaseDataService } from "@/lib/data/supabase-data-service";
+import type { ReceiptDetail } from "@/lib/data/types";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
@@ -37,6 +42,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Calculator,
+  Cloud,
   RotateCcw,
   Receipt as ReceiptIcon,
   PartyPopper,
@@ -88,6 +94,103 @@ export function SingleSplitView() {
   const [showLimitDialog, setShowLimitDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
+  const { saving, save, adopt, forget, id: savedId, expiresAt } = useSaveSplit();
+
+  // Mirrors `state` so the resume effect can read the latest value without
+  // listing it as a dependency — otherwise every keystroke would re-run it.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const handleSave = useCallback(() => {
+    void save({
+      type: "single",
+      title: state.title,
+      participants: state.participants,
+      receipts: [
+        {
+          id: savedId ?? "single-receipt",
+          title: state.title,
+          date: state.date,
+          payerId: state.payerId,
+          items: state.items,
+          tax: state.tax,
+          service: state.service,
+          discounts: state.discounts ?? [],
+          fees: state.fees ?? [],
+        },
+      ],
+    });
+  }, [save, state, savedId]);
+
+  // Resume: /single?resume=<id> loads a saved split back into the editor.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const resumeId = searchParams.get("resume");
+  const [pendingResume, setPendingResume] = useState<ReceiptDetail | null>(null);
+
+  const applyResume = useCallback(
+    (detail: ReceiptDetail) => {
+      const receipt = detail.receipts?.[0];
+      if (!receipt) return;
+      setState({
+        participants: detail.participants ?? [],
+        items: receipt.items ?? [],
+        title: detail.title ?? "",
+        date: receipt.date,
+        tax: receipt.tax ?? 0,
+        service: receipt.service ?? 0,
+        payerId: receipt.payerId ?? "",
+        discounts: receipt.discounts ?? [],
+        fees: receipt.fees ?? [],
+      });
+      adopt({
+        id: detail.id,
+        version: detail.version ?? null,
+        expiresAt: detail.expiresAt ?? null,
+        shareCode: detail.shareCode ?? null,
+      });
+      setCurrentStep(1);
+    },
+    [setState, adopt]
+  );
+
+  useEffect(() => {
+    if (!resumeId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const detail = await supabaseDataService.getReceiptDetail(resumeId);
+        if (cancelled) return;
+        // Drop the query param either way so a refresh doesn't re-trigger the
+        // load (and re-prompt) after the user has answered.
+        router.replace("/single");
+        // Overwriting unsaved local work without asking is exactly the kind of
+        // silent loss this feature is meant to prevent.
+        if (stateRef.current.items.length > 0 && stateRef.current.title !== detail.title) {
+          setPendingResume(detail);
+        } else {
+          applyResume(detail);
+        }
+      } catch {
+        if (!cancelled) {
+          router.replace("/single");
+          toast({
+            title: "Couldn't open that split",
+            description: "It may have expired or been deleted.",
+            variant: "error",
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeId, applyResume, router, toast]);
 
   const receipt: Receipt = useMemo(
     () => ({
@@ -204,6 +307,10 @@ export function SingleSplitView() {
     resetState();
     setCurrentStep(0);
     setShowResetDialog(false);
+    // Detach from the saved copy: the next Save should create a new split
+    // rather than overwrite the one this editor used to hold. The saved split
+    // itself is untouched and still resumable from Saved splits.
+    forget();
     toast({
       title: "Split reset",
       description: "All participants and items were cleared.",
@@ -281,6 +388,21 @@ export function SingleSplitView() {
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
+            {/* Signed-in only: saving parks a copy on the server so the split
+                can be resumed on another device. Guests keep working locally. */}
+            {isAuthenticated && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || state.items.length === 0}
+                aria-label="Save split"
+                className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+              >
+                <Cloud className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">{saving ? "Saving…" : "Save"}</span>
+              </Button>
+            )}
             <ThemeToggle />
             <AuthButton />
             <Button
@@ -501,6 +623,7 @@ export function SingleSplitView() {
                     receipt={receipt}
                     participants={state.participants}
                     title={state.title}
+                    savedSplitId={savedId}
                     onUpdatePaymentInfo={updatePaymentInfo}
                   />
                 </ErrorBoundary>
@@ -596,6 +719,38 @@ export function SingleSplitView() {
             <Button variant="destructive" onClick={confirmReset}>
               <RotateCcw className="h-4 w-4 mr-2" />
               Yes, reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resuming replaces whatever is in the editor. Local work is only in this
+          browser, so overwriting it without asking would destroy the one copy. */}
+      <Dialog
+        open={pendingResume !== null}
+        onOpenChange={(open) => !open && setPendingResume(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace what&rsquo;s in the editor?</DialogTitle>
+            <DialogDescription>
+              You have a split in progress here ({state.items.length}{" "}
+              item{state.items.length === 1 ? "" : "s"}). Opening
+              &ldquo;{pendingResume?.title}&rdquo; will replace it, and anything
+              you haven&rsquo;t saved will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPendingResume(null)}>
+              Keep what I have
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingResume) applyResume(pendingResume);
+                setPendingResume(null);
+              }}
+            >
+              Open the saved split
             </Button>
           </DialogFooter>
         </DialogContent>

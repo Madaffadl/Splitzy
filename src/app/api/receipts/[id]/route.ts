@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   getAuthUser,
@@ -7,13 +8,19 @@ import {
   notFound,
   assertSameOrigin,
 } from "@/lib/api-auth";
-import {
-  validateReceiptPatch,
-  validationErrorResponse,
-  ValidationError,
-} from "@/lib/validation";
+import { validationErrorResponse, ValidationError } from "@/lib/validation";
 import { apiError } from "@/lib/api-response";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import {
+  validateSharedSummaryInput,
+  shareExpiryFromNow,
+  SHARE_PAYLOAD_VERSION,
+} from "@/lib/shared-summary";
+import {
+  validateSavedSplit,
+  savedSplitExpiryFromNow,
+  SAVED_SPLIT_TTL_DAYS,
+} from "@/lib/saved-splits";
 
 // GET /api/receipts/[id] - Get receipt detail
 export async function GET(
@@ -148,17 +155,21 @@ export async function GET(
   //
   // Server-owned metadata still comes from the row, never from client JSON.
   const payload = receipt.payloadJson as Record<string, unknown> | null;
+  const meta = {
+    id: receipt.id,
+    version: receipt.version,
+    createdById: receipt.createdById,
+    tripId: receipt.tripId,
+    tripName: receipt.trip?.name ?? null,
+    // Drives the "expires in N days" label and lets the editor echo the code
+    // back on save so the shared link is updated rather than duplicated.
+    expiresAt: receipt.expiresAt?.toISOString() ?? null,
+    shareCode: receipt.shareCode ?? null,
+  };
+
   const response = payload
-    ? {
-        ...payload,
-        id: receipt.id,
-        version: receipt.version,
-        createdById: receipt.createdById,
-        tripId: receipt.tripId,
-        tripName: receipt.trip?.name ?? null,
-        participants,
-      }
-    : formattedReceipt;
+    ? { ...payload, ...meta, participants }
+    : { ...formattedReceipt, ...meta };
 
   return NextResponse.json({ receipt: response });
 }
@@ -192,10 +203,14 @@ export async function PUT(
     return forbidden();
   }
 
-  let patch;
+  let input;
+  let expectedVersion: number | undefined;
   try {
-    const body = await request.json().catch(() => null);
-    patch = validateReceiptPatch(body);
+    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    if (body && typeof body.expectedVersion === "number") {
+      expectedVersion = body.expectedVersion;
+    }
+    input = validateSavedSplit(body);
   } catch (err) {
     if (err instanceof ValidationError) {
       const { body, status } = validationErrorResponse(err);
@@ -204,50 +219,77 @@ export async function PUT(
     return apiError("BAD_REQUEST", "Invalid request body");
   }
 
+  // Saving is what resets the clock — opening the split does not, because the
+  // server never learns about an edit that is still only in the browser.
+  const data = {
+    version: { increment: 1 },
+    title: input.title,
+    participantsJson: input.participants as unknown as Prisma.InputJsonValue,
+    payloadJson: input as unknown as Prisma.InputJsonValue,
+    expiresAt: savedSplitExpiryFromNow(),
+  };
+
   // Optimistic concurrency: when the caller declares the version they observed,
   // refuse the write if it has moved on. The atomic UPDATE...WHERE id=$1 AND
   // version=$2 closes the read-then-write race window.
-  if (patch.expectedVersion !== undefined) {
+  if (expectedVersion !== undefined) {
     const result = await prisma.receipt.updateMany({
-      where: { id, version: patch.expectedVersion, deletedAt: null },
-      data: {
-        version: { increment: 1 },
-        ...(patch.title !== undefined && { title: patch.title }),
-        ...(patch.payerId !== undefined && { payerId: patch.payerId }),
-        ...(patch.tax !== undefined && { tax: patch.tax }),
-        ...(patch.service !== undefined && { service: patch.service }),
-        ...(patch.date !== undefined && {
-          date: patch.date ? new Date(patch.date) : null,
-        }),
-      },
+      where: { id, version: expectedVersion, deletedAt: null },
+      data,
     });
     if (result.count === 0) {
       return apiError(
         "VERSION_CONFLICT",
-        "This receipt was modified by someone else. Reload to see the latest version, then try again.",
+        "This split was saved from somewhere else. Reload it to see the latest version, then save again.",
         { currentVersion: existing.version }
       );
     }
-    return NextResponse.json({ id, version: existing.version + 1 });
+  } else {
+    // Legacy callers that don't send expectedVersion still get last-write-wins.
+    await prisma.receipt.update({ where: { id }, data });
   }
 
-  // Legacy clients that don't send expectedVersion still get last-write-wins.
-  const updated = await prisma.receipt.update({
+  const after = await prisma.receipt.findUnique({
     where: { id },
-    data: {
-      version: { increment: 1 },
-      ...(patch.title !== undefined && { title: patch.title }),
-      ...(patch.payerId !== undefined && { payerId: patch.payerId }),
-      ...(patch.tax !== undefined && { tax: patch.tax }),
-      ...(patch.service !== undefined && { service: patch.service }),
-      ...(patch.date !== undefined && {
-        date: patch.date ? new Date(patch.date) : null,
-      }),
-    },
-    select: { id: true, version: true },
+    select: { version: true, expiresAt: true, shareCode: true },
   });
 
-  return NextResponse.json({ id: updated.id, version: updated.version });
+  // Tahap 2: a link already shared for this split follows the split. Before
+  // this, editing left the link showing numbers everyone had moved on from,
+  // and the group argued over a stale page. The share page shows when the
+  // content last changed so a silent revision is still a visible one.
+  //
+  // Best-effort: the split itself is already saved, so a failure here must not
+  // turn a successful save into an error.
+  if (after?.shareCode) {
+    try {
+      const sharePayload = validateSharedSummaryInput({
+        v: SHARE_PAYLOAD_VERSION,
+        type: input.type,
+        title: input.title,
+        participants: input.participants,
+        receipts: input.receipts,
+      });
+      await prisma.sharedSummary.updateMany({
+        where: { code: after.shareCode },
+        data: {
+          payload: sharePayload as unknown as Prisma.InputJsonValue,
+          // Keep the link alive as long as the split is being worked on.
+          expiresAt: shareExpiryFromNow(),
+        },
+      });
+    } catch (err) {
+      console.error("Failed to refresh shared link for receipt", id, err);
+    }
+  }
+
+  return NextResponse.json({
+    id,
+    version: after?.version ?? existing.version + 1,
+    expiresAt: after?.expiresAt?.toISOString() ?? null,
+    shareCode: after?.shareCode ?? null,
+    ttlDays: SAVED_SPLIT_TTL_DAYS,
+  });
 }
 
 // DELETE /api/receipts/[id] - Soft-delete a receipt (creator only).

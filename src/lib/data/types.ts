@@ -15,16 +15,38 @@ export interface TripState {
   trip: Trip;
 }
 
-// A receipt record for history display
+// A row in the saved-splits list.
 export interface ReceiptRecord {
   id: string;
   title: string;
   date: string | null;
   totalAmount: number;
   participantCount: number;
+  itemCount?: number;
   createdAt: string;
   tripName: string | null;
   tripId: string | null;
+  /** When this saved split lapses. Null = never (Travel receipts). */
+  expiresAt?: string | null;
+  /** Short code of the read-only link, if one was created. */
+  shareCode?: string | null;
+}
+
+/** What the server returns after a successful save. */
+export interface SaveSplitResult {
+  id: string;
+  version: number;
+  expiresAt: string | null;
+  shareCode?: string | null;
+  ttlDays: number;
+}
+
+/** The shape the editors save and resume: a whole split as one document. */
+export interface SavedSplitPayload {
+  type: "single" | "multiple";
+  title: string;
+  participants: Participant[];
+  receipts: Receipt[];
 }
 
 export interface PaginatedResult<T> {
@@ -48,4 +70,11 @@ export interface ReceiptDetail {
   tripName: string | null;
   participants: Participant[];
   items: ReceiptItem[];
+  /** Echoed back on save for optimistic concurrency. */
+  version?: number;
+  expiresAt?: string | null;
+  shareCode?: string | null;
+  /** Present on saved splits: the receipts that make up this split. */
+  receipts?: Receipt[];
+  type?: "single" | "multiple";
 }

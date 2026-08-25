@@ -69,6 +69,15 @@ function asString(value: unknown, field: string, max: number): string {
   return trimmed;
 }
 
+/**
+ * Like `asString` but tolerates an empty/absent value, returning "".
+ * Used only in draft mode, for fields the user has not filled in yet.
+ */
+function asDraftString(value: unknown, field: string, max: number): string {
+  if (value == null || value === "") return "";
+  return asString(value, field, max);
+}
+
 function asMoney(value: unknown, field: string): number {
   const n = typeof value === "number" ? value : parseFloat(String(value ?? "0"));
   if (!Number.isFinite(n)) throw new ValidationError(field, "must be a finite number");
@@ -335,7 +344,18 @@ function validateFees(value: unknown, field: string): ReceiptFee[] | undefined {
 export function validateSharedReceipts(
   value: unknown,
   participantIds: Set<string>,
-  opts: { requireAtLeastOne?: boolean; exactlyOne?: boolean } = {}
+  opts: {
+    requireAtLeastOne?: boolean;
+    exactlyOne?: boolean;
+    /**
+     * Relax the two rules a work-in-progress split cannot satisfy yet: it may
+     * have no payer chosen and items still being typed, so `payerId` and item
+     * `name` are allowed to be empty. Everything else stays strict — a draft is
+     * still stored data, and money caps, id references and fee/discount shape
+     * are exactly as load-bearing in a draft as in a finished split.
+     */
+    draft?: boolean;
+  } = {}
 ): SharedReceipt[] {
   if (!Array.isArray(value)) {
     throw new ValidationError("receipts", "must be an array");
@@ -375,7 +395,9 @@ export function validateSharedReceipts(
       );
       return {
         id: asString(it.id, `receipts[${ri}].items[${ii}].id`, MAX_ID),
-        name: asString(it.name, `receipts[${ri}].items[${ii}].name`, MAX_NAME),
+        name: opts.draft
+          ? asDraftString(it.name, `receipts[${ri}].items[${ii}].name`, MAX_NAME)
+          : asString(it.name, `receipts[${ri}].items[${ii}].name`, MAX_NAME),
         qty: asPositiveInt(it.qty ?? 1, `receipts[${ri}].items[${ii}].qty`, 100_000),
         unitPrice: asMoney(it.unitPrice ?? 0, `receipts[${ri}].items[${ii}].unitPrice`),
         total: asMoney(it.total ?? 0, `receipts[${ri}].items[${ii}].total`),
@@ -388,8 +410,16 @@ export function validateSharedReceipts(
       };
     });
 
-    const payerId = asString(r.payerId, `receipts[${ri}].payerId`, MAX_ID);
-    if (!participantIds.has(payerId)) {
+    // A draft may not have a payer chosen yet. If one IS set it must still be a
+    // real participant — an id left behind by a deleted person would produce a
+    // phantom credit the moment the split is resumed.
+    const payerId = opts.draft
+      ? asDraftString(r.payerId, `receipts[${ri}].payerId`, MAX_ID)
+      : asString(r.payerId, `receipts[${ri}].payerId`, MAX_ID);
+    if (payerId && !participantIds.has(payerId)) {
+      throw new ValidationError(`receipts[${ri}].payerId`, "must reference a participant");
+    }
+    if (!opts.draft && !payerId) {
       throw new ValidationError(`receipts[${ri}].payerId`, "must reference a participant");
     }
 

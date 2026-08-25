@@ -67,6 +67,17 @@ export async function POST(request: NextRequest) {
           expiresAt,
         },
       });
+      // Remember the code on the saved split it came from, so a later save
+      // refreshes THIS link instead of minting a rival one. Scoped to rows the
+      // caller owns; a bad id just means the link isn't linked to anything.
+      const receiptId = typeof body?.receiptId === "string" ? body.receiptId : null;
+      if (receiptId && user) {
+        await prisma.receipt.updateMany({
+          where: { id: receiptId, createdById: user.id, deletedAt: null },
+          data: { shareCode: code },
+        });
+      }
+
       return NextResponse.json(
         { code, expiresAt: expiresAt.toISOString(), ttlDays: SHARE_TTL_DAYS },
         { status: 201 }

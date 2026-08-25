@@ -47,10 +47,24 @@ export async function POST(request: NextRequest) {
   // on ReceiptItem & ItemAssignment so children clean up automatically.
   // Shared links are purged the moment they expire (their own TTL governs
   // lifetime), independent of the soft-delete retention window above.
-  const [receiptsDeleted, tripsDeleted, sharesDeleted, activityDeleted, invitesDeleted] =
-    await prisma.$transaction([
+  const [
+    receiptsDeleted,
+    lapsedSplitsDeleted,
+    tripsDeleted,
+    sharesDeleted,
+    activityDeleted,
+    invitesDeleted,
+  ] = await prisma.$transaction([
       prisma.receipt.deleteMany({
         where: { deletedAt: { lt: cutoff, not: null } },
+      }),
+      // Saved single/multiple splits carry their own TTL, reset on every save.
+      // They are a working copy, not an archive — the durable record of a
+      // finished split is the text the user copied into their chat app — so
+      // they're purged the moment they lapse, like shared links and invites.
+      // Travel receipts have expiresAt = NULL and are never swept here.
+      prisma.receipt.deleteMany({
+        where: { expiresAt: { lt: now, not: null } },
       }),
       prisma.trip.deleteMany({
         where: { deletedAt: { lt: cutoff, not: null } },
@@ -73,6 +87,7 @@ export async function POST(request: NextRequest) {
     cutoff: cutoff.toISOString(),
     retentionDays: RETENTION_DAYS,
     receiptsDeleted: receiptsDeleted.count,
+    lapsedSplitsDeleted: lapsedSplitsDeleted.count,
     tripsDeleted: tripsDeleted.count,
     expiredSharesDeleted: sharesDeleted.count,
     activityEventsDeleted: activityDeleted.count,

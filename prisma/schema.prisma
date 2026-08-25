@@ -261,6 +261,20 @@ model Receipt {
   //
   // Null on legacy rows — readers fall back to the relational columns.
   payloadJson      Json?     @map("payload_json")
+  // Saved single/multiple splits are short-lived working copies, not an
+  // archive: they expire SAVED_SPLIT_TTL_DAYS after the LAST save, and the
+  // cleanup job hard-deletes them. Null = no expiry (Travel receipts, which
+  // live until the user deletes the trip).
+  //
+  // The durable record of a finished split is the exported text the user
+  // copies into WhatsApp — that carries every amount plus the payment details,
+  // so letting the working copy lapse loses nothing they relied on.
+  expiresAt        DateTime? @map("expires_at")
+  // Short code of the shared read-only link created for this split, if any.
+  // Held here so re-saving updates THAT link instead of minting a second one
+  // (the client used to keep the code in component state, so a remount silently
+  // created a rival link showing different numbers).
+  shareCode        String?   @map("share_code")
   createdById      String    @map("created_by") @db.Uuid
   // Optimistic concurrency — see Trip.version.
   version          Int       @default(1)
@@ -282,6 +296,8 @@ model Receipt {
   @@index([tripId])
   @@index([payerId])
   @@index([deletedAt])
+  // Cleanup job sweeps lapsed saved splits by expiry.
+  @@index([expiresAt])
   @@map("receipts")
 }
 
@@ -321,6 +337,12 @@ model SharedSummary {
   // Links are short-lived; the admin cleanup job hard-deletes expired rows.
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
+  // Snapshots used to be immutable. They are now refreshed when the split they
+  // came from is re-saved, so a link shared in a group chat stops showing stale
+  // numbers. That makes "when was this last changed" something the viewer needs
+  // to see — an amount that can move silently after everyone agreed on it is
+  // worse than a stale one.
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   createdBy User? @relation("SharedSummaryCreator", fields: [createdById], references: [id])
 

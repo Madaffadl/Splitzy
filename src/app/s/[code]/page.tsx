@@ -100,6 +100,21 @@ export default async function SharedSplitPage({
     year: "numeric",
   });
 
+  // Only worth showing once the content has actually been revised — on a link
+  // that was never edited it would just be the creation date wearing a
+  // misleading label.
+  const wasRevised =
+    record!.updatedAt.getTime() - record!.createdAt.getTime() > 60_000;
+  const updatedOn = wasRevised
+    ? record!.updatedAt.toLocaleString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
   return (
     <PageShell>
       <div className="space-y-4">
@@ -111,6 +126,16 @@ export default async function SharedSplitPage({
             Read-only view. Anyone with this link can see the breakdown. Link
             expires {expiresOn}.
           </p>
+          {/* The numbers behind a link now follow the split when its owner
+              re-saves. That is better than showing figures everyone has moved
+              on from — but an amount that can change after the group agreed on
+              it must at least say when it last did. */}
+          {updatedOn && (
+            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3 shrink-0" />
+              Last updated {updatedOn}
+            </p>
+          )}
         </div>
 
         {payload.type === "single" ? (

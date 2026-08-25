@@ -76,6 +76,11 @@ interface SummaryPanelProps {
   receipt: Receipt;
   participants: Participant[];
   title?: string;
+  // Id of the saved split this panel is showing, when there is one. Passed to
+  // /api/share so the generated code is recorded against the split — a later
+  // save then refreshes THAT link instead of creating a second one.
+  savedSplitId?: string | null;
+
   // When true (public read-only views), hide the CSV/Share/Export actions and
   // drop the sidebar `sticky` so several panels can stack in a list.
   readOnly?: boolean;
@@ -670,7 +675,7 @@ export function ReceiptBreakdown({
   );
 }
 
-export function SummaryPanel({ receipt, participants, title, readOnly = false, onUpdatePaymentInfo, preview = false }: SummaryPanelProps) {
+export function SummaryPanel({ receipt, participants, title, savedSplitId, readOnly = false, onUpdatePaymentInfo, preview = false }: SummaryPanelProps) {
   // The read-only shared view shows settlements but not interactively; the
   // editor preview hides them entirely (see `preview`).
   const settleStatic = readOnly;
@@ -680,11 +685,19 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
   const [creatingLink, setCreatingLink] = useState(false);
   const { toast } = useToast();
 
-  // A share link is an immutable snapshot — if the receipt changes after one
-  // was created, drop the cached link so the next Share/Copy mints a fresh one.
+  // Share links used to be immutable snapshots, so any edit had to invalidate
+  // the cached link and mint a fresh one on the next Share.
+  //
+  // A SAVED split no longer works that way: the server refreshes its linked
+  // snapshot whenever the split is saved, so the code stays valid and stable.
+  // Dropping it here would hand the user a second link for the same split —
+  // exactly the "two live links, different numbers" confusion this replaced.
+  // Unsaved splits have nothing tracking them server-side, so they keep the
+  // old behaviour.
   useEffect(() => {
+    if (savedSplitId) return;
     setShareUrl(null);
-  }, [receipt, participants, title]);
+  }, [receipt, participants, title, savedSplitId]);
 
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
@@ -818,6 +831,7 @@ export function SummaryPanel({ receipt, participants, title, readOnly = false, o
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(savedSplitId ? { receiptId: savedSplitId } : {}),
           type: "single",
           title: title || receipt.title || "Bill Split",
           participants,
@@ -1193,6 +1207,11 @@ interface MultipleReceiptSummaryPanelProps {
   participants: Participant[];
   splitName: string;
   splitId?: string;
+  // Id of the saved split this panel is showing, when there is one. Passed to
+  // /api/share so the generated code is recorded against the split — a later
+  // save then refreshes THAT link instead of creating a second one.
+  savedSplitId?: string | null;
+
   // Optional spending target (Travel Spend). When set, a Budget vs Spent
   // progress block is shown.
   budget?: number;
@@ -1229,6 +1248,7 @@ export function MultipleReceiptSummaryPanel({
   participants,
   splitName,
   splitId,
+  savedSplitId,
   budget,
   showReceiptDetails = true,
   compact = false,
@@ -1251,11 +1271,19 @@ export function MultipleReceiptSummaryPanel({
   const toggleWallet = (id: string) =>
     setOpenWallet((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  // A share link is an immutable snapshot — if the split changes after one was
-  // created, drop the cached link so the next Share/Copy mints a fresh one.
+  // Share links used to be immutable snapshots, so any edit had to invalidate
+  // the cached link and mint a fresh one on the next Share.
+  //
+  // A SAVED split no longer works that way: the server refreshes its linked
+  // snapshot whenever the split is saved, so the code stays valid and stable.
+  // Dropping it here would hand the user a second link for the same split —
+  // exactly the "two live links, different numbers" confusion this replaced.
+  // Unsaved splits have nothing tracking them server-side, so they keep the
+  // old behaviour.
   useEffect(() => {
+    if (savedSplitId) return;
     setShareUrl(null);
-  }, [receipts, participants, splitName]);
+  }, [receipts, participants, splitName, savedSplitId]);
 
   const participantIds = useMemo(
     () => participants.map((p) => p.id),
@@ -1607,6 +1635,7 @@ export function MultipleReceiptSummaryPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(savedSplitId ? { receiptId: savedSplitId } : {}),
           // A trip with a budget is a Travel Spend share; carry the budget so
           // the shared view can show Budget vs Spent.
           type: budget != null ? "travel" : "multiple",

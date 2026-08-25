@@ -3,12 +3,16 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, assertSameOrigin } from "@/lib/api-auth";
 import {
-  validateReceiptCreate,
   validationErrorResponse,
   ValidationError,
 } from "@/lib/validation";
 import { apiError } from "@/lib/api-response";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import {
+  validateSavedSplit,
+  savedSplitExpiryFromNow,
+  SAVED_SPLIT_TTL_DAYS,
+} from "@/lib/saved-splits";
 
 // Cursor format is `<ISO createdAt>|<id>`. Two columns are needed for stable
 // ordering when multiple rows share the same createdAt (rare, but safe).
@@ -42,38 +46,77 @@ function decodeCursor(raw: string): { createdAt: Date; id: string } | null {
 //   * `?page=<n>` (legacy) — offset pagination, fine for first dozen pages.
 //
 // Cursor mode skips the COUNT(*) query and returns only `nextCursor`/`hasMore`.
+/** One receipt inside a stored payload. */
+interface PayloadReceipt {
+  items?: { total?: unknown }[];
+  tax?: unknown;
+  service?: unknown;
+  fees?: { amount?: unknown }[];
+}
+
+/**
+ * Normalise a stored payload to the list of receipts it contains.
+ *
+ * Two shapes exist. A saved split wraps everything as
+ * `{ title, participants, receipts[] }`; a row written by the localStorage
+ * import is a single bare receipt. Both are read here so the history list works
+ * regardless of which path produced the row.
+ */
+function payloadReceipts(payload: Prisma.JsonValue | null): PayloadReceipt[] {
+  if (!payload || typeof payload !== "object") return [];
+  const p = payload as { receipts?: unknown };
+  if (Array.isArray(p.receipts)) return p.receipts as PayloadReceipt[];
+  return [payload as PayloadReceipt];
+}
+
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
 /**
  * Headline amount for a row in the history list.
  *
  * `tax + service` alone — what this used to return — omits the items entirely,
- * so a Rp 500.000 dinner with Rp 50.000 tax was listed as "Rp 50.000". When the
- * receipt has a JSON payload we can total it properly, fees included.
+ * so a Rp 500.000 dinner with Rp 50.000 tax was listed as "Rp 50.000".
  */
 function summariseAmount(row: {
   tax: number;
   service: number;
   payloadJson: Prisma.JsonValue | null;
 }): number {
-  const payload = row.payloadJson as {
-    items?: { total?: unknown }[];
-    tax?: unknown;
-    service?: unknown;
-    fees?: { amount?: unknown }[];
-  } | null;
+  if (!row.payloadJson) return row.tax + row.service;
 
-  if (!payload) return row.tax + row.service;
+  const total = payloadReceipts(row.payloadJson).reduce((sum, r) => {
+    const items = (r.items ?? []).reduce((s, i) => s + num(i?.total), 0);
+    const fees = (r.fees ?? []).reduce((s, f) => s + num(f?.amount), 0);
+    return sum + items + num(r.tax) + num(r.service) + fees;
+  }, 0);
 
-  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-  const items = (payload.items ?? []).reduce((sum, i) => sum + num(i?.total), 0);
-  const fees = (payload.fees ?? []).reduce((sum, f) => sum + num(f?.amount), 0);
   // Face value of the bill; manual discounts are a per-person credit and are
   // deliberately not netted off a list-level headline.
-  return Math.round((items + num(payload.tax) + num(payload.service) + fees) * 100) / 100;
+  return Math.round(total * 100) / 100;
 }
 
-/** How many people this receipt was split between. Was hardcoded to 0. */
+/** Which editor should reopen this split. Absent on legacy/import rows. */
+function payloadType(payload: Prisma.JsonValue | null): "single" | "multiple" | null {
+  if (!payload || typeof payload !== "object") return null;
+  const t = (payload as { type?: unknown }).type;
+  return t === "multiple" || t === "single" ? t : null;
+}
+
+/** How many people this split was shared between. Was hardcoded to 0. */
 function countParticipants(row: { participantsJson: Prisma.JsonValue | null }): number {
   return Array.isArray(row.participantsJson) ? row.participantsJson.length : 0;
+}
+
+/**
+ * Items across every receipt in the split. Saved splits create no relational
+ * item rows — the payload is the record — so `_count.items` reads 0 for them.
+ */
+function countItems(row: {
+  payloadJson: Prisma.JsonValue | null;
+  _count: { items: number };
+}): number {
+  if (!row.payloadJson) return row._count.items;
+  return payloadReceipts(row.payloadJson).reduce((sum, r) => sum + (r.items?.length ?? 0), 0);
 }
 
 export async function GET(request: NextRequest) {
@@ -150,6 +193,8 @@ export async function GET(request: NextRequest) {
         tripId: true,
         payloadJson: true,
         participantsJson: true,
+        expiresAt: true,
+        shareCode: true,
         trip: { select: { name: true } },
         _count: { select: { items: true } },
       },
@@ -170,10 +215,13 @@ export async function GET(request: NextRequest) {
         date: r.date?.toISOString() ?? null,
         totalAmount: summariseAmount(r),
         participantCount: countParticipants(r),
+        expiresAt: r.expiresAt?.toISOString() ?? null,
+        shareCode: r.shareCode ?? null,
+        type: payloadType(r.payloadJson),
         createdAt: r.createdAt.toISOString(),
         tripName: r.trip?.name ?? null,
         tripId: r.tripId,
-        itemCount: r._count.items,
+        itemCount: countItems(r),
       })),
       limit,
       hasMore,
@@ -198,6 +246,8 @@ export async function GET(request: NextRequest) {
         tripId: true,
         payloadJson: true,
         participantsJson: true,
+        expiresAt: true,
+        shareCode: true,
         trip: { select: { name: true } },
         _count: { select: { items: true } },
       },
@@ -215,10 +265,13 @@ export async function GET(request: NextRequest) {
       date: r.date?.toISOString() ?? null,
       totalAmount: summariseAmount(r),
       participantCount: countParticipants(r),
+      expiresAt: r.expiresAt?.toISOString() ?? null,
+      shareCode: r.shareCode ?? null,
+      type: payloadType(r.payloadJson),
       createdAt: r.createdAt.toISOString(),
       tripName: r.trip?.name ?? null,
       tripId: r.tripId,
-      itemCount: r._count.items,
+      itemCount: countItems(r),
     })),
     total,
     page,
@@ -227,7 +280,13 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// POST /api/receipts - Create a standalone receipt
+// POST /api/receipts - Save a split (Single or Multiple) so it can be resumed.
+//
+// The body is the whole split as one document — title, participants and one or
+// more receipts — and it is stored in payload_json. The relational columns on
+// this table are legacy: item_assignments is keyed on users.id, so they cannot
+// express a split between named people who have no account. Everything the
+// editor needs to reopen the split lives in the payload.
 export async function POST(request: NextRequest) {
   const csrf = assertSameOrigin(request);
   if (csrf) return csrf;
@@ -241,7 +300,7 @@ export async function POST(request: NextRequest) {
   let input;
   try {
     const body = await request.json().catch(() => null);
-    input = validateReceiptCreate(body);
+    input = validateSavedSplit(body);
   } catch (err) {
     if (err instanceof ValidationError) {
       const { body, status } = validationErrorResponse(err);
@@ -253,29 +312,27 @@ export async function POST(request: NextRequest) {
   const receipt = await prisma.receipt.create({
     data: {
       title: input.title,
-      payerId: input.payerId || user.id,
-      tax: input.tax,
-      service: input.service,
-      date: input.date ? new Date(input.date) : null,
-      tripId: input.tripId,
-      participantsJson:
-        (input.participantsJson as Prisma.InputJsonValue | null) ?? Prisma.JsonNull,
+      // Owner of the saved row. The person who actually fronted the bill is a
+      // participant id inside the payload — this column is a User FK and can
+      // only ever mean "whose account is this saved under".
+      payerId: user.id,
+      tax: 0,
+      service: 0,
       createdById: user.id,
-      items: {
-        create: input.items.map((item, index) => ({
-          name: item.name,
-          qty: item.qty,
-          unitPrice: item.unitPrice,
-          total: item.total,
-          sortOrder: index,
-          assignments: {
-            create: item.assignedToUserIds.map((userId) => ({ userId })),
-          },
-        })),
-      },
+      participantsJson: input.participants as unknown as Prisma.InputJsonValue,
+      payloadJson: input as unknown as Prisma.InputJsonValue,
+      expiresAt: savedSplitExpiryFromNow(),
     },
-    select: { id: true },
+    select: { id: true, expiresAt: true, version: true },
   });
 
-  return NextResponse.json({ id: receipt.id }, { status: 201 });
+  return NextResponse.json(
+    {
+      id: receipt.id,
+      version: receipt.version,
+      expiresAt: receipt.expiresAt?.toISOString() ?? null,
+      ttlDays: SAVED_SPLIT_TTL_DAYS,
+    },
+    { status: 201 }
+  );
 }

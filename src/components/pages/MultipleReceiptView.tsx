@@ -1,9 +1,14 @@
 ﻿"use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Participant, ReceiptItem, Receipt, Trip, PaymentInfo } from "@/types";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useHybridState } from "@/hooks/useHybridState";
+import { useAuth } from "@/hooks/useAuth";
+import { useSaveSplit } from "@/hooks/useSaveSplit";
+import { supabaseDataService } from "@/lib/data/supabase-data-service";
+import type { ReceiptDetail } from "@/lib/data/types";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
 import { logFeatureUsage } from "@/lib/activity-client";
@@ -28,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft,
+  Cloud,
   RotateCcw,
   Plus,
   Layers,
@@ -78,6 +84,91 @@ export function MultipleReceiptView() {
   // append the same new receipt twice before viewMode flips to "overview".
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
+  // `isSaving` above is about adding a receipt INTO the split; this is about
+  // saving the whole split to the server. Different things, distinct names.
+  const {
+    saving: savingSplit,
+    save,
+    adopt,
+    forget,
+    id: savedId,
+  } = useSaveSplit();
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const resumeId = searchParams.get("resume");
+  const [pendingResume, setPendingResume] = useState<ReceiptDetail | null>(null);
+
+  // Mirrors `state` so the resume effect can read the latest value without
+  // re-running on every edit.
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const handleSaveSplit = useCallback(() => {
+    void save({
+      type: "multiple",
+      title: state.split.name,
+      participants: state.split.participants,
+      receipts: state.split.receipts,
+    });
+  }, [save, state.split]);
+
+  const applyResume = useCallback(
+    (detail: ReceiptDetail) => {
+      setState({
+        split: {
+          id: detail.id,
+          name: detail.title ?? "My Split",
+          participants: detail.participants ?? [],
+          receipts: detail.receipts ?? [],
+        },
+      });
+      adopt({
+        id: detail.id,
+        version: detail.version ?? null,
+        expiresAt: detail.expiresAt ?? null,
+        shareCode: detail.shareCode ?? null,
+      });
+      setViewMode("overview");
+    },
+    [setState, adopt]
+  );
+
+  useEffect(() => {
+    if (!resumeId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const detail = await supabaseDataService.getReceiptDetail(resumeId);
+        if (cancelled) return;
+        router.replace("/multiple");
+        // Never replace unsaved local work without asking — it only exists in
+        // this browser, so there is no second copy to fall back on.
+        if (stateRef.current.split.receipts.length > 0) {
+          setPendingResume(detail);
+        } else {
+          applyResume(detail);
+        }
+      } catch {
+        if (!cancelled) {
+          router.replace("/multiple");
+          toast({
+            title: "Couldn't open that split",
+            description: "It may have expired or been deleted.",
+            variant: "error",
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeId, applyResume, router, toast]);
 
   useEffect(() => {
     if (viewMode === "edit-receipt") {
@@ -102,6 +193,9 @@ export function MultipleReceiptView() {
     setViewMode("overview");
     setEditingReceipt(null);
     setShowResetDialog(false);
+    // Detach from the saved copy so the next Save creates a new split instead
+    // of overwriting the one this editor held.
+    forget();
     toast({
       title: "Split reset",
       description: "All receipts and participants were cleared.",
@@ -238,6 +332,23 @@ export function MultipleReceiptView() {
             <span className="font-semibold text-sm sm:text-base">Multiple Receipts</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
+            {/* Signed-in only: parks a copy on the server so the split can be
+                resumed later or from another device. Guests stay local. */}
+            {isAuthenticated && viewMode === "overview" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveSplit}
+                disabled={savingSplit || split.receipts.length === 0}
+                aria-label="Save split"
+                className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+              >
+                <Cloud className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">
+                  {savingSplit ? "Saving…" : "Save"}
+                </span>
+              </Button>
+            )}
             <ThemeToggle />
             <AuthButton />
             <Button
@@ -407,6 +518,7 @@ export function MultipleReceiptView() {
                   participants={split.participants}
                   splitName={split.name}
                   splitId={split.id}
+                  savedSplitId={savedId}
                   onUpdatePaymentInfo={updateParticipantPaymentInfo}
                 />
               </ErrorBoundary>
@@ -480,6 +592,38 @@ export function MultipleReceiptView() {
       </Dialog>
 
       <AppFooter />
+
+      {/* Resuming replaces the editor's contents. Local work lives only in this
+          browser, so overwriting it unasked would destroy the only copy. */}
+      <Dialog
+        open={pendingResume !== null}
+        onOpenChange={(open) => !open && setPendingResume(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace what&rsquo;s in the editor?</DialogTitle>
+            <DialogDescription>
+              You have a split in progress here ({split.receipts.length} receipt
+              {split.receipts.length === 1 ? "" : "s"}). Opening &ldquo;
+              {pendingResume?.title}&rdquo; will replace it, and anything you
+              haven&rsquo;t saved will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPendingResume(null)}>
+              Keep what I have
+            </Button>
+            <Button
+              onClick={() => {
+                if (pendingResume) applyResume(pendingResume);
+                setPendingResume(null);
+              }}
+            >
+              Open the saved split
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

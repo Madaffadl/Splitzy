@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Receipt, Calendar, Users, ArrowRight } from "@/components/ui/icons";
+import { Receipt, Calendar, Clock, Edit2, ArrowRight } from "@/components/ui/icons";
+import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
+import { daysUntilExpiry } from "@/lib/saved-splits";
 
 interface ReceiptHistoryCardProps {
   id: string;
@@ -12,8 +14,13 @@ interface ReceiptHistoryCardProps {
   date: string | null;
   totalAmount: number;
   itemCount: number;
+  participantCount?: number;
   tripName: string | null;
   createdAt: string;
+  /** When this saved split lapses. Null/absent = never (Travel receipts). */
+  expiresAt?: string | null;
+  /** "single" | "multiple" — which editor Edit should reopen it in. */
+  type?: string;
 }
 
 export function ReceiptHistoryCard({
@@ -22,9 +29,18 @@ export function ReceiptHistoryCard({
   date,
   totalAmount,
   itemCount,
+  participantCount,
   tripName,
   createdAt,
+  expiresAt,
+  type,
 }: ReceiptHistoryCardProps) {
+  // Saved splits are deleted when they lapse, so the deadline is part of the
+  // deal and has to be on screen. Silent deletion is what turns a feature into
+  // a support ticket.
+  const daysLeft = expiresAt ? daysUntilExpiry(expiresAt) : null;
+  const expiringSoon = daysLeft !== null && daysLeft <= 2;
+  const resumeHref = `/${type === "multiple" ? "multiple" : "single"}?resume=${id}`;
   const displayDate = date
     ? new Date(date).toLocaleDateString("id-ID", {
         day: "numeric",
@@ -38,7 +54,8 @@ export function ReceiptHistoryCard({
       });
 
   return (
-    <Link href={`/history/${id}`}>
+    <div className="relative">
+      <Link href={`/history/${id}`}>
       <Card className="hover:shadow-md transition-all hover:border-primary/30 cursor-pointer group">
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-3">
@@ -53,7 +70,23 @@ export function ReceiptHistoryCard({
                   {displayDate}
                 </span>
                 <span>{itemCount} items</span>
+                {participantCount ? <span>{participantCount} people</span> : null}
               </div>
+              {daysLeft !== null && (
+                <p
+                  className={
+                    "mt-1.5 flex items-center gap-1 text-[11px] " +
+                    (expiringSoon
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-muted-foreground")
+                  }
+                >
+                  <Clock className="h-3 w-3 shrink-0" />
+                  {daysLeft === 0
+                    ? "Expires today"
+                    : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}
+                </p>
+              )}
               {tripName && (
                 <Badge variant="secondary" className="mt-2 text-xs">
                   {tripName}
@@ -69,6 +102,21 @@ export function ReceiptHistoryCard({
           </div>
         </CardContent>
       </Card>
-    </Link>
+      </Link>
+
+      {/* Outside the Link: a nested <a> would be invalid HTML and the whole
+          card would swallow the click. */}
+      <Button
+        asChild
+        size="sm"
+        variant="secondary"
+        className="absolute bottom-3 right-3 h-7 px-2 text-xs"
+      >
+        <Link href={resumeHref} aria-label={`Continue editing ${title}`}>
+          <Edit2 className="h-3 w-3 mr-1" />
+          Edit
+        </Link>
+      </Button>
+    </div>
   );
 }
