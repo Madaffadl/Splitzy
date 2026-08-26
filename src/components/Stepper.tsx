@@ -2,10 +2,18 @@
 
 import { cn } from "@/lib/utils";
 import { Check, Sparkles } from "@/components/ui/icons";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 export interface Step {
   id: string;
-  title: string;
+  /**
+   * Dictionary key for this step's label, resolved here rather than passed in.
+   *
+   * Callers used to hand over a finished English string, which meant the label
+   * could never be translated without every caller also becoming
+   * locale-aware. `id` already identified the step; it now also names the copy.
+   */
+  labelKey: "participants" | "billDetails" | "summary";
   icon?: React.ReactNode;
 }
 
@@ -16,13 +24,14 @@ interface StepperProps {
 }
 
 export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
+  const t = useDictionary().app.stepper;
   // Bar is inset by half circle width (h-12 / 2 = 24px = `left-6 right-6`)
   // so it spans exactly between the centers of the first and last circles.
   const fillPercent =
     steps.length <= 1 ? 100 : (currentStep / (steps.length - 1)) * 100;
 
   return (
-    <nav aria-label="Progress" className="w-full">
+    <nav aria-label={t.progressAria} className="w-full">
       <div className="relative">
         {/* Progress bar — sits behind circles, passes through their centers (top: 24px = h-12 / 2) */}
         <div
@@ -88,10 +97,10 @@ export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
                   )}
                 >
                   <span className="sr-only">
-                    Step {index + 1} of {steps.length}
-                    {isCompleted ? " (completed)" : isCurrent ? " (current)" : ""}:{" "}
+                    {fill(t.srStepOf, { current: index + 1, total: steps.length })}
+                    {isCompleted ? t.srCompleted : isCurrent ? t.srCurrent : ""}:{" "}
                   </span>
-                  {step.title}
+                  {t[step.labelKey]}
                 </span>
               </button>
             );

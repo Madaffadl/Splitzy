@@ -53,11 +53,12 @@ import {
   Lightbulb,
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
+import { useDictionary } from "@/lib/i18n/use-locale";
 
 const STEPS: Step[] = [
-  { id: "participants", title: "Participants" },
-  { id: "bill", title: "Bill Details" },
-  { id: "summary", title: "Summary" },
+  { id: "participants", labelKey: "participants" },
+  { id: "bill", labelKey: "billDetails" },
+  { id: "summary", labelKey: "summary" },
 ];
 
 interface SingleState {
@@ -103,6 +104,8 @@ export function SingleSplitView() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated, signIn } = useAuth();
+  const dict = useDictionary();
+  const t = dict.app;
   const { saving, save, adopt, forget, id: savedId, expiresAt } = useSaveSplit();
 
   // Mirrors `state` so the resume effect can read the latest value without
@@ -392,21 +395,21 @@ export function SingleSplitView() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link
             href="/"
-            aria-label="Back to home"
+            aria-label={t.common.back}
             className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
           >
             <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium hidden sm:inline">Back</span>
+            <span className="text-sm font-medium hidden sm:inline">{t.common.back}</span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/25">
               <Calculator className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-sm sm:text-base">Single Receipt</span>
-              <span className="text-[10px] text-muted-foreground hidden sm:block">Split one bill</span>
+              <span className="font-bold text-sm sm:text-base">{t.modes.single.title}</span>
+              <span className="text-[10px] text-muted-foreground hidden sm:block">{t.modes.single.subtitle}</span>
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
@@ -420,9 +423,9 @@ export function SingleSplitView() {
                 size="sm"
                 className="px-2 sm:px-3 min-w-[44px] sm:min-w-0 touch-manipulation"
               >
-                <Link href="/history" aria-label="Saved splits">
+                <Link href="/history" aria-label={t.common.savedSplitsAria}>
                   <History className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Saved</span>
+                  <span className="hidden sm:inline">{t.common.saved}</span>
                 </Link>
               </Button>
             )}
@@ -779,7 +782,7 @@ export function SingleSplitView() {
                 className="touch-manipulation text-muted-foreground hover:text-destructive"
               >
                 <RotateCcw className="h-4 w-4 mr-2" />
-                Reset this split
+                {t.common.reset}
               </Button>
             </div>
           </div>

@@ -438,4 +438,45 @@ export const en: Dictionary = {
     stillStuckHeading: "Still not answered?",
     stillStuckBody: "Send your question to",
   },
+
+  // See the note on `app` in id.ts — this namespace is the product UI itself.
+  app: {
+    common: {
+      back: "Back",
+      saved: "Saved",
+      savedSplitsAria: "Saved splits",
+      reset: "Reset this split",
+    },
+    modes: {
+      single: { title: "Single Receipt", subtitle: "Split one bill" },
+      multiple: { title: "Multiple Receipts", backToSplit: "Back to split" },
+      travel: {
+        title: "Travel Spend",
+        backToTrip: "Back to trip",
+        allTrips: "All trips",
+      },
+    },
+    stepper: {
+      progressAria: "Progress",
+      participants: "Participants",
+      billDetails: "Bill details",
+      summary: "Summary",
+      srStepOf: "Step {current} of {total}",
+      srCompleted: " (completed)",
+      srCurrent: " (current)",
+    },
+    participants: {
+      count: "{count} participants",
+      ready: "Ready to continue",
+      placeholder: "Enter participant name…",
+      addAria: "Add participant",
+      recent: "Recent",
+      removeAria: "Remove {name}",
+      duplicateTitle: "Already added",
+      duplicateBody: "\u201C{name}\u201D is already in the list.",
+      emptyTitle: "Add at least 2 participants to split the bill",
+      emptyHint: "Type a name and press Enter, or tap +",
+      recentListAria: "Recent participants",
+    },
+  },
 };

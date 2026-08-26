@@ -7,6 +7,7 @@ import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTravelData } from "@/hooks/useTravelData";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
+import { useDictionary } from "@/lib/i18n/use-locale";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
 import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
@@ -838,6 +839,7 @@ export function TravelSpendView() {
   // and lose them on the next reload without a word.
   usePersistErrorToast(travel.persistError);
   const { dbUser, signOut } = useAuth();
+  const t = useDictionary().app;
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
   const [newTripName, setNewTripName] = useState("");
@@ -1399,38 +1401,38 @@ export function TravelSpendView() {
                 setViewMode("overview");
                 if (activeTrip) router.push(travelUrl(activeTrip.id));
               }}
-              aria-label="Back to trip"
+              aria-label={t.modes.travel.backToTrip}
               className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Back to trip</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.modes.travel.backToTrip}</span>
             </button>
           ) : activeTrip ? (
             <button
               onClick={closeTrip}
-              aria-label="Back to all trips"
+              aria-label={t.modes.travel.allTrips}
               className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">All trips</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.modes.travel.allTrips}</span>
             </button>
           ) : (
-            <Link href="/" aria-label="Back to home" className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/" aria-label={t.common.back} className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
               <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Back</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.common.back}</span>
             </Link>
           )}
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center">
               <Plane className="h-4 w-4 text-white" />
             </div>
-            <span className="font-semibold text-sm sm:text-base">Travel Spend</span>
+            <span className="font-semibold text-sm sm:text-base">{t.modes.travel.title}</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />

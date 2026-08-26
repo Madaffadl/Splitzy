@@ -46,6 +46,7 @@ import {
   Info,
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
+import { useDictionary } from "@/lib/i18n/use-locale";
 
 // A "split" here is one named group of receipts shared by the same people and
 // settled together. It reuses the Trip domain shape (id/name/participants/
@@ -87,6 +88,7 @@ export function MultipleReceiptView() {
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
+  const t = useDictionary().app;
   // `isSaving` above is about adding a receipt INTO the split; this is about
   // saving the whole split to the server. Different things, distinct names.
   const {
@@ -326,13 +328,13 @@ export function MultipleReceiptView() {
           {viewMode === "overview" ? (
             <Link
               href="/"
-              aria-label="Back to home"
+              aria-label={t.common.back}
               className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Back</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.common.back}</span>
             </Link>
           ) : (
             <button
@@ -341,20 +343,20 @@ export function MultipleReceiptView() {
                 setViewMode("overview");
                 router.push("/multiple");
               }}
-              aria-label="Back to split"
+              aria-label={t.modes.multiple.backToSplit}
               className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Back to Split</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.modes.multiple.backToSplit}</span>
             </button>
           )}
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <Layers className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-sm sm:text-base">Multiple Receipts</span>
+            <span className="font-semibold text-sm sm:text-base">{t.modes.multiple.title}</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
             {/* Save moved to the bottom action bar; the header is navigation.
@@ -367,9 +369,9 @@ export function MultipleReceiptView() {
                 size="sm"
                 className="px-2 sm:px-3 min-w-[44px] sm:min-w-0 touch-manipulation"
               >
-                <Link href="/history" aria-label="Saved splits">
+                <Link href="/history" aria-label={t.common.savedSplitsAria}>
                   <History className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Saved</span>
+                  <span className="hidden sm:inline">{t.common.saved}</span>
                 </Link>
               </Button>
             )}
@@ -577,7 +579,7 @@ export function MultipleReceiptView() {
                 className="touch-manipulation text-muted-foreground hover:text-destructive"
               >
                 <RotateCcw className="h-4 w-4 mr-2" />
-                Reset this split
+                {t.common.reset}
               </Button>
             </div>
           </div>

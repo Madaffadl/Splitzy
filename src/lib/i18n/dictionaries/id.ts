@@ -445,6 +445,57 @@ export const id = {
     stillStuckHeading: "Masih belum terjawab?",
     stillStuckBody: "Kirim pertanyaanmu ke",
   },
+
+  // ── Product UI ─────────────────────────────────────────────────────────────
+  // Everything above this point is marketing copy. This namespace is the app
+  // itself, which was hardcoded English throughout: someone could arrive at /id,
+  // read "Bagi tagihannya. Beres dalam hitungan detik.", tap the CTA, and land
+  // on a screen headed "Who's splitting the bill?" with no way back to
+  // Indonesian. For the market this product is built for, that was the largest
+  // hole in the funnel.
+  //
+  // Mode names deliberately reuse the ones in `modes.items` above — a mode
+  // called "Banyak Struk" on the landing and something else inside the app is
+  // exactly the drift this namespace exists to stop.
+  app: {
+    common: {
+      back: "Kembali",
+      saved: "Tersimpan",
+      savedSplitsAria: "Split tersimpan",
+      reset: "Atur ulang split ini",
+    },
+    modes: {
+      single: { title: "Satu Struk", subtitle: "Bagi satu tagihan" },
+      multiple: { title: "Banyak Struk", backToSplit: "Kembali ke split" },
+      travel: {
+        title: "Pengeluaran Trip",
+        backToTrip: "Kembali ke trip",
+        allTrips: "Semua trip",
+      },
+    },
+    stepper: {
+      progressAria: "Progres",
+      participants: "Peserta",
+      billDetails: "Rincian tagihan",
+      summary: "Ringkasan",
+      srStepOf: "Langkah {current} dari {total}",
+      srCompleted: " (selesai)",
+      srCurrent: " (sekarang)",
+    },
+    participants: {
+      count: "{count} peserta",
+      ready: "Siap lanjut",
+      placeholder: "Tulis nama peserta…",
+      addAria: "Tambah peserta",
+      recent: "Terakhir dipakai",
+      removeAria: "Hapus {name}",
+      duplicateTitle: "Sudah ada",
+      duplicateBody: "\u201C{name}\u201D sudah ada di daftar.",
+      emptyTitle: "Tambahkan minimal 2 orang untuk membagi tagihan",
+      emptyHint: "Tulis nama lalu tekan Enter, atau ketuk +",
+      recentListAria: "Peserta yang pernah ditambahkan",
+    },
+  },
 };
 
 // Deliberately not `as const`: the inferred type is what en.ts is checked

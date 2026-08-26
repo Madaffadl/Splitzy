@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useNameSuggestions } from "@/hooks/useNameSuggestions";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 import { X, Plus, Users, UserPlus, History, Check,} from "@/components/ui/icons";
 
 interface ParticipantManagerProps {
@@ -19,6 +20,7 @@ export function ParticipantManager({
   participants,
   onChange,
 }: ParticipantManagerProps) {
+  const t = useDictionary().app.participants;
   const [newName, setNewName] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -47,8 +49,8 @@ export function ParticipantManager({
 
     if (participants.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
       toast({
-        title: "Already added",
-        description: `"${name}" is already in the list.`,
+        title: t.duplicateTitle,
+        description: fill(t.duplicateBody, { name }),
         variant: "error",
       });
       return;
@@ -111,12 +113,13 @@ export function ParticipantManager({
             <Users className="h-4 w-4 text-primary" />
           </div>
           <span className="text-sm font-semibold">
-            {participants.length} participant{participants.length !== 1 ? 's' : ''}
+            {fill(t.count, { count: participants.length })}
           </span>
         </div>
         {participants.length >= 2 && (
           <Badge variant="success-outline" className="text-xs">
-            <Check className="mr-1 inline h-3 w-3 align-[-1px]" aria-hidden="true" />Ready to continue
+            <Check className="mr-1 inline h-3 w-3 align-[-1px]" aria-hidden="true" />
+            {t.ready}
           </Badge>
         )}
       </div>
@@ -136,7 +139,7 @@ export function ParticipantManager({
         >
           <UserPlus className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Enter participant name..."
+            placeholder={t.placeholder}
             value={newName}
             onChange={(e) => {
               setNewName(e.target.value);
@@ -161,12 +164,12 @@ export function ParticipantManager({
             <div
               id={listboxId}
               role="listbox"
-              aria-label="Recent participants"
+              aria-label={t.recentListAria}
               className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border bg-popover p-1 shadow-premium-lg"
             >
               <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 <History className="h-3 w-3" />
-                Recent
+                {t.recent}
               </div>
               {suggestions.map((s, index) => {
                 const isActive = index === activeIndex;
@@ -203,7 +206,7 @@ export function ParticipantManager({
           disabled={!newName.trim()}
           size="icon"
           className="touch-manipulation h-11 w-11 shrink-0"
-          aria-label="Add participant"
+          aria-label={t.addAria}
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -225,7 +228,7 @@ export function ParticipantManager({
               <button
                 type="button"
                 onClick={() => removeParticipant(participant.id)}
-                aria-label={`Remove ${participant.name}`}
+                aria-label={fill(t.removeAria, { name: participant.name })}
                 // 28px and permanently at 42% effective alpha on a phone:
                 // `opacity-60` only lifted on hover, and a touch screen has no
                 // hover, so the one control that removes a person measured
@@ -246,11 +249,9 @@ export function ParticipantManager({
             <Users className="h-6 w-6 text-muted-foreground" />
           </div>
           <p className="text-sm text-muted-foreground font-medium">
-            Add at least 2 participants to split the bill
+            {t.emptyTitle}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Type a name and press Enter or click +
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">{t.emptyHint}</p>
         </div>
       )}
     </div>

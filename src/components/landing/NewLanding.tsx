@@ -23,6 +23,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
 import { BRAND, copyrightYear } from "@/lib/brand";
 import { LoginBanner } from "@/components/landing/LoginBanner";
+import { LocaleSync } from "@/components/i18n/LocaleSync";
 import {
   FREE_PLAN,
   PRO_PLAN,
@@ -220,6 +221,11 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
 
   return (
     <main className="min-h-screen flex flex-col">
+      {/* Carries this page's language into the tool routes, which are
+          single-URL and so have no locale in their path. Without it, the CTA
+          below handed an Indonesian reader an English app. */}
+      <LocaleSync locale={locale} />
+
       {/* Header */}
       <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
