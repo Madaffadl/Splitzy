@@ -391,9 +391,9 @@ export function SingleSplitView() {
           <Link
             href="/"
             aria-label="Back to home"
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
+            className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
           >
-            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+            <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </div>
             <span className="text-sm font-medium hidden sm:inline">Back</span>
@@ -426,16 +426,6 @@ export function SingleSplitView() {
             )}
             <ThemeToggle />
             <AuthButton />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleReset}
-              aria-label="Reset"
-              className="text-muted-foreground hover:text-destructive px-2 sm:px-3 min-w-[44px] sm:min-w-0"
-            >
-              <RotateCcw className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Reset</span>
-            </Button>
           </div>
         </div>
       </header>
@@ -711,8 +701,8 @@ export function SingleSplitView() {
                 sticky bottom-0 z-10 -mx-3 mt-6 space-y-2 border-t
                 bg-background/95 px-3 pt-3 backdrop-blur
                 pb-[max(0.75rem,env(safe-area-inset-bottom))]
-                sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0
-                sm:pb-0 sm:backdrop-blur-none
+                md:static md:mx-0 md:border-0 md:bg-transparent md:px-0
+                md:pb-0 md:backdrop-blur-none
               "
             >
               {blockingMessage && (
@@ -774,6 +764,21 @@ export function SingleSplitView() {
                   </Button>
                 )}
               </div>
+            </div>
+
+            {/* Reset lives here, not in the header: the header is navigation,
+                and this is the most destructive control on the screen. Same
+                placement TravelSpendView already uses for "Delete trip". */}
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="touch-manipulation text-muted-foreground hover:text-destructive"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset this split
+              </Button>
             </div>
           </div>
 

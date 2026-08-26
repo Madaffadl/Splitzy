@@ -72,9 +72,9 @@ export default function HistoryDetailPage() {
           <Link
             href="/history"
             aria-label="Back to history"
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
+            className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
           >
-            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+            <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </div>
             <span className="text-sm font-medium hidden sm:inline">

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTravelData } from "@/hooks/useTravelData";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { useAuth } from "@/hooks/useAuth";
@@ -830,6 +831,8 @@ function MembersCard({
 // ── Main page ────────────────────────────────────────────────────────────────
 export function TravelSpendView() {
   const travel = useTravelData();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   // Warns when the browser has stopped accepting writes — full quota, or
   // storage blocked outright. Without this, a trip could gain receipts all day
   // and lose them on the next reload without a word.
@@ -855,6 +858,12 @@ export function TravelSpendView() {
   const trips = useMemo(
     () => (travel.trips ?? []).filter((t) => !archivedIds.has(t.id)),
     [travel.trips, archivedIds]
+  );
+  // Change requests waiting on this user, per trip — surfaced on the list so an
+  // owner does not have to open each trip to discover someone is blocked.
+  const pendingFor = useCallback(
+    (tripId: string) => (travel.changeRequests[tripId] ?? []).length,
+    [travel.changeRequests]
   );
   const activeTrip = useMemo<TravelTrip | null>(() => {
     const raw = trips.find((t) => t.id === travel.activeId) ?? null;
@@ -951,6 +960,77 @@ export function TravelSpendView() {
     }
   }, [editingReceipt, viewMode, activeTrip]);
 
+  // ── Navigation lives in the URL ────────────────────────────────────────────
+  //
+  // /travel had three levels of navigation — trip list, trip workspace, receipt
+  // editor / trip summary — and not one of them had a URL. So the browser had no
+  // history entry to go back to: pressing the Android back button or using
+  // swipe-back from inside the receipt editor left /travel entirely, and coming
+  // back landed on the trip list rather than the receipt being worked on. A trip
+  // could not be bookmarked, linked, or reopened in a second tab either, which
+  // is also why joining an invite could only ever drop the new member on the
+  // list and leave them to find the trip themselves.
+  //
+  // The URL is authoritative for *where you are*; state still owns everything
+  // else. The effect below only ever writes state, and the handlers only ever
+  // write the URL, so the two cannot chase each other.
+  const travelUrl = useCallback(
+    (tripId: string | null, view?: "receipt" | "summary") => {
+      if (!tripId) return "/travel";
+      const q = new URLSearchParams({ trip: tripId });
+      if (view) q.set("view", view);
+      return `/travel?${q.toString()}`;
+    },
+    []
+  );
+
+  const tripParam = searchParams.get("trip");
+  const viewParam = searchParams.get("view");
+
+  // A pre-existing session (or a restored draft) can have a trip open with
+  // nothing in the URL. Rewrite it once, without adding a history entry, so
+  // Back from here has somewhere to go.
+  const canonicalisedRef = useRef(false);
+  useEffect(() => {
+    if (canonicalisedRef.current) return;
+    if (!travel.isLoading && !tripParam && travel.activeId) {
+      canonicalisedRef.current = true;
+      router.replace(
+        travelUrl(travel.activeId, viewMode === "edit-receipt" ? "receipt" : undefined),
+        { scroll: false }
+      );
+    }
+  }, [travel.isLoading, tripParam, travel.activeId, viewMode, router, travelUrl]);
+
+  useEffect(() => {
+    if (tripParam) {
+      if (tripParam !== travel.activeId) travel.setActiveId(tripParam);
+    } else if (travel.activeId && canonicalisedRef.current) {
+      // The trip param went away — Back out of a trip closes it.
+      travel.setActiveId(null);
+    }
+
+    const next: ViewMode =
+      viewParam === "summary"
+        ? "summary"
+        : viewParam === "receipt"
+          ? "edit-receipt"
+          : "overview";
+    setViewMode((prev) => (prev === next ? prev : next));
+    // travel.setActiveId is stable; listing `travel` whole would re-run this on
+    // every trip mutation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripParam, viewParam]);
+
+  // ?view=receipt with no draft to edit (a stale link, or a draft that was
+  // saved in another tab) would render nothing at all. Send them to the trip.
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    if (viewParam === "receipt" && !editingReceipt && travel.activeId) {
+      router.replace(travelUrl(travel.activeId), { scroll: false });
+    }
+  }, [viewParam, editingReceipt, travel.activeId, router, travelUrl]);
+
   // ── Trip CRUD ─────────────────────────────────────────────────────────────
   const createTrip = async () => {
     const name = newTripName.trim() || "My Trip";
@@ -971,11 +1051,17 @@ export function TravelSpendView() {
     });
   };
 
+  // Optimistic state plus a history entry: the state keeps the tap feeling
+  // instant, the URL is what makes Back work.
   const openTrip = (id: string) => {
     setViewMode("overview");
     travel.setActiveId(id);
+    router.push(travelUrl(id));
   };
-  const closeTrip = () => travel.setActiveId(null);
+  const closeTrip = () => {
+    travel.setActiveId(null);
+    router.push("/travel");
+  };
 
   // ── Participants ──────────────────────────────────────────────────────────
   const handleParticipantsChange = async (participants: Participant[]) => {
@@ -1068,13 +1154,15 @@ export function TravelSpendView() {
     };
     setEditingReceipt({ receipt, isNew: true });
     setViewMode("edit-receipt");
+    router.push(travelUrl(activeTrip.id, "receipt"));
   };
 
   const editReceipt = (id: string) => {
     const receipt = activeTrip?.receipts.find((r) => r.id === id);
-    if (receipt) {
+    if (receipt && activeTrip) {
       setEditingReceipt({ receipt: { ...receipt }, isNew: false });
       setViewMode("edit-receipt");
+      router.push(travelUrl(activeTrip.id, "receipt"));
     }
   };
 
@@ -1114,6 +1202,7 @@ export function TravelSpendView() {
     // toast inside submitReceipt once the background save resolves.
     setEditingReceipt(null);
     setViewMode("overview");
+    router.replace(travelUrl(tripId), { scroll: false });
     submitReceipt(tripId, receipt, isNew);
   };
 
@@ -1305,11 +1394,15 @@ export function TravelSpendView() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {activeTrip && viewMode !== "overview" ? (
             <button
-              onClick={() => { setEditingReceipt(null); setViewMode("overview"); }}
+              onClick={() => {
+                setEditingReceipt(null);
+                setViewMode("overview");
+                if (activeTrip) router.push(travelUrl(activeTrip.id));
+              }}
               aria-label="Back to trip"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
               <span className="hidden sm:inline text-sm font-medium">Back to trip</span>
@@ -1318,16 +1411,16 @@ export function TravelSpendView() {
             <button
               onClick={closeTrip}
               aria-label="Back to all trips"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
               <span className="hidden sm:inline text-sm font-medium">All trips</span>
             </button>
           ) : (
-            <Link href="/" aria-label="Back to home" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+            <Link href="/" aria-label="Back to home" className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
               <span className="hidden sm:inline text-sm font-medium">Back</span>
@@ -1387,20 +1480,26 @@ export function TravelSpendView() {
             </p>
           </div>
         ) : travel.cloudMode ? (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-            {travel.syncStatus === "saving" || travel.pendingSync ? (
-              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            )}
-            <p className="text-foreground/90">
-              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                {travel.syncStatus === "saving" || travel.pendingSync ? "Saving…" : "Saved to your account."}
-              </span>{" "}
-              {travel.syncStatus === "saving" || travel.pendingSync
-                ? "Syncing your changes."
-                : "Trips sync across devices automatically."}
-            </p>
+          // Everything is fine, which does not need a banner. This one was
+          // permanent and undismissable: on a 375x667 phone the header plus this
+          // paragraph spent about 19% of the viewport telling the user that
+          // nothing was wrong, on every single visit. The states that need
+          // attention — conflict, error, offline — still get the full banner
+          // above; "saved" is now a chip you can glance at and ignore.
+          <div className="mb-4 flex justify-end">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              {travel.syncStatus === "saving" || travel.pendingSync ? (
+                <>
+                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                <>
+                  <Cloud className="h-3 w-3 shrink-0" />
+                  Saved to your account
+                </>
+              )}
+            </span>
           </div>
         ) : (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
@@ -1504,17 +1603,27 @@ export function TravelSpendView() {
                     (r) => r.currency && r.currency !== "IDR"
                   );
                   return (
+                    // A role="button" container with a <Button> inside it is a
+                    // nested control: ambiguous for a screen reader, and the
+                    // stopPropagation only ever patched the mouse side. The row
+                    // is a plain container now; the name is the link, Delete is
+                    // its own button, and they no longer share a hit area.
                     <div
                       key={t.id}
-                      role="button"
-                      tabIndex={0}
-                      className="flex items-center justify-between gap-3 p-4 rounded-xl border hover:bg-muted/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => openTrip(t.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTrip(t.id); } }}
+                      className="flex items-center justify-between gap-3 rounded-xl border transition-colors hover:bg-muted/40"
                     >
-                      <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => openTrip(t.id)}
+                        className="touch-manipulation min-w-0 flex-1 rounded-xl p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
                         <div className="flex items-center gap-2">
                           <p className="font-semibold truncate">{t.name}</p>
+                          {pendingFor(t.id) > 0 && (
+                            <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                              {pendingFor(t.id)} to review
+                            </span>
+                          )}
                           {hasForeignCurrency && (
                             <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
                               <Globe className="h-2.5 w-2.5" />
@@ -1526,15 +1635,18 @@ export function TravelSpendView() {
                           {t.participants.length} people · {(t.receipts ?? []).length} receipt(s)
                           {t.budget ? ` · budget Rp ${formatCurrency(t.budget)}` : ""}
                         </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-semibold text-sm">Rp {formatCurrency(total)}</span>
+                        <p className="mt-1 text-sm font-semibold">Rp {formatCurrency(total)}</p>
+                      </button>
+                      {/* ml-2/pr-2 keeps a real gap between "open this trip" and
+                          "delete this trip", which used to be 8px apart with the
+                          amount wedged between them. */}
+                      <div className="flex shrink-0 items-center pr-2">
                         <Button
                           variant="ghost"
                           size="icon"
                           aria-label={`Delete ${t.name}`}
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={(e) => { e.stopPropagation(); setDeleteTripId(t.id); }}
+                          className="touch-manipulation ml-2 text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteTripId(t.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1770,7 +1882,7 @@ export function TravelSpendView() {
                     </p>
                   </div>
                   <div className="flex gap-3 justify-center flex-wrap">
-                    <Button variant="outline" className="border-emerald-300 dark:border-emerald-700" onClick={() => setViewMode("summary")}>
+                    <Button variant="outline" className="border-emerald-300 dark:border-emerald-700" onClick={() => router.push(travelUrl(activeTrip.id, "summary"))}>
                       <ArrowRight className="h-4 w-4 mr-2" />
                       View summary
                     </Button>
@@ -1802,7 +1914,7 @@ export function TravelSpendView() {
             </div>
 
             {/* Summary sidebar — compact */}
-            <div className="space-y-3 lg:sticky lg:top-20 lg:self-start">
+            <div className="space-y-3 lg:sticky lg:top-24 lg:self-start">
               <ErrorBoundary label="the trip summary">
                 <MultipleReceiptSummaryPanel
                   receipts={activeTrip.receipts}
@@ -1816,7 +1928,7 @@ export function TravelSpendView() {
                 />
               </ErrorBoundary>
               {activeTrip.receipts.length > 0 && (
-                <Button variant="outline" className="w-full" onClick={() => setViewMode("summary")}>
+                <Button variant="outline" className="w-full" onClick={() => router.push(travelUrl(activeTrip.id, "summary"))}>
                   View summary
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
@@ -1867,7 +1979,11 @@ export function TravelSpendView() {
             isNew={editingReceipt.isNew}
             onChange={updateEditingReceipt}
             onSave={saveReceipt}
-            onCancel={() => { setEditingReceipt(null); setViewMode("overview"); }}
+            onCancel={() => {
+              setEditingReceipt(null);
+              setViewMode("overview");
+              router.push(travelUrl(activeTrip.id));
+            }}
             onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
             isTravelMode
           />

@@ -100,6 +100,10 @@ export function MultipleReceiptView() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const resumeId = searchParams.get("resume");
+  // Same story as /travel: "overview" and "edit-receipt" were pure state, so
+  // the receipt editor had no history entry. Pressing the system back button
+  // from inside it left /multiple altogether instead of returning to the split.
+  const viewParam = searchParams.get("view");
   const [pendingResume, setPendingResume] = useState<ReceiptDetail | null>(null);
 
   // Mirrors `state` so the resume effect can read the latest value without
@@ -181,6 +185,18 @@ export function MultipleReceiptView() {
     }
   }, [viewMode]);
 
+  // URL → state only; the handlers below write the URL. A ?view=receipt with no
+  // receipt loaded (stale link) falls back to the overview.
+  useEffect(() => {
+    const next: ViewMode = viewParam === "receipt" ? "edit-receipt" : "overview";
+    setViewMode((prev) => (prev === next ? prev : next));
+  }, [viewParam]);
+  useEffect(() => {
+    if (viewParam === "receipt" && !editingReceipt) {
+      router.replace("/multiple", { scroll: false });
+    }
+  }, [viewParam, editingReceipt, router]);
+
   const split = state.split;
 
   const updateSplit = (updates: Partial<Trip>) => {
@@ -220,6 +236,7 @@ export function MultipleReceiptView() {
     };
     setEditingReceipt({ receipt: newReceipt, isNew: true });
     setViewMode("edit-receipt");
+    router.push("/multiple?view=receipt");
   };
 
   const editReceipt = (receiptId: string) => {
@@ -227,6 +244,7 @@ export function MultipleReceiptView() {
     if (receipt) {
       setEditingReceipt({ receipt: { ...receipt }, isNew: false });
       setViewMode("edit-receipt");
+      router.push("/multiple?view=receipt");
     }
   };
 
@@ -248,6 +266,7 @@ export function MultipleReceiptView() {
 
     setEditingReceipt(null);
     setViewMode("overview");
+    router.replace("/multiple", { scroll: false });
     toast({
       title: isNew ? "Receipt added" : "Receipt updated",
       description: receipt.title,
@@ -308,9 +327,9 @@ export function MultipleReceiptView() {
             <Link
               href="/"
               aria-label="Back to home"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
               <span className="hidden sm:inline text-sm font-medium">Back</span>
@@ -320,11 +339,12 @@ export function MultipleReceiptView() {
               onClick={() => {
                 setEditingReceipt(null);
                 setViewMode("overview");
+                router.push("/multiple");
               }}
               aria-label="Back to split"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
               <span className="hidden sm:inline text-sm font-medium">Back to Split</span>
@@ -355,16 +375,6 @@ export function MultipleReceiptView() {
             )}
             <ThemeToggle />
             <AuthButton />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleReset}
-              aria-label="Reset"
-              className="px-2 sm:px-3 min-w-[44px] sm:min-w-0"
-            >
-              <RotateCcw className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Reset</span>
-            </Button>
           </div>
         </div>
       </header>
@@ -540,8 +550,8 @@ export function MultipleReceiptView() {
                   sticky bottom-0 z-10 -mx-3 border-t bg-background/95 px-3 pt-3
                   backdrop-blur lg:col-span-2
                   pb-[max(0.75rem,env(safe-area-inset-bottom))]
-                  sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0
-                  sm:pb-0 sm:backdrop-blur-none
+                  md:static md:mx-0 md:border-0 md:bg-transparent md:px-0
+                  md:pb-0 md:backdrop-blur-none
                 "
               >
                 <Button
@@ -556,6 +566,20 @@ export function MultipleReceiptView() {
                 </Button>
               </div>
             )}
+
+            {/* Reset lives here, not in the header: the header is navigation,
+                and this is the most destructive control on the screen. */}
+            <div className="flex justify-end lg:col-span-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="touch-manipulation text-muted-foreground hover:text-destructive"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset this split
+              </Button>
+            </div>
           </div>
         )}
 
@@ -569,6 +593,7 @@ export function MultipleReceiptView() {
             onCancel={() => {
               setEditingReceipt(null);
               setViewMode("overview");
+              router.push("/multiple");
             }}
             isSaving={isSaving}
             onUpdatePaymentInfo={updateParticipantPaymentInfo}

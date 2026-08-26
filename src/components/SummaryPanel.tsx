@@ -1858,7 +1858,7 @@ export function MultipleReceiptSummaryPanel({
 
   return (
     // Same as SummaryPanel: only pin from lg:, where this is an actual sidebar.
-    <Card className={cn(!readOnly && "lg:sticky lg:top-4")}>
+    <Card className={cn(!readOnly && "lg:sticky lg:top-24")}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
