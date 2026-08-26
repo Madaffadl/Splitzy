@@ -69,3 +69,55 @@ test.describe("single-receipt wizard navigation", () => {
         await expect(page.locator("nav").first()).toContainText("Peserta");
     });
 });
+
+// Measured, not guessed: on a 375x667 viewport the settlement heading used to
+// land 10px past the fold even after it was moved to the top of the summary
+// card, because the celebration block and the quick stats were still above it.
+// The whole point of the panel is that this number is the first thing you see.
+test.describe("summary hierarchy", () => {
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test("the settlement amount is visible without scrolling", async ({ page }) => {
+        await page.goto("/single");
+        await page.getByRole("button", { name: /sample data/i }).click();
+        await page.getByRole("button", { name: /^Next$/ }).click();
+        await page.getByRole("button", { name: /View Summary/i }).click();
+
+        const settlement = page.locator("h4", { hasText: /^Settlements$/ });
+        await expect(settlement).toBeVisible();
+
+        const fold = await page.evaluate(() => window.innerHeight);
+        const top = await settlement.evaluate((el) => el.getBoundingClientRect().top);
+        expect(top, "settlements must be above the fold").toBeLessThan(fold);
+
+        // And it must be the largest money on screen, not the bill total.
+        const biggest = await page.evaluate(() => {
+            const money = (Array.from(document.querySelectorAll("*")) as HTMLElement[])
+                .filter((el) => el.children.length === 0 && /^Rp\s?[\d.]+$/.test((el.textContent ?? "").trim()))
+                .map((el) => ({
+                    text: (el.textContent ?? "").trim(),
+                    size: parseFloat(getComputedStyle(el).fontSize),
+                    top: el.getBoundingClientRect().top,
+                }))
+                .filter((m) => m.top >= 0 && m.top < window.innerHeight)
+                .sort((a, b) => b.size - a.size);
+            return money[0] ?? null;
+        });
+        expect(biggest?.size, "the settlement amount should be the largest figure above the fold").toBeGreaterThanOrEqual(24);
+    });
+
+    test("the last stepper label is not clipped at 375px", async ({ page }) => {
+        await page.goto("/single?step=summary");
+        // evaluate() does not auto-wait the way a locator does.
+        await page.locator("nav").first().waitFor();
+        const overflow = await page.evaluate(() => {
+            const nav = document.querySelector("nav")!;
+            const navRight = nav.getBoundingClientRect().right;
+            return Array.from(nav.querySelectorAll("button")).map((b) => {
+                const label = b.querySelector("span:not(.sr-only)");
+                return label ? Math.round(label.getBoundingClientRect().right - navRight) : 0;
+            });
+        });
+        for (const over of overflow) expect(over).toBeLessThanOrEqual(0);
+    });
+});

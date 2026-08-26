@@ -716,7 +716,23 @@ export function SingleSplitView() {
                   </div>
                 </div>
 
-                {/* Quick stats. Participants and Items were the two biggest
+                {/* Main Summary Panel - Centered */}
+                <ErrorBoundary label="the summary">
+                  <SummaryPanel
+                    receipt={receipt}
+                    participants={state.participants}
+                    title={state.title}
+                    savedSplitId={savedId}
+                    onUpdatePaymentInfo={updatePaymentInfo}
+                  />
+                </ErrorBoundary>
+
+                {/* Quick stats, below the panel. Measured on a 375x667 viewport,
+                    the settlement heading landed 10px past the fold with these
+                    above it — the answer was still one scroll away after being
+                    moved to the top of the card. They are context; the panel is
+                    the deliverable.
+                    Participants and Items were also the two biggest
                     numbers on this screen at text-2xl — a count nobody needs,
                     rendered larger than the settlement amounts below. The total
                     leads now; the counts are context, at context size. */}
@@ -736,17 +752,6 @@ export function SingleSplitView() {
                     <p className="text-xs text-muted-foreground">Items</p>
                   </Card>
                 </div>
-
-                {/* Main Summary Panel - Centered */}
-                <ErrorBoundary label="the summary">
-                  <SummaryPanel
-                    receipt={receipt}
-                    participants={state.participants}
-                    title={state.title}
-                    savedSplitId={savedId}
-                    onUpdatePaymentInfo={updatePaymentInfo}
-                  />
-                </ErrorBoundary>
 
                 {/* Export Tip */}
                 <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
