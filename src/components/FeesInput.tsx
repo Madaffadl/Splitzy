@@ -174,11 +174,14 @@ export function FeesInput({
           <div className="grid grid-cols-2 gap-2 items-end sm:grid-cols-[1fr_auto_auto_auto]">
             <div className="col-span-2 space-y-1 sm:col-span-1">
               <Label className="text-xs text-muted-foreground">Label</Label>
+              {/* h-11/text-base until sm:. A bare `h-9 text-sm` overrode the
+                  Input default back to 14px, and iOS Safari auto-zooms the page
+                  on any field under 16px — mid-form, one-handed, standing up. */}
               <Input
                 value={newFeeLabel}
                 onChange={(e) => setNewFeeLabel(e.target.value)}
                 placeholder="Delivery Fee"
-                className="h-9 text-sm"
+                className="h-11 text-base sm:h-9 sm:text-sm"
               />
             </div>
             <div className="space-y-1">
@@ -193,14 +196,14 @@ export function FeesInput({
                   value={newFeeAmount}
                   onChange={(e) => setNewFeeAmount(e.target.value)}
                   placeholder="0"
-                  className="pl-8 h-9 text-sm w-full sm:w-28"
+                  className="pl-8 h-11 text-base sm:h-9 sm:text-sm w-full sm:w-28"
                 />
               </div>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Split</Label>
               <Select value={newFeeSplit} onValueChange={(v) => setNewFeeSplit(v as "equal" | "proportional")}>
-                <SelectTrigger className="h-9 text-sm w-full sm:w-32">
+                <SelectTrigger className="h-11 text-base sm:h-9 sm:text-sm w-full sm:w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -212,7 +215,7 @@ export function FeesInput({
             <Button
               type="button"
               variant="outline"
-              className="col-span-2 h-10 w-full touch-manipulation sm:col-span-1 sm:h-9 sm:w-9 sm:shrink-0 sm:p-0"
+              className="col-span-2 h-11 w-full touch-manipulation sm:col-span-1 sm:h-9 sm:w-9 sm:shrink-0 sm:p-0"
               disabled={!addFeeAllowed}
               aria-label="Add fee"
               onClick={() => {

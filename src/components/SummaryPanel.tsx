@@ -157,7 +157,7 @@ function PaymentDestinationRow({
           variant={line ? "ghost" : "outline"}
           size="sm"
           onClick={openDialog}
-          className="touch-manipulation h-11 min-w-[44px] shrink-0"
+          className="touch-manipulation min-w-[44px] shrink-0"
         >
           {line ? (
             <>
@@ -954,7 +954,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 size="sm"
                 onClick={handleShareLink}
                 disabled={creatingLink}
-                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3"
+                className="touch-manipulation min-w-[44px] px-2 sm:px-3"
                 aria-label="Create and share a read-only link"
               >
                 {creatingLink ? (
@@ -969,7 +969,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 size="sm"
                 onClick={handleShareWhatsApp}
                 disabled={creatingLink}
-                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
+                className="touch-manipulation min-w-[44px] px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
                 aria-label="Share the split to WhatsApp"
               >
                 <MessageCircle className="h-4 w-4" />
@@ -980,7 +980,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 size="sm"
                 onClick={handleCopy}
                 disabled={creatingLink}
-                className="touch-manipulation h-11"
+                className="touch-manipulation"
               >
                 {copied ? (
                   <>
@@ -1815,7 +1815,7 @@ export function MultipleReceiptSummaryPanel({
                 size="sm"
                 onClick={handleShareLink}
                 disabled={creatingLink}
-                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3"
+                className="touch-manipulation min-w-[44px] px-2 sm:px-3"
                 aria-label="Create and share a read-only link"
               >
                 {creatingLink ? (
@@ -1830,7 +1830,7 @@ export function MultipleReceiptSummaryPanel({
                 size="sm"
                 onClick={handleCopy}
                 disabled={creatingLink}
-                className="touch-manipulation h-11"
+                className="touch-manipulation"
               >
                 {copied ? (
                   <>
@@ -2254,7 +2254,7 @@ export function MultipleReceiptSummaryPanel({
                   <Button
                     size="sm"
                     variant="outline"
-                    className="touch-manipulation ml-auto h-9 gap-1 text-xs shrink-0"
+                    className="touch-manipulation ml-auto gap-1 text-xs shrink-0"
                     onClick={() => onRecordPayment(s.from, s.to, s.amount)}
                   >
                     <Check className="h-3.5 w-3.5" />

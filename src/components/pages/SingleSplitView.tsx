@@ -401,7 +401,7 @@ export function SingleSplitView() {
                 asChild
                 variant="ghost"
                 size="sm"
-                className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation"
+                className="px-2 sm:px-3 min-w-[44px] sm:min-w-0 touch-manipulation"
               >
                 <Link href="/history" aria-label="Saved splits">
                   <History className="h-4 w-4 sm:mr-2" />
@@ -416,7 +416,7 @@ export function SingleSplitView() {
               size="sm"
               onClick={handleReset}
               aria-label="Reset"
-              className="text-muted-foreground hover:text-destructive px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+              className="text-muted-foreground hover:text-destructive px-2 sm:px-3 min-w-[44px] sm:min-w-0"
             >
               <RotateCcw className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Reset</span>

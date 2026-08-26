@@ -521,7 +521,7 @@ function SettleUpCard({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="touch-manipulation h-11 sm:h-9 shrink-0 gap-1.5"
+                  className="touch-manipulation shrink-0 gap-1.5"
                   onClick={() => void fetchRate(currency)}
                   disabled={fetchingRate}
                 >
@@ -1529,7 +1529,7 @@ export function TravelSpendView() {
                       <select
                         value={activeTrip.defaultCurrency ?? "IDR"}
                         onChange={(e) => void setDefaultCurrency(e.target.value)}
-                        className="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="touch-manipulation flex h-11 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm"
                       >
                         {TRAVEL_CURRENCIES.map((c) => (
                           <option key={c.code} value={c.code}>

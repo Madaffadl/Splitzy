@@ -405,7 +405,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                         onClick={() =>
                           isQtyMode ? distributeEvenly(item.id) : assignAll(item.id)
                         }
-                        className="touch-manipulation h-9 text-xs"
+                        className="touch-manipulation text-xs"
                       >
                         {isQtyMode ? "Distribute Evenly" : "Select All"}
                       </Button>

@@ -226,7 +226,7 @@ export function ReceiptEditor({
                   <select
                     value={receipt.currency ?? "IDR"}
                     onChange={(e) => handleCurrencyChange(e.target.value)}
-                    className="touch-manipulation flex h-11 w-full rounded-md border border-input bg-background px-3 py-1 text-base sm:h-9 sm:text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="touch-manipulation flex h-11 w-full rounded-md border border-input bg-background px-3 py-1 text-base sm:h-9 sm:text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {TRAVEL_CURRENCIES.map((c) => (
                       <option key={c.code} value={c.code}>
@@ -263,7 +263,7 @@ export function ReceiptEditor({
                         onClick={() => void fetchRate(receipt.currency!)}
                         disabled={fetchingRate}
                         title="Auto-fetch latest rate"
-                        className="touch-manipulation h-11 sm:h-9"
+                        className="touch-manipulation"
                       >
                         {fetchingRate ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
