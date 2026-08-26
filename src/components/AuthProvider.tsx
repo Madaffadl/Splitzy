@@ -1,15 +1,11 @@
 "use client";
 
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { AuthContext, useAuthProvider } from "@/hooks/useAuth";
-import { DataMigrationDialog } from "@/components/DataMigrationDialog";
-import { localDataService } from "@/lib/data/local-data-service";
-import { isEnabled } from "@/lib/flags";
 import { useToast } from "@/components/ui/toast";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const auth = useAuthProvider();
-  const [showMigration, setShowMigration] = useState(false);
   const prevAuthenticated = useRef(false);
   // True only on first render — used to skip the deauth toast on initial load
   // when the user simply isn't logged in yet.
@@ -26,25 +22,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Just logged in: offer to migrate localStorage data to the cloud.
-    //
-    // Flag-gated and dark by default. Migration deletes the local copy once the
-    // server confirms the write, so anything the import fails to carry across is
-    // gone for good — it must be proven lossless against the real database
-    // before this is switched on. See the `dataMigration` flag for the history.
-    if (
-      isEnabled("dataMigration") &&
-      auth.isAuthenticated &&
-      !prevAuthenticated.current
-    ) {
-      try {
-        if (localDataService.hasLocalData()) {
-          setShowMigration(true);
-        }
-      } catch {
-        // localStorage may not be available
-      }
-    }
+    // Signing in used to trigger a "migrate your local data?" dialog. That is
+    // gone: saving a split is now an explicit action in the editor, which keeps
+    // the local copy, covers Multiple as well as Single, and writes the shape
+    // the resume flow reads. The migration did none of those — it deleted the
+    // local copy after writing a payload the editor could not reopen.
 
     // Just logged out (manual signOut OR session expired): notify the user
     // so they understand why API calls might start failing.
@@ -59,13 +41,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     prevAuthenticated.current = auth.isAuthenticated;
   }, [auth.isAuthenticated, auth.isLoading, toast]);
 
-  return (
-    <AuthContext.Provider value={auth}>
-      {children}
-      <DataMigrationDialog
-        open={showMigration}
-        onClose={() => setShowMigration(false)}
-      />
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={auth}>{children}</AuthContext.Provider>;
 }

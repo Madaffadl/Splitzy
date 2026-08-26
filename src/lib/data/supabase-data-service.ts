@@ -123,32 +123,4 @@ export const supabaseDataService = {
     return res.json();
   },
 
-  async importLocalData(data: {
-    single: unknown;
-    trip: unknown;
-    idempotencyKey?: string;
-  }): Promise<{ imported: number; replayed?: boolean }> {
-    // Idempotency key: on network retry, the server returns the cached result
-    // instead of re-importing. Caller may pass their own; default to a fresh
-    // UUID per attempt.
-    const idempotencyKey =
-      data.idempotencyKey ??
-      (typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-
-    const res = await fetch("/api/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...data, idempotencyKey }),
-    });
-    if (!res.ok) {
-      // Surface the server's message. A validation failure names the field that
-      // could not be imported, which is the only actionable thing the user has
-      // — "Failed to import data" told them nothing and hid a real diagnosis.
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(body?.error || "Failed to import data.");
-    }
-    return res.json();
-  },
 };

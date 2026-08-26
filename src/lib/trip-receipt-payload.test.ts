@@ -1,74 +1,25 @@
 /**
- * Tests for the guest → cloud migration fixes.
+ * Tests for validateTripReceiptPayload — the validator every server-side
+ * receipt write goes through (the Travel cloud API, and previously the guest
+ * data import).
  *
- * Background: /api/import was the ONLY reachable write path to the receipts
- * table, and it stored a receipt without item assignments, fees or discounts —
- * then the client cleared localStorage. Every row it produced showed each
- * participant owing 0 against a non-zero total, and the original was gone.
- *
- * Two changes are pinned here:
- *   A. the migration prompt is flag-gated and dark by default;
- *   B. the receipt is persisted as a JSON payload, validated by the same helper
- *      the Travel path uses, so nothing is dropped on the way in.
+ * What it guards is the reason the JSON payload exists at all: the relational
+ * columns cannot express a split. item_assignments has a foreign key to users,
+ * so it can only record that an ACCOUNT HOLDER consumed an item, while a split
+ * is between arbitrary named people who mostly have no account. A receipt
+ * persisted through those columns comes back with every participant owing 0
+ * against a non-zero total — there is a test below pinning exactly that, as a
+ * guard against anyone "simplifying" the payload away again.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { validateTripReceiptPayload } from "./travel-cloud";
 import { getReceiptSummary } from "./calculations";
 import { ValidationError } from "./validation";
 import type { Receipt } from "@/types";
 
 // ---------------------------------------------------------------------------
-// A. The migration flag
-// ---------------------------------------------------------------------------
-
-describe("dataMigration flag", () => {
-    const ENV = "NEXT_PUBLIC_FLAG_DATA_MIGRATION";
-    const original = process.env[ENV];
-
-    beforeEach(() => {
-        vi.resetModules();
-    });
-
-    afterEach(() => {
-        if (original === undefined) delete process.env[ENV];
-        else process.env[ENV] = original;
-        vi.resetModules();
-    });
-
-    it("is registered as a public flag with the expected env var", async () => {
-        const { flagEnvName } = await import("./flags");
-        expect(flagEnvName("dataMigration")).toBe(ENV);
-    });
-
-    it("is OFF when the env var is unset — the safe default", async () => {
-        delete process.env[ENV];
-        vi.resetModules();
-        const { isEnabled } = await import("./flags");
-        expect(isEnabled("dataMigration")).toBe(false);
-    });
-
-    it("stays OFF for values that are not an explicit yes", async () => {
-        for (const value of ["", "0", "false", "off", "no", "maybe"]) {
-            process.env[ENV] = value;
-            vi.resetModules();
-            const { isEnabled } = await import("./flags");
-            expect(isEnabled("dataMigration"), `value: "${value}"`).toBe(false);
-        }
-    });
-
-    it("turns ON only for an explicit truthy value", async () => {
-        for (const value of ["1", "true", "on", "yes", "TRUE", " true "]) {
-            process.env[ENV] = value;
-            vi.resetModules();
-            const { isEnabled } = await import("./flags");
-            expect(isEnabled("dataMigration"), `value: "${value}"`).toBe(true);
-        }
-    });
-});
-
-// ---------------------------------------------------------------------------
-// B. The payload keeps everything the relational columns could not
+// The payload keeps everything the relational columns could not
 // ---------------------------------------------------------------------------
 
 const participantIds = new Set(["p1", "p2"]);
@@ -107,7 +58,7 @@ function guestReceipt(): Record<string, unknown> {
     };
 }
 
-describe("import payload preserves the whole split", () => {
+describe("the payload preserves the whole split", () => {
     it("keeps item assignments — the field the relational schema cannot store", () => {
         // item_assignments.user_id is an FK to users, so a guest participant can
         // never be recorded there. This is the entire reason for the payload.
@@ -157,10 +108,10 @@ describe("import payload preserves the whole split", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The symptom this fixes: a split that still computes correctly after migration
+// The symptom the payload prevents
 // ---------------------------------------------------------------------------
 
-describe("a migrated receipt still computes a real split", () => {
+describe("a payload-backed receipt computes a real split", () => {
     const ids = ["p1", "p2"];
 
     it("assigns a non-zero share to every participant", () => {
