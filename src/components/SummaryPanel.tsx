@@ -1014,117 +1014,14 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
         </div>
       </CardHeader>
       <CardContent className="space-y-4 tabular-nums">
-        {/* Totals */}
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="text-muted-foreground">Subtotal</div>
-          <div className="text-right font-medium">
-            {money(summary.receiptSubtotal)}
-          </div>
-          <div className="text-muted-foreground">Tax</div>
-          <div className="text-right">{money(receipt.tax)}</div>
-          <div className="text-muted-foreground">Service</div>
-          <div className="text-right">{money(receipt.service)}</div>
-          {(receipt.fees ?? []).map((fee) => (
-            <>
-              <div key={`${fee.id}-label`} className="text-muted-foreground truncate">{fee.label}</div>
-              <div key={`${fee.id}-amount`} className="text-right">{money(fee.amount)}</div>
-            </>
-          ))}
-          <div className="text-muted-foreground font-medium pt-2 border-t">
-            Grand Total
-          </div>
-          <div className={cn("text-right pt-2 border-t", summary.totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
-            {money(summary.grandTotal)}
-          </div>
-          {summary.totalDiscount > 0 && (
-            <>
-              <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
-              <div className="text-right text-emerald-600 dark:text-emerald-400">
-                − {money(summary.totalDiscount)}
-              </div>
-              <div className="text-muted-foreground font-medium pt-2 border-t">
-                Amount to Pay
-              </div>
-              <div className="text-right font-bold pt-2 border-t text-primary">
-                {money(summary.amountPaid)}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Foreign-currency note — the amounts above are native; settlement
-            happens in Rp at the trip level using the locked rate. */}
-        {receipt.currency && receipt.currency !== "IDR" && (
-          <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
-            <Wallet className="h-3 w-3 shrink-0" />
-            Amounts in {receipt.currency}
-            {/* needsFxRate (not a bare truthiness test) so a stored 0 or a
-                negative rate prompts for a rate instead of rendering a bogus
-                — possibly negative — rupiah equivalent. */}
-            {!needsFxRate(receipt) ? (
-              <>
-                {" · "}≈ Rp {formatCurrency(summary.amountPaid * receipt.fxRate!)} at 1 {receipt.currency} = Rp{" "}
-                {receipt.fxRate!.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
-              </>
-            ) : (
-              <span className="text-amber-600 dark:text-amber-400">· set an exchange rate to convert</span>
-            )}
-          </div>
-        )}
-
-        <div className="text-xs text-muted-foreground">
-          Paid by:{" "}
-          <Badge variant="secondary" className="ml-1">
-            {getParticipantName(receipt.payerId)}
-          </Badge>
-        </div>
-
-        {/* Applied discounts */}
-        {receipt.discounts && receipt.discounts.length > 0 && (
-          <div className="space-y-1.5">
-            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              Discounts
-            </h4>
-            <div className="space-y-1">
-              {receipt.discounts.map((d) => (
-                <div key={d.id} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="truncate text-muted-foreground">
-                    {d.label || describeDiscountTarget(d, receipt.items, participants)}
-                    <span className="ml-1 text-muted-foreground/60">
-                      · {d.scope === "receipt" ? "bill" : d.scope === "item" ? "item" : "person"}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">
-                    − {formatDiscountValue(d, receipt.currency)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Per Person Breakdown with Expandable Audit */}
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            Per Person
-            <span className="text-xs font-normal">(tap to expand)</span>
-          </h4>
-          <div className="space-y-2">
-            {shareDetails.map((detail) => (
-              <PersonBreakdown
-                key={detail.participantId}
-                detail={detail}
-                name={getParticipantName(detail.participantId)}
-                isPayer={detail.participantId === receipt.payerId}
-                currency={receipt.currency}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Settlement + payment destinations — hidden in the editor preview
-            (settle-up is a trip-level action, not part of editing a receipt). */}
+        {/* Order matters more here than anywhere else in the app. This panel is
+            the whole point of Splitzy, it is read standing up in ninety
+            seconds, and the one thing the reader wants is "who pays whom, how
+            much". That answer used to be the fifth block down, below Subtotal /
+            Tax / Service / Grand Total / Paid by / Discounts / Per Person, at
+            text-sm — while the count of participants above it got text-2xl. The
+            answer leads now, and the bill arithmetic that supports it is one tap
+            away instead of in front of it. */}
         {!preview && (
           <>
         <div className="space-y-2">
@@ -1149,7 +1046,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="min-w-0 flex-1 font-medium truncate">{getParticipantName(s.to)}</span>
                   </div>
-                  <span className="font-bold text-primary sm:ml-auto">Rp {formatCurrency(s.amount)}</span>
+                  <span className="text-xl font-bold text-primary sm:ml-auto">Rp {formatCurrency(s.amount)}</span>
                 </div>
               ))}
             </div>
@@ -1192,7 +1089,10 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                         {getParticipantName(s.to)}
                       </span>
                     </div>
-                    <span className={cn("font-bold sm:ml-auto", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                    {/* The number the whole screen exists to produce. On a
+                        phone the row wraps and this gets its own line, so it
+                        can afford text-2xl; from sm: up it shares the row. */}
+                    <span className={cn("text-2xl font-bold sm:ml-auto sm:text-xl", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
                       Rp {formatCurrency(s.amount)}
                     </span>
                   </button>
@@ -1201,7 +1101,12 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             </div>
           )}
         </div>
-
+        <div className="text-xs text-muted-foreground">
+          Paid by:{" "}
+          <Badge variant="secondary" className="ml-1">
+            {getParticipantName(receipt.payerId)}
+          </Badge>
+        </div>
         {/* Payment destinations — one row per unique recipient (deduped). */}
         <PaymentDestinationsSection
           recipientIds={recipientIds}
@@ -1212,6 +1117,125 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
         />
           </>
         )}
+
+        {/* Per Person Breakdown with Expandable Audit */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            Per Person
+            <span className="text-xs font-normal">(tap to expand)</span>
+          </h4>
+          <div className="space-y-2">
+            {shareDetails.map((detail) => (
+              <PersonBreakdown
+                key={detail.participantId}
+                detail={detail}
+                name={getParticipantName(detail.participantId)}
+                isPayer={detail.participantId === receipt.payerId}
+                currency={receipt.currency}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* The arithmetic behind the number. Collapsed by default — but the
+            total stays in the header, so nothing a user needs at a glance is
+            actually hidden. Open by default in the editor preview, where there
+            is no settlement to lead with and the totals ARE the content. */}
+        <CollapsibleSection
+          defaultOpen={preview}
+          title={
+            <span className="flex items-center gap-1.5">
+              <Calculator className="h-4 w-4" />
+              Bill details
+            </span>
+          }
+          badge={
+            <span className="ml-1 font-semibold text-foreground">
+              {money(summary.totalDiscount > 0 ? summary.amountPaid : summary.grandTotal)}
+            </span>
+          }
+        >
+        {/* Totals */}
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="text-muted-foreground">Subtotal</div>
+          <div className="text-right font-medium">
+            {money(summary.receiptSubtotal)}
+          </div>
+          <div className="text-muted-foreground">Tax</div>
+          <div className="text-right">{money(receipt.tax)}</div>
+          <div className="text-muted-foreground">Service</div>
+          <div className="text-right">{money(receipt.service)}</div>
+          {(receipt.fees ?? []).map((fee) => (
+            <>
+              <div key={`${fee.id}-label`} className="text-muted-foreground truncate">{fee.label}</div>
+              <div key={`${fee.id}-amount`} className="text-right">{money(fee.amount)}</div>
+            </>
+          ))}
+          <div className="text-muted-foreground font-medium pt-2 border-t">
+            Grand Total
+          </div>
+          <div className={cn("text-right pt-2 border-t", summary.totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
+            {money(summary.grandTotal)}
+          </div>
+          {summary.totalDiscount > 0 && (
+            <>
+              <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
+              <div className="text-right text-emerald-600 dark:text-emerald-400">
+                − {money(summary.totalDiscount)}
+              </div>
+              <div className="text-muted-foreground font-medium pt-2 border-t">
+                Amount to Pay
+              </div>
+              <div className="text-right font-bold pt-2 border-t text-primary">
+                {money(summary.amountPaid)}
+              </div>
+            </>
+          )}
+        </div>
+        {/* Foreign-currency note — the amounts above are native; settlement
+            happens in Rp at the trip level using the locked rate. */}
+        {receipt.currency && receipt.currency !== "IDR" && (
+          <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+            <Wallet className="h-3 w-3 shrink-0" />
+            Amounts in {receipt.currency}
+            {/* needsFxRate (not a bare truthiness test) so a stored 0 or a
+                negative rate prompts for a rate instead of rendering a bogus
+                — possibly negative — rupiah equivalent. */}
+            {!needsFxRate(receipt) ? (
+              <>
+                {" · "}≈ Rp {formatCurrency(summary.amountPaid * receipt.fxRate!)} at 1 {receipt.currency} = Rp{" "}
+                {receipt.fxRate!.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
+              </>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400">· set an exchange rate to convert</span>
+            )}
+          </div>
+        )}
+        {/* Applied discounts */}
+        {receipt.discounts && receipt.discounts.length > 0 && (
+          <div className="space-y-1.5">
+            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Discounts
+            </h4>
+            <div className="space-y-1">
+              {receipt.discounts.map((d) => (
+                <div key={d.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate text-muted-foreground">
+                    {d.label || describeDiscountTarget(d, receipt.items, participants)}
+                    <span className="ml-1 text-muted-foreground/60">
+                      · {d.scope === "receipt" ? "bill" : d.scope === "item" ? "item" : "person"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">
+                    − {formatDiscountValue(d, receipt.currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        </CollapsibleSection>
       </CardContent>
     </Card>
   );
@@ -1733,6 +1757,24 @@ export function MultipleReceiptSummaryPanel({
     }
   };
 
+  // The single-receipt panel has had a WhatsApp button for a while, and the
+  // comment beside it calls WhatsApp "the dominant sharing channel for the SEA
+  // audience". This panel is what /multiple and /travel render — the modes with
+  // the most to share — and it offered only Copy, so finishing an eight-receipt
+  // trip meant copy, leave the app, find the group, paste.
+  const handleShareWhatsApp = async () => {
+    const url = await ensureShareUrl();
+    let text = generateExportText();
+    if (url) text += `\n🔗 View full breakdown:\n${url}\n`;
+    text += splitzyCopyFooter(window.location.origin);
+    capture(EVENTS.shareWhatsapp);
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   if (receipts.length === 0) {
     return (
       <Card className="border-dashed">
@@ -1838,7 +1880,20 @@ export function MultipleReceiptSummaryPanel({
                 ) : (
                   <Share2 className="h-4 w-4" />
                 )}
-                <span className="hidden sm:inline ml-1.5">Share</span>
+                {/* md:, matching the single-receipt panel — the same button was
+                    showing its label at a different breakpoint in each. */}
+                <span className="hidden md:inline ml-1.5">Share</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShareWhatsApp}
+                disabled={creatingLink}
+                className="touch-manipulation min-w-[44px] px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
+                aria-label="Share the split to WhatsApp"
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span className="hidden md:inline ml-1.5">WhatsApp</span>
               </Button>
               <Button
                 variant="accent"
@@ -2268,7 +2323,7 @@ export function MultipleReceiptSummaryPanel({
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="min-w-0 flex-1 font-medium truncate">{getParticipantName(s.to)}</span>
                   </div>
-                  <span className="font-bold text-primary shrink-0">Rp {formatCurrency(s.amount)}</span>
+                  <span className="text-xl font-bold text-primary shrink-0">Rp {formatCurrency(s.amount)}</span>
                   <Button
                     size="sm"
                     variant="outline"
@@ -2320,7 +2375,10 @@ export function MultipleReceiptSummaryPanel({
                         {getParticipantName(s.to)}
                       </span>
                     </div>
-                    <span className={cn("font-bold sm:ml-auto", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                    {/* The number the whole screen exists to produce. On a
+                        phone the row wraps and this gets its own line, so it
+                        can afford text-2xl; from sm: up it shares the row. */}
+                    <span className={cn("text-2xl font-bold sm:ml-auto sm:text-xl", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
                       Rp {formatCurrency(s.amount)}
                     </span>
                   </button>

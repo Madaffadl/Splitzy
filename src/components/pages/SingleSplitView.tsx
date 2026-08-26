@@ -92,11 +92,15 @@ export function SingleSplitView() {
   // Guards rapid double-clicks on Next/Stepper. Without it, two clicks within
   // the same render frame could fire `incrementCount()` twice and skip a step.
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const { isLimitReached, incrementCount, splitsRemaining } = useGuestLimit();
+  const { isLimitReached, incrementCount, splitsRemaining, maxSplits } =
+    useGuestLimit();
   const [showLimitDialog, setShowLimitDialog] = useState(false);
+  // Timestamp of the last successful scan — bumping it scrolls ItemsTable to
+  // the first item that still needs assigning.
+  const [scanLandedAt, setScanLandedAt] = useState(0);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, signIn } = useAuth();
   const { saving, save, adopt, forget, id: savedId, expiresAt } = useSaveSplit();
 
   // Mirrors `state` so the resume effect can read the latest value without
@@ -256,16 +260,25 @@ export function SingleSplitView() {
     return null;
   }, [currentStep, state]);
 
+  // Whether THIS split has already been counted against the guest allowance.
+  // It used to increment on every 1 → 2 transition, so a guest who opened the
+  // summary, went Back to fix one price, and opened it again had burned two of
+  // their three free splits on a single bill — three taps to lock themselves
+  // out of work they had already done. Counted once per split; cleared by
+  // Reset, which is what actually starts a new one.
+  const countedRef = useRef(false);
+
   const handleNext = () => {
     if (isTransitioning || currentStep >= STEPS.length - 1) return;
     setIsTransitioning(true);
     try {
       // Check guest limit when moving to summary (step 2)
-      if (currentStep === 1) {
+      if (currentStep === 1 && !countedRef.current) {
         if (isLimitReached) {
           setShowLimitDialog(true);
           return;
         }
+        countedRef.current = true;
         incrementCount();
         // Reaching the summary is the "completed a split" moment for this feature.
         logFeatureUsage("single");
@@ -312,6 +325,8 @@ export function SingleSplitView() {
     resetState();
     setCurrentStep(0);
     setShowResetDialog(false);
+    // A reset is what actually begins a new split, so the next summary counts.
+    countedRef.current = false;
     // Detach from the saved copy: the next Save should create a new split
     // rather than overwrite the one this editor used to hold. The saved split
     // itself is untouched and still resumable from Saved splits.
@@ -435,6 +450,34 @@ export function SingleSplitView() {
           />
         </div>
 
+        {/* The guest allowance, on screen from the first split.
+            `splitsRemaining` was computed and then never rendered, so the limit
+            was invisible right up to the moment it blocked someone — after
+            they had added the people, scanned the receipt and assigned every
+            item. A wall you can see coming is a different thing entirely. */}
+        {!isAuthenticated && Number.isFinite(splitsRemaining) && (
+          <div
+            className={`mb-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-xs ${
+              splitsRemaining <= 1
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                : "border-border bg-muted/40 text-muted-foreground"
+            }`}
+          >
+            <span>
+              {splitsRemaining === 0
+                ? `You've used all ${maxSplits} free splits.`
+                : `${splitsRemaining} of ${maxSplits} free splits left.`}
+            </span>
+            <button
+              type="button"
+              onClick={() => signIn(window.location.pathname)}
+              className="touch-manipulation font-semibold text-primary underline underline-offset-2"
+            >
+              Sign in for unlimited
+            </button>
+          </div>
+        )}
+
         <div className={`grid gap-8 ${currentStep === 2 ? 'lg:grid-cols-1 max-w-4xl mx-auto' : 'lg:grid-cols-3'}`}>
           {/* Main Content */}
           <div className={`space-y-6 ${currentStep === 2 ? '' : 'lg:col-span-2'}`}>
@@ -510,7 +553,7 @@ export function SingleSplitView() {
                       </div>
                     </div>
                     <ReceiptInput
-                      onParsed={(result) =>
+                      onParsed={(result) => {
                         updateState({
                           items: [...state.items, ...result.items],
                           tax: result.tax || state.tax,
@@ -521,8 +564,11 @@ export function SingleSplitView() {
                           ...(result.fees?.length
                             ? { fees: [...(state.fees ?? []), ...result.fees] }
                             : {}),
-                        })
-                      }
+                        });
+                        // Scanned items land in the card below, out of sight.
+                        // Take the user there — assigning them is the next task.
+                        setScanLandedAt(Date.now());
+                      }}
                     />
                   </CardContent>
                 </Card>
@@ -547,6 +593,7 @@ export function SingleSplitView() {
                       items={state.items}
                       participants={state.participants}
                       onChange={(items) => updateState({ items })}
+                      scrollToUnassignedKey={scanLandedAt}
                     />
                   </CardContent>
                 </Card>
@@ -592,34 +639,40 @@ export function SingleSplitView() {
             {/* Step 2: Summary */}
             {currentStep === 2 && (
               <div className="animate-fade-in space-y-6">
-                {/* Celebration Header */}
-                <div className="text-center space-y-4 py-6">
-                  <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-accent/30 to-accent/10 flex items-center justify-center mx-auto animate-float shadow-lg shadow-accent/20">
-                    <PartyPopper className="h-10 w-10 text-accent" />
+                {/* Celebration header, reined in. This sat above the settlement
+                    at 80px with an infinite float animation and text-3xl — a
+                    moving object directly on top of the information the user
+                    opened the screen for. */}
+                <div className="text-center space-y-2 py-3">
+                  <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/30 to-accent/10 flex items-center justify-center mx-auto">
+                    <PartyPopper className="h-7 w-7 text-accent-strong" />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-bold gradient-text">🎉 Split Complete!</h2>
-                    <p className="text-muted-foreground mt-2">
-                      Here&rsquo;s the complete breakdown for <span className="font-semibold text-foreground">{state.title}</span>
+                    <h2 className="text-xl font-bold">Split complete</h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-semibold text-foreground">{state.title}</span>
                     </p>
                   </div>
                 </div>
 
-                {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+                {/* Quick stats. Participants and Items were the two biggest
+                    numbers on this screen at text-2xl — a count nobody needs,
+                    rendered larger than the settlement amounts below. The total
+                    leads now; the counts are context, at context size. */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+                  <Card className="col-span-2 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 break-all sm:break-normal">
+                      Rp {formatCurrency(summary.grandTotal)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Total bill</p>
+                  </Card>
                   <Card className="text-center p-3 sm:p-4 bg-primary/5 border-primary/20">
-                    <p className="text-2xl font-bold text-primary">{state.participants.length}</p>
+                    <p className="text-base font-semibold text-primary">{state.participants.length}</p>
                     <p className="text-xs text-muted-foreground">Participants</p>
                   </Card>
                   <Card className="text-center p-3 sm:p-4 bg-accent/5 border-accent/20">
-                    <p className="text-2xl font-bold text-accent-strong">{state.items.length}</p>
+                    <p className="text-base font-semibold text-accent-strong">{state.items.length}</p>
                     <p className="text-xs text-muted-foreground">Items</p>
-                  </Card>
-                  <Card className="col-span-2 sm:col-span-1 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
-                    <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 break-all sm:break-normal">
-                      Rp {formatCurrency(summary.grandTotal)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Total Bill</p>
                   </Card>
                 </div>
 

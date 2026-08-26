@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
 const GUEST_LIMIT_KEY = "splitzy-guest-splits-count";
-const MAX_GUEST_SPLITS = 3;
+// Exported so the copy that quotes it can't drift from it.
+export const MAX_GUEST_SPLITS = 3;
 
 export function useGuestLimit() {
   const { isAuthenticated } = useAuth();

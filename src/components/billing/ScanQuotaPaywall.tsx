@@ -17,6 +17,13 @@ export function ScanQuotaPaywall() {
       <p className="text-sm font-medium text-foreground">
         You&rsquo;ve used all {FREE_SCAN_LIMIT} free AI scans this month.
       </p>
+      {/* The wall stated the rule and stopped there. Adding the items by hand
+          costs no quota and works right now — and the button for it is directly
+          below this panel, so say so rather than leaving the user to guess
+          whether their evening is over. */}
+      <p className="mt-1 text-xs text-muted-foreground">
+        You can still add this receipt&rsquo;s items by hand — no scan needed.
+      </p>
       {pricingLive ? (
         <>
           <p className="text-xs text-muted-foreground mt-1 mb-3">

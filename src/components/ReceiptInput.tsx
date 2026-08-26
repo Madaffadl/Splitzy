@@ -122,6 +122,19 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
   }, []);
 
   const processImage = useCallback(async (imageData: string) => {
+    // Restaurant Wi-Fi is the likeliest failure in this whole flow, and it used
+    // to surface as "Failed to process image. Please try again." — which reads
+    // as "your photo is bad". People re-shoot a perfectly good receipt, twice,
+    // then give up and open the calculator. Say what actually happened, and
+    // point at the one thing that still works offline.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setErrorMessage(
+        "You're offline, so the receipt can't be scanned right now. Reconnect and try again, or add the items by hand — that works offline."
+      );
+      setStatus("error");
+      return;
+    }
+
     setStatus("processing");
     setErrorMessage("");
     setQuotaHit(false);
@@ -217,6 +230,11 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
         // Nothing was wrong with the photo — say so, or the user will waste
         // time re-shooting a receipt that would have scanned fine.
         setErrorMessage("Scanning took too long. Please try again.");
+      } else if (typeof navigator !== "undefined" && !navigator.onLine) {
+        // The connection dropped mid-request.
+        setErrorMessage(
+          "The connection dropped mid-scan. Reconnect and try again, or add the items by hand."
+        );
       } else {
         setErrorMessage("Failed to process image. Please try again.");
       }
@@ -260,32 +278,17 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       {/* Upload Area */}
       {status === "idle" && (
         <div className="space-y-4">
-          {/* Main Upload Button */}
-          <div 
-            className="relative border-2 border-dashed border-muted-foreground/25 rounded-xl p-8 text-center hover:border-primary/50 hover:bg-muted/30 transition-all cursor-pointer group"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="absolute inset-0 opacity-0 cursor-pointer"
-            />
-            <div className="space-y-3">
-              <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <ImageIcon className="h-7 w-7 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium text-lg">Upload Receipt Photo</p>
-                <p className="text-sm text-muted-foreground">
-                  Click or drag receipt photo here
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Camera Button for Mobile */}
+          {/* Hidden file inputs. Both are driven by the buttons below rather
+              than by an invisible overlay, so a tap can only ever open one
+              picker — the old dropzone stacked an inset-0 file input under an
+              onClick that also called .click() on it. */}
+          <Input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
           <Input
             ref={cameraInputRef}
             type="file"
@@ -294,30 +297,70 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             onChange={handleFileSelect}
             className="hidden"
           />
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Choose File
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12"
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              Take Photo
-            </Button>
-          </div>
 
-          <p className="text-xs text-center text-muted-foreground">
-            ✨ AI will read the receipt and extract all items automatically
-          </p>
+          {/* This app is used standing up in a restaurant with the receipt in
+              the other hand, and the biggest, most obvious target on the screen
+              opened the photo gallery — which for this receipt is empty. Taking
+              the photo is the primary action on a phone; picking a file is the
+              primary action on a desktop, which has no rear camera. So they
+              swap at sm:. */}
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="touch-manipulation group w-full rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-8 text-center transition-colors hover:border-primary/60 hover:bg-primary/10 sm:hidden"
+          >
+            <div className="space-y-3">
+              <div className="mx-auto w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center group-hover:bg-primary/25 transition-colors">
+                <Camera className="h-7 w-7 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-lg">Take a photo of the receipt</p>
+                <p className="text-sm text-muted-foreground">
+                  AI reads the items, prices, tax and service
+                </p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="touch-manipulation group hidden w-full rounded-xl border-2 border-dashed border-muted-foreground/25 p-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/30 sm:block"
+          >
+            <div className="space-y-3">
+              <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <ImageIcon className="h-7 w-7 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-lg">Upload receipt photo</p>
+                <p className="text-sm text-muted-foreground">
+                  AI reads the items, prices, tax and service
+                </p>
+              </div>
+            </div>
+          </button>
+
+          {/* The secondary route, deliberately subordinate — one primary action
+              per screen. These used to be two identically-weighted outline
+              buttons, which is how "Take Photo" ended up looking optional. */}
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full text-muted-foreground sm:hidden"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Choose an existing photo
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="hidden w-full text-muted-foreground sm:inline-flex"
+            onClick={() => cameraInputRef.current?.click()}
+          >
+            <Camera className="h-4 w-4 mr-2" />
+            Use the camera instead
+          </Button>
 
           {/* Privacy disclosure — be transparent that the image is sent to a third party.
               Important for trust on a finance-related app. */}

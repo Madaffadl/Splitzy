@@ -13,15 +13,45 @@ interface ItemsTableProps {
   items: ReceiptItem[];
   participants: Participant[];
   onChange: (items: ReceiptItem[]) => void;
+  /**
+   * Bump this to scroll the first unassigned item into view.
+   *
+   * A successful scan silently appended its items to this table, one card
+   * further down the page, while the scanner kept showing "Success! 8 items
+   * found" with a full list of them. People read that as "done" and never saw
+   * that assigning those items to people — the actual next task — was waiting
+   * below the fold.
+   */
+  scrollToUnassignedKey?: number;
 }
 
-export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
+export function ItemsTable({ items, participants, onChange, scrollToUnassignedKey }: ItemsTableProps) {
   // Ref map for name inputs — used to auto-focus after a new item is added
   const nameInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // ID of the item that should receive focus on the next render
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   // ID of the most-recently added item — drives the highlight ring animation
   const [newItemId, setNewItemId] = useState<string | null>(null);
+  // Card refs, so a freshly scanned batch can be scrolled to.
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // After a scan lands, bring the first item that still needs assigning into
+  // view. Deliberately the first *unassigned* one and not simply the last
+  // added: on a second scan the earlier items are already assigned, and
+  // jumping past them would skip work the user still has to do.
+  useEffect(() => {
+    if (!scrollToUnassignedKey) return;
+    const target = items.find((i) => i.assignedToIds.length === 0);
+    if (!target) return;
+    const el = cardRefs.current[target.id];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setNewItemId(target.id);
+    const t = setTimeout(() => setNewItemId(null), 1600);
+    return () => clearTimeout(t);
+    // Runs only when the key changes — not on every edit to `items`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToUnassignedKey]);
 
   // After the new item card renders, focus its name input and scroll it into view
   useEffect(() => {
@@ -250,6 +280,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
             return (
               <div
                 key={item.id}
+                ref={(el) => { cardRefs.current[item.id] = el; }}
                 className={`p-4 rounded-lg border bg-card space-y-4 transition-shadow duration-700 ${
                   isNew ? "ring-2 ring-primary/50 shadow-sm shadow-primary/20" : ""
                 }`}

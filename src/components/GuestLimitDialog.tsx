@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { LogIn, Lock } from "@/components/ui/icons";
+import { MAX_GUEST_SPLITS } from "@/hooks/useGuestLimit";
 
 interface GuestLimitDialogProps {
   open: boolean;
@@ -30,8 +31,12 @@ export function GuestLimitDialog({ open, onClose }: GuestLimitDialogProps) {
           <DialogTitle className="text-center">
             Free Split Limit Reached
           </DialogTitle>
+          {/* The count came from a hardcoded "3" while the real limit lived in
+              MAX_GUEST_SPLITS. And the old copy said nothing about the work the
+              user had just done, which is the first thing they worry about. */}
           <DialogDescription className="text-center">
-            You&apos;ve used all 3 free splits. Sign in with Google to get
+            You&apos;ve used all {MAX_GUEST_SPLITS} free splits. Nothing is lost —
+            this split is still here, and signing in with Google unlocks it plus
             unlimited splits and receipt history.
           </DialogDescription>
         </DialogHeader>
