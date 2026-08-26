@@ -323,7 +323,7 @@ export function MultipleReceiptView() {
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {viewMode === "overview" ? (
             <Link
@@ -372,7 +372,7 @@ export function MultipleReceiptView() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
+      <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
         {/* Local-only notice — sets the right expectation. This split is not yet
             synced to the cloud, so users won't think a phone reset means safety. */}
         <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
@@ -468,9 +468,9 @@ export function MultipleReceiptView() {
                       {split.receipts.map((receipt) => (
                         <div
                           key={receipt.id}
-                          className="flex items-center justify-between gap-3 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                          className="flex flex-col gap-3 p-4 rounded-lg border transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          <div className="flex items-center gap-4 min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-1 items-center gap-4">
                             <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                               <ReceiptIcon className="h-5 w-5 text-primary" />
                             </div>
@@ -485,11 +485,13 @@ export function MultipleReceiptView() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                          <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end sm:gap-4">
                             <span className="font-semibold whitespace-nowrap">
                               Rp {getReceiptTotal(receipt)}
                             </span>
-                            <div className="flex gap-1">
+                            {/* gap-2, not gap-1: 4px between "edit this" and
+                                "delete this" is under the 8px minimum. */}
+                            <div className="flex gap-2">
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -540,7 +542,7 @@ export function MultipleReceiptView() {
             {isAuthenticated && (
               <div
                 className="
-                  sticky bottom-0 z-10 -mx-3 border-t bg-background/95 px-3 pt-3
+                  sticky bottom-0 z-20 -mx-3 border-t bg-background/95 px-3 pt-3
                   backdrop-blur lg:col-span-2
                   pb-[max(0.75rem,env(safe-area-inset-bottom))]
                   md:static md:mx-0 md:border-0 md:bg-transparent md:px-0

@@ -234,7 +234,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
       <LocaleSync locale={locale} />
 
       {/* Header */}
-      <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
+      <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href={home} className="flex items-center gap-2 sm:gap-3">
             <Logo size="md" />

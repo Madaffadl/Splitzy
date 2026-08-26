@@ -448,7 +448,7 @@ export function SingleSplitView() {
   return (
     <main className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {/* One back control, and it is here because top-left is where the
               meaning lives: an arrow in this corner reads as "back" with no
@@ -501,7 +501,7 @@ export function SingleSplitView() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
+      <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
         {/* Stepper */}
         <div className="mb-10">
           <Stepper
@@ -774,7 +774,7 @@ export function SingleSplitView() {
                 eat vertical space on a mouse-driven screen. */}
             <div
               className="
-                sticky bottom-0 z-10 -mx-3 mt-6 space-y-2 border-t
+                sticky bottom-0 z-20 -mx-3 mt-6 space-y-2 border-t
                 bg-background/95 px-3 pt-3 backdrop-blur
                 pb-[max(0.75rem,env(safe-area-inset-bottom))]
                 md:static md:mx-0 md:border-0 md:bg-transparent md:px-0

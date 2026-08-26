@@ -165,7 +165,7 @@ export function ParticipantManager({
               id={listboxId}
               role="listbox"
               aria-label={t.recentListAria}
-              className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl border bg-popover p-1 shadow-premium-lg"
+              className="absolute left-0 right-0 top-full mt-1 z-30 rounded-xl border bg-popover p-1 shadow-premium-lg"
             >
               <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 <History className="h-3 w-3" />

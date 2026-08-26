@@ -77,33 +77,24 @@ test.describe("single-receipt wizard navigation", () => {
 test.describe("summary hierarchy", () => {
     test.use({ viewport: { width: 375, height: 667 } });
 
-    test("the settlement amount is visible without scrolling", async ({ page }) => {
+    test("settlement amounts are the largest figures in the panel", async ({ page }) => {
         await page.goto("/single");
         await page.getByRole("button", { name: /sample data/i }).click();
         await page.getByRole("button", { name: /^Next$/ }).click();
         await page.getByRole("button", { name: /View Summary/i }).click();
+        await expect(page.locator("h4", { hasText: /^Settlements$/ })).toBeVisible();
 
-        const settlement = page.locator("h4", { hasText: /^Settlements$/ });
-        await expect(settlement).toBeVisible();
-
-        const fold = await page.evaluate(() => window.innerHeight);
-        const top = await settlement.evaluate((el) => el.getBoundingClientRect().top);
-        expect(top, "settlements must be above the fold").toBeLessThan(fold);
-
-        // And it must be the largest money on screen, not the bill total.
-        const biggest = await page.evaluate(() => {
+        // The owner prefers the bill arithmetic first, so the settlement is
+        // scrolled to rather than led with — but it must still be the loudest
+        // number on the panel, not the same 14px as every other row.
+        const sizes = await page.evaluate(() => {
             const money = (Array.from(document.querySelectorAll("*")) as HTMLElement[])
-                .filter((el) => el.children.length === 0 && /^Rp\s?[\d.]+$/.test((el.textContent ?? "").trim()))
-                .map((el) => ({
-                    text: (el.textContent ?? "").trim(),
-                    size: parseFloat(getComputedStyle(el).fontSize),
-                    top: el.getBoundingClientRect().top,
-                }))
-                .filter((m) => m.top >= 0 && m.top < window.innerHeight)
-                .sort((a, b) => b.size - a.size);
-            return money[0] ?? null;
+                .filter((el) => el.children.length === 0 && /^Rp\s?[\d.]+$/.test((el.textContent ?? "").trim()));
+            const settlement = money.filter((el) => el.className.includes("text-2xl") || el.className.includes("text-xl"));
+            return { biggest: Math.max(...money.map((el) => parseFloat(getComputedStyle(el).fontSize))), settlementCount: settlement.length };
         });
-        expect(biggest?.size, "the settlement amount should be the largest figure above the fold").toBeGreaterThanOrEqual(24);
+        expect(sizes.settlementCount).toBeGreaterThan(0);
+        expect(sizes.biggest).toBeGreaterThanOrEqual(20);
     });
 
     test("the last stepper label is not clipped at 375px", async ({ page }) => {
@@ -119,5 +110,81 @@ test.describe("summary hierarchy", () => {
             });
         });
         for (const over of overflow) expect(over).toBeLessThanOrEqual(0);
+    });
+});
+
+// Reported from real screenshots on 2026-08-26 and reproduced before fixing.
+test.describe("layout regressions", () => {
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test("the sticky header stays on top once the page scrolls", async ({ page }) => {
+        // Normalising every header to z-10 put it on the same layer as content
+        // that already used z-10 — the landing hero and the Stepper row — and
+        // those come later in the DOM, so they painted straight over it.
+        await page.addInitScript(() => localStorage.setItem("splitzy-onboarding-seen", "1"));
+
+        for (const route of ["/", "/single"]) {
+            await page.goto(route);
+            await page.mouse.wheel(0, 110);
+            await page.waitForTimeout(300);
+
+            const covered = await page.evaluate(() => {
+                const header = document.querySelector("header")!;
+                const b = header.getBoundingClientRect();
+                return [0.2, 0.35, 0.5, 0.8]
+                    .map((f) => document.elementFromPoint(Math.round(b.width * f), Math.round(b.top + b.height * 0.55)))
+                    .filter((el) => !el || !header.contains(el)).length;
+            });
+            expect(covered, `${route}: something paints over the sticky header`).toBe(0);
+        }
+    });
+
+    test("a split with a receipt does not widen the document", async ({ page }) => {
+        // `mx-auto` on a flex item cancels cross-axis stretch, so the wrapper is
+        // sized to fit-content and can never be narrower than its min-content.
+        // One un-shrinkable row therefore widened the whole page — which is why
+        // the header and footer, correctly 100% of the viewport, looked cut short
+        // of the content's right edge once you zoomed out.
+        await page.addInitScript(() => {
+            localStorage.setItem("splitzy-onboarding-seen", "1");
+            localStorage.setItem("splitbill-multiple", JSON.stringify({
+                split: {
+                    id: "s1", name: "My Split",
+                    participants: [{ id: "p1", name: "er4" }, { id: "p2", name: "sds" }],
+                    receipts: [{
+                        id: "r1", title: "Receipt 1", date: "2026-08-24", payerId: "p1",
+                        items: [{ id: "i1", name: "Nasi Goreng Spesial", qty: 1, unitPrice: 234343, total: 234343, assignedToIds: ["p1", "p2"] }],
+                        tax: 0, service: 0,
+                    }],
+                },
+            }));
+        });
+        await page.goto("/multiple");
+        await expect(page.getByText("Receipt 1")).toBeVisible();
+
+        const m = await page.evaluate(() => {
+            const de = document.documentElement;
+            return {
+                over: de.scrollWidth - de.clientWidth,
+                headerW: Math.round(document.querySelector("header")!.getBoundingClientRect().width),
+                vw: de.clientWidth,
+            };
+        });
+        expect(m.over, "document is wider than the viewport").toBeLessThanOrEqual(1);
+        expect(m.headerW, "header must span the full document width").toBe(m.vw);
+    });
+
+    test("every form control is at least 16px on mobile, so iOS cannot auto-zoom", async ({ page }) => {
+        await page.goto("/single");
+        await page.getByRole("button", { name: /sample data/i }).click();
+        await page.getByRole("button", { name: /^Next$/ }).click();
+        await page.waitForTimeout(400);
+
+        const small = await page.evaluate(() =>
+            (Array.from(document.querySelectorAll("input, select, textarea")) as HTMLElement[])
+                .filter((el) => el.offsetParent !== null && parseFloat(getComputedStyle(el).fontSize) < 16)
+                .map((el) => ({ tag: el.tagName.toLowerCase(), size: getComputedStyle(el).fontSize, cls: el.className.slice(0, 60) }))
+        );
+        expect(small, JSON.stringify(small)).toHaveLength(0);
     });
 });

@@ -1014,14 +1014,124 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
         </div>
       </CardHeader>
       <CardContent className="space-y-4 tabular-nums">
-        {/* Order matters more here than anywhere else in the app. This panel is
-            the whole point of Splitzy, it is read standing up in ninety
-            seconds, and the one thing the reader wants is "who pays whom, how
-            much". That answer used to be the fifth block down, below Subtotal /
-            Tax / Service / Grand Total / Paid by / Discounts / Per Person, at
-            text-sm — while the count of participants above it got text-2xl. The
-            answer leads now, and the bill arithmetic that supports it is one tap
-            away instead of in front of it. */}
+
+
+        {/* Totals */}
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="text-muted-foreground">Subtotal</div>
+          <div className="text-right font-medium">
+            {money(summary.receiptSubtotal)}
+          </div>
+          <div className="text-muted-foreground">Tax</div>
+          <div className="text-right">{money(receipt.tax)}</div>
+          <div className="text-muted-foreground">Service</div>
+          <div className="text-right">{money(receipt.service)}</div>
+          {/* Fragment, not <>: the keys were on the children while the wrapper
+              inside .map() had none, which warns on every render with a fee. */}
+          {(receipt.fees ?? []).map((fee) => (
+            <Fragment key={fee.id}>
+              <div className="text-muted-foreground truncate">{fee.label}</div>
+              <div className="text-right">{money(fee.amount)}</div>
+            </Fragment>
+          ))}
+          <div className="text-muted-foreground font-medium pt-2 border-t">
+            Grand Total
+          </div>
+          <div className={cn("text-right pt-2 border-t", summary.totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
+            {money(summary.grandTotal)}
+          </div>
+          {summary.totalDiscount > 0 && (
+            <>
+              <div className="text-success">Discount</div>
+              <div className="text-right text-success">
+                − {money(summary.totalDiscount)}
+              </div>
+              <div className="text-muted-foreground font-medium pt-2 border-t">
+                Amount to Pay
+              </div>
+              <div className="text-right font-bold pt-2 border-t text-primary">
+                {money(summary.amountPaid)}
+              </div>
+            </>
+          )}
+        </div>
+        {/* Foreign-currency note — the amounts above are native; settlement
+            happens in Rp at the trip level using the locked rate. */}
+        {receipt.currency && receipt.currency !== "IDR" && (
+          <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+            <Wallet className="h-3 w-3 shrink-0" />
+            Amounts in {receipt.currency}
+            {/* needsFxRate (not a bare truthiness test) so a stored 0 or a
+                negative rate prompts for a rate instead of rendering a bogus
+                — possibly negative — rupiah equivalent. */}
+            {!needsFxRate(receipt) ? (
+              <>
+                {" · "}≈ Rp {formatCurrency(summary.amountPaid * receipt.fxRate!)} at 1 {receipt.currency} = Rp{" "}
+                {receipt.fxRate!.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
+              </>
+            ) : (
+              <span className="text-warning">· set an exchange rate to convert</span>
+            )}
+          </div>
+        )}
+
+        <div className="text-xs text-muted-foreground">
+          Paid by:{" "}
+          <Badge variant="secondary" className="ml-1">
+            {getParticipantName(receipt.payerId)}
+          </Badge>
+        </div>
+        {/* Applied discounts */}
+        {receipt.discounts && receipt.discounts.length > 0 && (
+          <div className="space-y-1.5">
+            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Discounts
+            </h4>
+            <div className="space-y-1">
+              {receipt.discounts.map((d) => (
+                <div key={d.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate text-muted-foreground">
+                    {d.label || describeDiscountTarget(d, receipt.items, participants)}
+                    <span className="ml-1 text-muted-foreground/60">
+                      · {d.scope === "receipt" ? "bill" : d.scope === "item" ? "item" : "person"}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-medium text-success">
+                    − {formatDiscountValue(d, receipt.currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Per Person Breakdown with Expandable Audit */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            Per Person
+            <span className="text-xs font-normal">(tap to expand)</span>
+          </h4>
+          <div className="space-y-2">
+            {shareDetails.map((detail) => (
+              <PersonBreakdown
+                key={detail.participantId}
+                detail={detail}
+                name={getParticipantName(detail.participantId)}
+                isPayer={detail.participantId === receipt.payerId}
+                currency={receipt.currency}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Reverted to the owner's preferred order (2026-08-26). The bill
+            arithmetic reads as one continuous statement — Subtotal, Tax,
+            Service, fees, Grand Total, Discount, Amount to Pay — and hiding it
+            behind a disclosure to lift the settlement above the fold traded
+            something people scrutinise for something they scroll to anyway.
+            The settlement amounts keep the larger type; that part was
+            orthogonal to the ordering. */}
         {!preview && (
           <>
         <div className="space-y-2">
@@ -1101,12 +1211,6 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             </div>
           )}
         </div>
-        <div className="text-xs text-muted-foreground">
-          Paid by:{" "}
-          <Badge variant="secondary" className="ml-1">
-            {getParticipantName(receipt.payerId)}
-          </Badge>
-        </div>
         {/* Payment destinations — one row per unique recipient (deduped). */}
         <PaymentDestinationsSection
           recipientIds={recipientIds}
@@ -1117,127 +1221,6 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
         />
           </>
         )}
-
-        {/* Per Person Breakdown with Expandable Audit */}
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            Per Person
-            <span className="text-xs font-normal">(tap to expand)</span>
-          </h4>
-          <div className="space-y-2">
-            {shareDetails.map((detail) => (
-              <PersonBreakdown
-                key={detail.participantId}
-                detail={detail}
-                name={getParticipantName(detail.participantId)}
-                isPayer={detail.participantId === receipt.payerId}
-                currency={receipt.currency}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* The arithmetic behind the number. Collapsed by default — but the
-            total stays in the header, so nothing a user needs at a glance is
-            actually hidden. Open by default in the editor preview, where there
-            is no settlement to lead with and the totals ARE the content. */}
-        <CollapsibleSection
-          defaultOpen={preview}
-          title={
-            <span className="flex items-center gap-1.5">
-              <Calculator className="h-4 w-4" />
-              Bill details
-            </span>
-          }
-          badge={
-            <span className="ml-1 font-semibold text-foreground">
-              {money(summary.totalDiscount > 0 ? summary.amountPaid : summary.grandTotal)}
-            </span>
-          }
-        >
-        {/* Totals */}
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="text-muted-foreground">Subtotal</div>
-          <div className="text-right font-medium">
-            {money(summary.receiptSubtotal)}
-          </div>
-          <div className="text-muted-foreground">Tax</div>
-          <div className="text-right">{money(receipt.tax)}</div>
-          <div className="text-muted-foreground">Service</div>
-          <div className="text-right">{money(receipt.service)}</div>
-          {/* Fragment, not <>: the keys were on the children while the wrapper
-              inside .map() had none, which warns on every render with a fee. */}
-          {(receipt.fees ?? []).map((fee) => (
-            <Fragment key={fee.id}>
-              <div className="text-muted-foreground truncate">{fee.label}</div>
-              <div className="text-right">{money(fee.amount)}</div>
-            </Fragment>
-          ))}
-          <div className="text-muted-foreground font-medium pt-2 border-t">
-            Grand Total
-          </div>
-          <div className={cn("text-right pt-2 border-t", summary.totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
-            {money(summary.grandTotal)}
-          </div>
-          {summary.totalDiscount > 0 && (
-            <>
-              <div className="text-success">Discount</div>
-              <div className="text-right text-success">
-                − {money(summary.totalDiscount)}
-              </div>
-              <div className="text-muted-foreground font-medium pt-2 border-t">
-                Amount to Pay
-              </div>
-              <div className="text-right font-bold pt-2 border-t text-primary">
-                {money(summary.amountPaid)}
-              </div>
-            </>
-          )}
-        </div>
-        {/* Foreign-currency note — the amounts above are native; settlement
-            happens in Rp at the trip level using the locked rate. */}
-        {receipt.currency && receipt.currency !== "IDR" && (
-          <div className="flex items-center gap-1.5 rounded-md bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground">
-            <Wallet className="h-3 w-3 shrink-0" />
-            Amounts in {receipt.currency}
-            {/* needsFxRate (not a bare truthiness test) so a stored 0 or a
-                negative rate prompts for a rate instead of rendering a bogus
-                — possibly negative — rupiah equivalent. */}
-            {!needsFxRate(receipt) ? (
-              <>
-                {" · "}≈ Rp {formatCurrency(summary.amountPaid * receipt.fxRate!)} at 1 {receipt.currency} = Rp{" "}
-                {receipt.fxRate!.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
-              </>
-            ) : (
-              <span className="text-warning">· set an exchange rate to convert</span>
-            )}
-          </div>
-        )}
-        {/* Applied discounts */}
-        {receipt.discounts && receipt.discounts.length > 0 && (
-          <div className="space-y-1.5">
-            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              Discounts
-            </h4>
-            <div className="space-y-1">
-              {receipt.discounts.map((d) => (
-                <div key={d.id} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="truncate text-muted-foreground">
-                    {d.label || describeDiscountTarget(d, receipt.items, participants)}
-                    <span className="ml-1 text-muted-foreground/60">
-                      · {d.scope === "receipt" ? "bill" : d.scope === "item" ? "item" : "person"}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-medium text-success">
-                    − {formatDiscountValue(d, receipt.currency)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        </CollapsibleSection>
       </CardContent>
     </Card>
   );
