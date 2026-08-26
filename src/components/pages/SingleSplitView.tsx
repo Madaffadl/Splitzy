@@ -716,26 +716,12 @@ export function SingleSplitView() {
                   </div>
                 </div>
 
-                {/* Main Summary Panel - Centered */}
-                <ErrorBoundary label="the summary">
-                  <SummaryPanel
-                    receipt={receipt}
-                    participants={state.participants}
-                    title={state.title}
-                    savedSplitId={savedId}
-                    onUpdatePaymentInfo={updatePaymentInfo}
-                  />
-                </ErrorBoundary>
-
-                {/* Quick stats, below the panel. Measured on a 375x667 viewport,
-                    the settlement heading landed 10px past the fold with these
-                    above it — the answer was still one scroll away after being
-                    moved to the top of the card. They are context; the panel is
-                    the deliverable.
-                    Participants and Items were also the two biggest
-                    numbers on this screen at text-2xl — a count nobody needs,
-                    rendered larger than the settlement amounts below. The total
-                    leads now; the counts are context, at context size. */}
+                {/* Quick stats. Back above the panel at the owner's request.
+                    Note the measured consequence, accepted: with these here the
+                    settlement heading sits below a 667px fold. Participants and
+                    Items keep the smaller type — they were the two biggest
+                    numbers on the screen at text-2xl, a count nobody needs
+                    rendered larger than the amounts people owe. */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
                   <Card className="col-span-2 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
                     <p className="text-2xl font-bold text-success break-all sm:break-normal">
@@ -752,6 +738,18 @@ export function SingleSplitView() {
                     <p className="text-xs text-muted-foreground">Items</p>
                   </Card>
                 </div>
+
+                {/* Main Summary Panel - Centered */}
+                <ErrorBoundary label="the summary">
+                  <SummaryPanel
+                    receipt={receipt}
+                    participants={state.participants}
+                    title={state.title}
+                    savedSplitId={savedId}
+                    onUpdatePaymentInfo={updatePaymentInfo}
+                  />
+                </ErrorBoundary>
+
 
                 {/* Export Tip */}
                 <Card className="border-dashed border-muted-foreground/30 bg-muted/30">

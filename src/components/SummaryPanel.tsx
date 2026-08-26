@@ -955,7 +955,10 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
     // block, so pinning it parks a tall card over the rest of the page.
     <Card className={cn("border-2 border-primary/20 shadow-premium-lg", !readOnly && "lg:sticky lg:top-24")}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        {/* Stacks below sm:. At 375px the title and the action cluster measured
+            exactly 0px apart — the row was at 100% capacity, so there was
+            nothing for justify-between to distribute. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Wallet className="h-4 w-4 text-primary" />
@@ -963,13 +966,13 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             <span className="gradient-text font-bold">Summary</span>
           </CardTitle>
           {!readOnly && !preview && (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareLink}
                 disabled={creatingLink}
-                className="touch-manipulation min-w-[44px] px-2 sm:px-3"
+                className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-3"
                 aria-label="Create and share a read-only link"
               >
                 {creatingLink ? (
@@ -977,25 +980,25 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 ) : (
                   <Share2 className="h-4 w-4" />
                 )}
-                <span className="hidden md:inline ml-1.5">Share</span>
+                <span className="ml-1.5">Share</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareWhatsApp}
                 disabled={creatingLink}
-                className="touch-manipulation min-w-[44px] px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
+                className="touch-manipulation flex-1 px-2 text-green-600 dark:text-green-500 hover:text-green-600 sm:flex-none sm:px-3"
                 aria-label="Share the split to WhatsApp"
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="hidden md:inline ml-1.5">WhatsApp</span>
+                <span className="ml-1.5">WhatsApp</span>
               </Button>
               <Button
                 variant="accent"
                 size="sm"
                 onClick={handleCopy}
                 disabled={creatingLink}
-                className="touch-manipulation"
+                className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-4"
               >
                 {copied ? (
                   <>
@@ -1845,19 +1848,22 @@ export function MultipleReceiptSummaryPanel({
     // Same as SummaryPanel: only pin from lg:, where this is an actual sidebar.
     <Card className={cn(!readOnly && "lg:sticky lg:top-24")}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        {/* Stacks below sm:. At 375px the title and the action cluster measured
+            exactly 0px apart — the row was at 100% capacity, so there was
+            nothing for justify-between to distribute. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="h-5 w-5" />
             Summary
           </CardTitle>
           {!readOnly && (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareLink}
                 disabled={creatingLink}
-                className="touch-manipulation min-w-[44px] px-2 sm:px-3"
+                className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-3"
                 aria-label="Create and share a read-only link"
               >
                 {creatingLink ? (
@@ -1867,25 +1873,25 @@ export function MultipleReceiptSummaryPanel({
                 )}
                 {/* md:, matching the single-receipt panel — the same button was
                     showing its label at a different breakpoint in each. */}
-                <span className="hidden md:inline ml-1.5">Share</span>
+                <span className="ml-1.5">Share</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareWhatsApp}
                 disabled={creatingLink}
-                className="touch-manipulation min-w-[44px] px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
+                className="touch-manipulation flex-1 px-2 text-green-600 dark:text-green-500 hover:text-green-600 sm:flex-none sm:px-3"
                 aria-label="Share the split to WhatsApp"
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="hidden md:inline ml-1.5">WhatsApp</span>
+                <span className="ml-1.5">WhatsApp</span>
               </Button>
               <Button
                 variant="accent"
                 size="sm"
                 onClick={handleCopy}
                 disabled={creatingLink}
-                className="touch-manipulation"
+                className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-4"
               >
                 {copied ? (
                   <>
