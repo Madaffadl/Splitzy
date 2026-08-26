@@ -183,7 +183,7 @@ export function ParticipantManager({
                       e.preventDefault();
                       addByName(s);
                     }}
-                    className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    className={`touch-manipulation flex min-h-[44px] w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
                       isActive ? "bg-muted" : "hover:bg-muted"
                     }`}
                   >
@@ -202,7 +202,7 @@ export function ParticipantManager({
           onClick={addParticipant}
           disabled={!newName.trim()}
           size="icon"
-          className="shrink-0"
+          className="touch-manipulation h-11 w-11 shrink-0"
           aria-label="Add participant"
         >
           <Plus className="h-4 w-4" />
@@ -215,10 +215,10 @@ export function ParticipantManager({
           {participants.map((participant, index) => (
             <div
               key={participant.id}
-              className="group flex items-center gap-2 py-2 px-4 rounded-full bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 text-sm font-medium transition-all duration-200 hover:shadow-md hover:border-primary/30 animate-fade-in"
+              className="group flex min-h-[44px] items-center gap-2 py-1.5 px-4 rounded-full bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 text-sm font-medium transition-all duration-200 hover:shadow-md hover:border-primary/30 animate-fade-in"
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+              <div className="h-6 w-6 shrink-0 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
                 {participant.name.charAt(0).toUpperCase()}
               </div>
               <span>{participant.name}</span>
@@ -226,9 +226,9 @@ export function ParticipantManager({
                 type="button"
                 onClick={() => removeParticipant(participant.id)}
                 aria-label={`Remove ${participant.name}`}
-                className="ml-1 h-5 w-5 rounded-full bg-transparent hover:bg-destructive/20 flex items-center justify-center transition-colors group-hover:opacity-100 opacity-70"
+                className="touch-manipulation -mr-1 ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-transparent text-muted-foreground/70 opacity-60 transition-all hover:bg-destructive/20 hover:text-destructive hover:opacity-100 group-hover:opacity-100"
               >
-                <X className="h-3 w-3 text-muted-foreground hover:text-destructive transition-colors" />
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
           ))}
