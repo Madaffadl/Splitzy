@@ -27,7 +27,7 @@ export function ContentPageShell({
 }) {
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="px-4 sm:px-6 py-4 glass sticky top-0 z-50 border-b">
+      <header className="px-4 sm:px-6 py-4 glass sticky top-0 z-10">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link href={homeHref} className="flex items-center gap-2 group">
             <Logo size="md" />

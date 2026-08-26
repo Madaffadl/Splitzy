@@ -409,10 +409,10 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       {/* Success State */}
       {status === "success" && parsedResult && (
         <div className="space-y-4 animate-fade-in">
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-            <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-success/10 border border-success/30">
+            <CheckCircle2 className="h-6 w-6 text-success shrink-0" />
             <div className="flex-1">
-              <p className="font-semibold text-emerald-600 dark:text-emerald-400">
+              <p className="font-semibold text-success">
                 Success! {parsedResult.items.length} item{parsedResult.items.length !== 1 ? 's' : ''} found
               </p>
               <p className="text-sm text-muted-foreground">
@@ -506,10 +506,10 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
           {quotaHit ? (
             <ScanQuotaPaywall />
           ) : (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-              <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-warning/10 border border-warning/30">
+              <AlertTriangle className="h-6 w-6 text-warning shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-amber-600 dark:text-amber-400">
+                <p className="font-semibold text-warning">
                   Failed to read receipt
                 </p>
                 <p className="text-sm text-muted-foreground">

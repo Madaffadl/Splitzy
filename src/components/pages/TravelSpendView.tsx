@@ -173,8 +173,8 @@ function TravelSyncDialog({
         <DialogHeader>
           {status === "done" ? (
             <>
-              <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+              <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-success" />
               </div>
               <DialogTitle className="text-center">Sync complete</DialogTitle>
               <DialogDescription className="text-center">
@@ -243,7 +243,7 @@ function IndividualBudgets({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          <Target className="h-5 w-5 text-success" />
           Individual budgets
         </CardTitle>
         <CardDescription>Optional — a personal spending target per traveler.</CardDescription>
@@ -290,7 +290,7 @@ function IndividualBudgets({
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <p className={cn("text-[11px]", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                    <p className={cn("text-[11px]", over ? "text-destructive font-medium" : "text-muted-foreground")}>
                       Rp {formatCurrency(s)} of Rp {formatCurrency(budget)}
                       {over
                         ? ` · over by Rp ${formatCurrency(s - budget)}`
@@ -400,7 +400,7 @@ function SettleUpCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          <Wallet className="h-5 w-5 text-success" />
           Settle-up payments
         </CardTitle>
         <CardDescription>Record money paid directly between travelers (partial is fine).</CardDescription>
@@ -420,7 +420,7 @@ function SettleUpCard({
                   <span className="font-medium">{nameOf(p.to)}</span>
                   {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
                 </span>
-                <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
+                <span className="shrink-0 font-semibold text-success">
                   {displayAmount(p)}
                 </span>
                 <button
@@ -533,7 +533,7 @@ function SettleUpCard({
                 </Button>
               </div>
             )}
-            {rateError && <p className="text-xs text-amber-600 dark:text-amber-400">{rateError}</p>}
+            {rateError && <p className="text-xs text-warning">{rateError}</p>}
             {isForeign && parseFloat(fxRate) > 0 && parseAmount(amount) > 0 && (
               <p className="text-xs text-muted-foreground">
                 ≈ Rp {formatCurrency(Math.round(parseAmount(amount) * parseFloat(fxRate)))}
@@ -706,7 +706,7 @@ function MembersCard({
                 </p>
               </div>
               {m.role === "owner" ? (
-                <Crown className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Owner" />
+                <Crown className="h-3.5 w-3.5 shrink-0 text-warning" aria-label="Owner" />
               ) : null}
             </li>
           ))}
@@ -1390,7 +1390,7 @@ export function TravelSpendView() {
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {activeTrip && viewMode !== "overview" ? (
             <button
@@ -1447,10 +1447,10 @@ export function TravelSpendView() {
             <p className="text-muted-foreground">Loading your trips…</p>
           </div>
         ) : travel.cloudMode && travel.syncStatus === "conflict" ? (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
             <p className="flex-1 text-foreground/90">
-              <span className="font-semibold text-red-700 dark:text-red-300">This trip is out of sync.</span>{" "}
+              <span className="font-semibold text-destructive">This trip is out of sync.</span>{" "}
               It may have changed on another device or tab, or a save didn&apos;t go through. Reload to get the
               latest — unsaved local changes will be discarded.
             </p>
@@ -1459,10 +1459,10 @@ export function TravelSpendView() {
             </Button>
           </div>
         ) : travel.cloudMode && travel.syncStatus === "error" ? (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-            <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+            <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <p className="flex-1 text-foreground/90">
-              <span className="font-semibold text-amber-700 dark:text-amber-300">Changes may not be saved.</span>{" "}
+              <span className="font-semibold text-warning">Changes may not be saved.</span>{" "}
               {travel.syncError}
             </p>
             <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
@@ -1487,7 +1487,7 @@ export function TravelSpendView() {
           // attention — conflict, error, offline — still get the full banner
           // above; "saved" is now a chip you can glance at and ignore.
           <div className="mb-4 flex justify-end">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
               {travel.syncStatus === "saving" || travel.pendingSync ? (
                 <>
                   <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
@@ -1502,10 +1502,10 @@ export function TravelSpendView() {
             </span>
           </div>
         ) : (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <p className="text-foreground/90">
-              <span className="font-semibold text-amber-700 dark:text-amber-300">Saved on this device only.</span>{" "}
+              <span className="font-semibold text-warning">Saved on this device only.</span>{" "}
               Sign in to sync trips across devices.
             </p>
           </div>
@@ -1529,7 +1529,7 @@ export function TravelSpendView() {
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
-                    <Cloud className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <Cloud className="h-3.5 w-3.5 text-success" />
                     Cloud sync
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
@@ -1542,7 +1542,7 @@ export function TravelSpendView() {
                   </span>
                 </div>
                 <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <Sparkles className="h-3.5 w-3.5 text-warning" />
                   Name your trip below to get started
                 </p>
               </div>
@@ -1551,7 +1551,7 @@ export function TravelSpendView() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Plane className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  <Plane className="h-5 w-5 text-success" />
                   New trip
                 </CardTitle>
                 <CardDescription>Start tracking receipts for a trip or event.</CardDescription>
@@ -1620,7 +1620,7 @@ export function TravelSpendView() {
                         <div className="flex items-center gap-2">
                           <p className="font-semibold truncate">{t.name}</p>
                           {pendingFor(t.id) > 0 && (
-                            <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                            <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
                               {pendingFor(t.id)} to review
                             </span>
                           )}
@@ -1825,7 +1825,7 @@ export function TravelSpendView() {
                   ) : activeTrip.receipts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
                       <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
-                        <ReceiptIcon className="h-6 w-6 text-accent opacity-80" />
+                        <ReceiptIcon className="h-6 w-6 text-accent-strong" />
                       </div>
                       <p className="font-semibold text-foreground mb-1">No receipts yet</p>
                       <p className="text-sm text-muted-foreground mb-4">Scan or add a receipt to start tracking.</p>
@@ -1869,14 +1869,14 @@ export function TravelSpendView() {
                 <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-6 text-center space-y-4">
                   <div className="flex justify-center">
                     <div className="h-14 w-14 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-                      <PartyPopper className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                      <PartyPopper className="h-7 w-7 text-success" />
                     </div>
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-emerald-900 dark:text-emerald-100">
-                      All settled up! 🎉
+                      All settled up
                     </h3>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                    <p className="text-sm text-success mt-1">
                       {activeTrip.name} · {activeTrip.receipts.length} receipt{activeTrip.receipts.length !== 1 ? "s" : ""} ·{" "}
                       Rp {formatCurrency(tripTotals!.totalGrandTotal)} total
                     </p>
@@ -1895,7 +1895,7 @@ export function TravelSpendView() {
                     </Button>
                   </div>
                   <p className="text-xs text-emerald-600/70 dark:text-emerald-400/60 border-t border-emerald-200 dark:border-emerald-800 pt-3">
-                    💼 <span className="font-medium">Pro:</span> Export PDF · Unlimited trip history · Budget analytics
+                    <span className="font-medium">Pro:</span> Export PDF · Unlimited trip history · Budget analytics
                   </p>
                 </div>
               )}

@@ -21,9 +21,9 @@ function money(amount?: number, currency?: string): string | null {
 }
 
 const TONE = {
-  add: { dot: "text-emerald-500", Icon: PlusCircle },
-  remove: { dot: "text-red-500", Icon: MinusCircle },
-  edit: { dot: "text-amber-500", Icon: PencilLine },
+  add: { dot: "text-success", Icon: PlusCircle },
+  remove: { dot: "text-destructive", Icon: MinusCircle },
+  edit: { dot: "text-warning", Icon: PencilLine },
 } as const;
 
 /** A batch of ops rendered as a readable list. */
@@ -104,7 +104,7 @@ function ReviewItem({
       <ChangeOpList ops={cr.ops} nameOf={nameOf} />
 
       {stale && (
-        <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+        <p className="flex items-center gap-1.5 text-xs text-warning">
           <AlertTriangle className="h-3.5 w-3.5" />
           The trip changed since this was submitted — review carefully before approving.
         </p>
@@ -191,7 +191,7 @@ export function ReviewInbox({
     <Card className="border-amber-300 dark:border-amber-700/60">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <GitPullRequestArrow className="h-5 w-5 text-amber-500" />
+          <GitPullRequestArrow className="h-5 w-5 text-warning" />
           Changes waiting for your review
           <Badge variant="default">{requests.length}</Badge>
         </CardTitle>
@@ -259,7 +259,7 @@ export function ProposalBar({
             </>
           ) : (
             <>
-              <GitPullRequestArrow className="h-5 w-5 text-amber-500" />
+              <GitPullRequestArrow className="h-5 w-5 text-warning" />
               You have changes to submit
             </>
           )}
@@ -268,7 +268,7 @@ export function ProposalBar({
       </CardHeader>
       <CardContent className="space-y-3">
         {proposal.reviewNote && !submitted && (
-          <p className="flex items-start gap-1.5 text-sm text-red-600 dark:text-red-400">
+          <p className="flex items-start gap-1.5 text-sm text-destructive">
             <X className="h-4 w-4 mt-0.5 shrink-0" />
             <span>Owner declined your last submission: “{proposal.reviewNote}”. Revise and resubmit.</span>
           </p>

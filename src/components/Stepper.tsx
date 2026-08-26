@@ -62,7 +62,7 @@ export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
                     isCompleted &&
                       "border-primary bg-primary text-primary-foreground shadow-md shadow-primary/30",
                     isCurrent &&
-                      "border-accent bg-accent text-accent-foreground shadow-lg shadow-accent/40 animate-pulse-glow",
+                      "border-accent bg-accent text-accent-foreground shadow-lg shadow-accent/40",
                     !isCompleted &&
                       !isCurrent &&
                       "border-muted-foreground/30 bg-background text-muted-foreground"

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
 import { useNameSuggestions } from "@/hooks/useNameSuggestions";
-import { X, Plus, Users, UserPlus, History } from "@/components/ui/icons";
+import { X, Plus, Users, UserPlus, History, Check,} from "@/components/ui/icons";
 
 interface ParticipantManagerProps {
   participants: Participant[];
@@ -116,7 +116,7 @@ export function ParticipantManager({
         </div>
         {participants.length >= 2 && (
           <Badge variant="success-outline" className="text-xs">
-            ✓ Ready to continue
+            <Check className="mr-1 inline h-3 w-3 align-[-1px]" aria-hidden="true" />Ready to continue
           </Badge>
         )}
       </div>

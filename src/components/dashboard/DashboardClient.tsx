@@ -31,7 +31,7 @@ interface QuotaResponse {
 const MODES = [
   { href: "/single", icon: Receipt, title: "Single Receipt", accent: "text-primary", bg: "from-primary/20 to-primary/5" },
   { href: "/multiple", icon: Layers, title: "Multiple Receipts", accent: "text-accent-strong", bg: "from-accent/20 to-accent/5" },
-  { href: "/travel", icon: Plane, title: "Travel Spend", accent: "text-emerald-600 dark:text-emerald-400", bg: "from-emerald-500/20 to-emerald-500/5" },
+  { href: "/travel", icon: Plane, title: "Travel Spend", accent: "text-success", bg: "from-emerald-500/20 to-emerald-500/5" },
 ];
 
 export function DashboardClient() {
@@ -55,7 +55,7 @@ export function DashboardClient() {
 
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-50 border-b">
+      <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <Logo size="md" />

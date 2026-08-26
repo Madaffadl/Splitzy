@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Plus, Minus, Trash2, ShoppingCart } from "@/components/ui/icons";
+import { Plus, Minus, Trash2, ShoppingCart, AlertTriangle,} from "@/components/ui/icons";
 
 interface ItemsTableProps {
   items: ReceiptItem[];
@@ -505,13 +505,13 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                           <span
                             className={`text-xs font-medium ${
                               allUnitsAssigned
-                                ? "text-emerald-600 dark:text-emerald-400"
+                                ? "text-success"
                                 : totalAssigned > 0
-                                ? "text-amber-600 dark:text-amber-400"
+                                ? "text-warning"
                                 : "text-muted-foreground"
                             }`}
                           >
-                            {totalAssigned}/{item.qty} units{allUnitsAssigned ? " ✓" : ""}
+                            {totalAssigned}/{item.qty} units
                           </span>
                         </div>
                       </div>
@@ -573,7 +573,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                         role="alert"
                         className="text-xs font-semibold text-destructive mt-1 flex items-center gap-1"
                       >
-                        <span aria-hidden="true">⚠️</span> Item must be assigned to at least one
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Item must be assigned to at least one
                         person
                       </p>
                     )}

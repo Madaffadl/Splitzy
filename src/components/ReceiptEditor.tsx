@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, X, Loader2, RefreshCw, CheckCircle2, AlertCircle, Globe } from "@/components/ui/icons";
+import { Check, X, Loader2, RefreshCw, CheckCircle2, AlertCircle, Globe, AlertTriangle,} from "@/components/ui/icons";
 import { TRAVEL_CURRENCIES, getCurrencyMeta } from "@/lib/currencies";
 
 interface ScanDetection {
@@ -204,7 +204,7 @@ export function ReceiptEditor({
                       <>
                         <CheckCircle2 className="h-4 w-4 shrink-0" />
                         <span>
-                          ✨ {getCurrencyMeta(scanDetection.currency).name} detected — rate locked:{" "}
+                          {getCurrencyMeta(scanDetection.currency).name} detected — rate locked:{" "}
                           <strong>
                             1 {getCurrencyMeta(scanDetection.currency).symbol} = Rp{" "}
                             {receipt.fxRate?.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
@@ -366,8 +366,8 @@ export function ReceiptEditor({
         {/* Save/Cancel */}
         <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] mx-2 md:mx-0 p-4 bg-background/80 backdrop-blur-xl border rounded-2xl shadow-premium-lg z-20">
           {blockMsg && (
-            <p role="status" className="mb-2 text-right text-xs font-medium text-amber-600 dark:text-amber-400">
-              ⚠️ {blockMsg}
+            <p role="status" className="mb-2 text-right text-xs font-medium text-warning">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{blockMsg}
             </p>
           )}
           {/* Column-reverse on mobile puts Save above Cancel, so the discard

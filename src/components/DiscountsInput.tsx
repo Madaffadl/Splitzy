@@ -114,7 +114,7 @@ export function DiscountsInput({
       {/* Header — lets the user collapse again while nothing is entered yet. */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
-          <Tag className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <Tag className="h-4 w-4 text-success" />
           Discounts &amp; Vouchers
         </div>
         {discounts.length === 0 && (
@@ -146,7 +146,7 @@ export function DiscountsInput({
                     : `${d.scope === "item" ? "Item" : "Person"}: ${describeDiscountTarget(d, items, participants)}`}
                 </p>
               </div>
-              <span className="shrink-0 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="shrink-0 text-sm font-semibold text-success">
                 − {formatDiscountValue(d, currency)}
               </span>
               <Button
@@ -292,7 +292,7 @@ export function DiscountsInput({
         </div>
 
         {discountError && (
-          <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+          <p role="status" className="text-xs text-warning">
             {discountError}
           </p>
         )}

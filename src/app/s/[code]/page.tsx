@@ -73,7 +73,7 @@ export default async function SharedSplitPage({
         <Card className="border-destructive/30">
           <CardContent className="py-12 text-center space-y-3">
             {expired ? (
-              <Clock className="h-10 w-10 text-amber-500 mx-auto" />
+              <Clock className="h-10 w-10 text-warning mx-auto" />
             ) : (
               <AlertCircle className="h-10 w-10 text-destructive mx-auto" />
             )}

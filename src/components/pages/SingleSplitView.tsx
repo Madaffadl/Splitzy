@@ -49,6 +49,8 @@ import {
   Receipt as ReceiptIcon,
   PartyPopper,
   Sparkles,
+  AlertTriangle,
+  Lightbulb,
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
 
@@ -386,7 +388,7 @@ export function SingleSplitView() {
   return (
     <main className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link
             href="/"
@@ -449,7 +451,7 @@ export function SingleSplitView() {
           <div
             className={`mb-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-xs ${
               splitsRemaining <= 1
-                ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                ? "border-warning/30 bg-warning/10 text-warning"
                 : "border-border bg-muted/40 text-muted-foreground"
             }`}
           >
@@ -514,7 +516,7 @@ export function SingleSplitView() {
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-xl bg-accent/15 flex items-center justify-center">
-                        <ReceiptIcon className="h-5 w-5 text-accent" />
+                        <ReceiptIcon className="h-5 w-5 text-accent-strong" />
                       </div>
                       <div>
                         <CardTitle>Receipt Details</CardTitle>
@@ -592,8 +594,8 @@ export function SingleSplitView() {
                 <Card>
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-                        <ReceiptIcon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      <div className="h-10 w-10 rounded-xl bg-success/15 flex items-center justify-center">
+                        <ReceiptIcon className="h-5 w-5 text-success" />
                       </div>
                       <div>
                         <CardTitle>Fees & Payer</CardTitle>
@@ -651,7 +653,7 @@ export function SingleSplitView() {
                     leads now; the counts are context, at context size. */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
                   <Card className="col-span-2 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 break-all sm:break-normal">
+                    <p className="text-2xl font-bold text-success break-all sm:break-normal">
                       Rp {formatCurrency(summary.grandTotal)}
                     </p>
                     <p className="text-xs text-muted-foreground">Total bill</p>
@@ -681,7 +683,7 @@ export function SingleSplitView() {
                 <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
                   <CardContent className="py-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                      💡 <span className="font-medium">Tip:</span> Use the <span className="font-semibold text-primary">Export</span> button above to copy & share via WhatsApp or other apps
+                      <Lightbulb className="mr-1 inline h-4 w-4 align-[-3px] text-accent-strong" aria-hidden="true" /><span className="font-medium">Tip:</span> Use the <span className="font-semibold text-primary">Export</span> button above to copy & share via WhatsApp or other apps
                     </p>
                   </CardContent>
                 </Card>
@@ -708,9 +710,9 @@ export function SingleSplitView() {
               {blockingMessage && (
                 <p
                   role="status"
-                  className="text-xs font-medium text-amber-600 dark:text-amber-400 sm:text-right"
+                  className="text-xs font-medium text-warning sm:text-right"
                 >
-                  ⚠️ {blockingMessage}
+                  <AlertTriangle className="mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]" aria-hidden="true" />{blockingMessage}
                 </p>
               )}
               <div className="flex items-center gap-2">

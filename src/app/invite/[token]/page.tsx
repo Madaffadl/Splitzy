@@ -81,7 +81,7 @@ export default function InvitePage() {
 
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <Logo size="md" />
@@ -138,8 +138,8 @@ export default function InvitePage() {
           {!loading && (pageState === "ready" || pageState === "joining") && info && (
             <>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                  <UserPlus className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
+                  <UserPlus className="h-6 w-6 text-success" />
                 </div>
                 <CardTitle>You&apos;ve been invited!</CardTitle>
                 <CardDescription>
@@ -188,8 +188,8 @@ export default function InvitePage() {
           {!loading && pageState === "joined" && info && (
             <>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-6 w-6 text-success" />
                 </div>
                 <CardTitle>You&apos;re in!</CardTitle>
                 <CardDescription>

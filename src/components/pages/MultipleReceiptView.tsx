@@ -321,7 +321,7 @@ export function MultipleReceiptView() {
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {viewMode === "overview" ? (
             <Link
@@ -382,10 +382,10 @@ export function MultipleReceiptView() {
       <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
         {/* Local-only notice — sets the right expectation. This split is not yet
             synced to the cloud, so users won't think a phone reset means safety. */}
-        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <p className="text-foreground/90">
-            <span className="font-semibold text-amber-700 dark:text-amber-300">
+            <span className="font-semibold text-warning">
               Saved on this device only.
             </span>{" "}
             This split is stored in your browser. Clearing browser data or switching devices will lose it.
@@ -461,7 +461,7 @@ export function MultipleReceiptView() {
                   ) : split.receipts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
                       <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
-                        <ReceiptIcon className="h-6 w-6 text-accent opacity-80" />
+                        <ReceiptIcon className="h-6 w-6 text-accent-strong" />
                       </div>
                       <p className="font-semibold text-foreground mb-1">No receipts yet</p>
                       <p className="text-sm text-muted-foreground max-w-sm mb-4">You&rsquo;re all set! Start tracking your shared expenses.</p>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Participant, ReceiptFee } from "@/types";
 import { formatCurrency, generateId } from "@/lib/utils";
 import { canAddFee, feeInputError } from "@/lib/input-limits";
-import { Info, Plus, Trash2 } from "@/components/ui/icons";
+import { Info, Plus, Trash2, AlertTriangle,} from "@/components/ui/icons";
 import { getCurrencyMeta } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -239,7 +239,7 @@ export function FeesInput({
           </div>
 
           {feeError && (
-            <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+            <p role="status" className="text-xs text-warning">
               {feeError}
             </p>
           )}
@@ -271,7 +271,7 @@ export function FeesInput({
           </p>
         )}
         {participants.length > 0 && !payerId && (
-          <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ Please select who paid</p>
+          <p className="text-xs text-warning"><AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />Please select who paid</p>
         )}
       </div>
     </div>

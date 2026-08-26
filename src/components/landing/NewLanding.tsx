@@ -73,8 +73,8 @@ const MODE_STYLES = [
   {
     href: "/travel",
     icon: Plane,
-    accent: "text-emerald-600 dark:text-emerald-400",
-    ring: "hover:border-emerald-500/30",
+    accent: "text-success",
+    ring: "hover:border-success/30",
     iconBg: "from-emerald-500/20 to-emerald-500/5",
     badge: "new" as const,
   },
@@ -85,8 +85,8 @@ const STEP_STYLES = [
   { icon: ScanLine, wrap: "bg-accent/15", color: "text-accent-strong" },
   {
     icon: CheckCircle2,
-    wrap: "bg-emerald-500/15",
-    color: "text-emerald-600 dark:text-emerald-400",
+    wrap: "bg-success/15",
+    color: "text-success",
   },
 ];
 
@@ -155,15 +155,15 @@ function ProductPreview({ dict }: { dict: Dictionary }) {
             ["Budi", "Alya", "44.000"],
             ["Citra", "Alya", "22.000"],
           ].map(([from, to, amt]) => (
-            <div key={`${from}${to}`} className="flex items-center gap-2 rounded-md bg-emerald-500/10 px-2.5 py-1.5 text-sm">
+            <div key={`${from}${to}`} className="flex items-center gap-2 rounded-md bg-success/10 px-2.5 py-1.5 text-sm">
               <span className="font-medium">{from}</span>
               <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="font-medium">{to}</span>
-              <span className="ml-auto font-bold text-emerald-600 dark:text-emerald-400">Rp {amt}</span>
+              <span className="ml-auto font-bold text-success">Rp {amt}</span>
             </div>
           ))}
         </div>
-        <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+        <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-success">
           <CheckCircle2 className="h-4 w-4" />
           {dict.preview.settled}
         </div>
@@ -197,7 +197,7 @@ function FeatureRow({
         <ul className="space-y-2.5">
           {points.map((p) => (
             <li key={p} className="flex items-start gap-2.5 text-sm">
-              <Check className="h-4 w-4 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <Check className="h-4 w-4 mt-0.5 shrink-0 text-success" />
               <span className="text-foreground/90">{p}</span>
             </li>
           ))}
@@ -221,7 +221,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-50 border-b">
+      <header className="px-4 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href={home} className="flex items-center gap-2 sm:gap-3">
             <Logo size="md" />
@@ -285,7 +285,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
                 href="/travel"
                 className="touch-manipulation w-full sm:w-auto px-6 py-3.5 rounded-xl text-foreground font-semibold hover:bg-foreground/5 transition-all flex items-center justify-center gap-2"
               >
-                <Plane className="h-5 w-5 text-emerald-500" />
+                <Plane className="h-5 w-5 text-success" />
                 {dict.hero.ctaSecondary}
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -345,7 +345,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-success">
                   <Check className="h-4 w-4" /> {dict.featureVisuals.itemsDetected}
                 </div>
               </div>
@@ -364,7 +364,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
                   <span className="flex items-center gap-2 text-muted-foreground line-through">
                     <ArrowRightLeft className="h-4 w-4" /> {dict.featureVisuals.messyTransfers}
                   </span>
-                  <span className="flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span className="flex items-center gap-1.5 font-semibold text-success">
                     <ArrowRight className="h-4 w-4" /> 2
                   </span>
                 </div>
@@ -373,11 +373,11 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
                     ["Budi", "Alya", "44.000"],
                     ["Citra", "Alya", "22.000"],
                   ].map(([f, t, a]) => (
-                    <div key={`${f}${t}`} className="flex items-center gap-2 rounded-md bg-emerald-500/10 px-3 py-2 text-sm">
+                    <div key={`${f}${t}`} className="flex items-center gap-2 rounded-md bg-success/10 px-3 py-2 text-sm">
                       <span className="font-medium">{f}</span>
                       <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <span className="font-medium">{t}</span>
-                      <span className="ml-auto font-bold text-emerald-600 dark:text-emerald-400">Rp {a}</span>
+                      <span className="ml-auto font-bold text-success">Rp {a}</span>
                     </div>
                   ))}
                 </div>
@@ -394,7 +394,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
               <div className="relative rounded-2xl border bg-background p-5 shadow-premium tabular-nums" aria-hidden="true">
                 <div className="flex items-center justify-between mb-3">
                   <span className="flex items-center gap-2 font-semibold">
-                    <Plane className="h-4 w-4 text-emerald-500" /> {dict.featureVisuals.tripName}
+                    <Plane className="h-4 w-4 text-success" /> {dict.featureVisuals.tripName}
                   </span>
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Globe className="h-3.5 w-3.5" /> IDR · SGD
@@ -531,8 +531,16 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
           <div className="grid md:grid-cols-3 gap-5">
             {dict.testimonials.items.map((t) => (
               <figure key={t.name} className="rounded-2xl border bg-card p-6 flex flex-col">
-                <div className="text-accent-strong text-sm mb-3" aria-label={dict.testimonials.starLabel}>
-                  ★★★★★
+                {/* aria-label on a plain div carries the implicit `generic`
+                    role, which ARIA says does not support naming — so the
+                    rating was either read out as five star characters or
+                    skipped entirely. role="img" makes the label count. */}
+                <div
+                  role="img"
+                  aria-label={dict.testimonials.starLabel}
+                  className="text-accent-strong text-sm mb-3"
+                >
+                  <span aria-hidden="true">★★★★★</span>
                 </div>
                 <blockquote className="text-sm text-foreground/90 leading-relaxed flex-1">
                   &ldquo;{t.quote}&rdquo;
@@ -573,7 +581,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
               <ul className="mt-5 space-y-2.5 flex-1">
                 {dict.pricing.freeFeatures.map((f) => (
                   <li key={f} className="flex items-start gap-2.5 text-sm">
-                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-success" />
                     <span className="text-foreground/90">{f}</span>
                   </li>
                 ))}

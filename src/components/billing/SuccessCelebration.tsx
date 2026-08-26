@@ -15,8 +15,8 @@ export function SuccessCelebration() {
   return (
     <div className="flex flex-col items-center text-center py-8 animate-scale-in">
       <div className="relative mb-5">
-        <div className="h-20 w-20 rounded-full bg-emerald-500/15 flex items-center justify-center animate-bounce-in">
-          <CheckCircle2 className="h-11 w-11 text-emerald-500" />
+        <div className="h-20 w-20 rounded-full bg-success/15 flex items-center justify-center animate-bounce-in">
+          <CheckCircle2 className="h-11 w-11 text-success" />
         </div>
         {/* Decorative confetti dots */}
         {[

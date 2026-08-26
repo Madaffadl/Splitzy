@@ -90,10 +90,10 @@ const variantStyles: Record<
   { bg: string; border: string; icon: React.ElementType; iconClass: string }
 > = {
   success: {
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/40",
+    bg: "bg-success/10",
+    border: "border-success/40",
     icon: CheckCircle2,
-    iconClass: "text-emerald-500",
+    iconClass: "text-success",
   },
   error: {
     bg: "bg-destructive/10",

@@ -61,7 +61,7 @@ function StepVisual({ step }: { step: number }) {
             </div>
           ))}
         </div>
-        <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+        <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-success">
           <Check className="h-3.5 w-3.5" /> Items detected
         </div>
       </div>
@@ -76,11 +76,11 @@ function StepVisual({ step }: { step: number }) {
             ["Budi", "Alya", "44.000"],
             ["Citra", "Alya", "22.000"],
           ].map(([f, t, a]) => (
-            <div key={`${f}${t}`} className="flex items-center gap-2 rounded-md bg-emerald-500/10 px-2.5 py-1.5 text-xs">
+            <div key={`${f}${t}`} className="flex items-center gap-2 rounded-md bg-success/10 px-2.5 py-1.5 text-xs">
               <span className="font-medium">{f}</span>
               <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
               <span className="font-medium">{t}</span>
-              <span className="ml-auto font-bold text-emerald-600 dark:text-emerald-400">Rp {a}</span>
+              <span className="ml-auto font-bold text-success">Rp {a}</span>
             </div>
           ))}
         </div>
@@ -113,7 +113,7 @@ function StepVisual({ step }: { step: number }) {
           </div>
         ))}
       </div>
-      <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+      <div className="mt-2 flex items-center gap-1 text-[11px] font-medium text-success">
         <CheckCircle2 className="h-3.5 w-3.5" /> Settled in just 2 transfers
       </div>
     </div>

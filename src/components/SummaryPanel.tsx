@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Copy, Check, CheckCircle2, Circle, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2, X, MessageCircle } from "@/components/ui/icons";
 import { EVENTS, capture } from "@/lib/analytics";
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { Fragment, useState, useMemo, useEffect, type ReactNode } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
 import { parseShareSource, coveredShareParticipants } from "@/lib/settle-up";
@@ -310,7 +310,7 @@ function PersonBreakdown({
   const money = (n: number) => formatMoney(n, currency);
 
   return (
-    <div className={cn("rounded-md border overflow-hidden", paid && "border-emerald-500/30 bg-emerald-500/[0.04]")}>
+    <div className={cn("rounded-md border overflow-hidden", paid && "border-success/30 bg-emerald-500/[0.04]")}>
       {/* Main row: tap the name area to expand; a labelled chip on the right
           marks the share paid (so the control is self-explanatory). */}
       <div className="flex items-center">
@@ -424,7 +424,7 @@ function PersonBreakdown({
 
           {/* Discount credit */}
           {detail.discount > 0 && (
-            <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
+            <div className="flex justify-between text-xs text-success">
               <span>− Discount</span>
               <span>− {money(detail.discount)}</span>
             </div>
@@ -517,7 +517,7 @@ export function ReceiptBreakdown({
   const settled = allPaid;
 
   return (
-    <div className={cn("rounded-md border overflow-hidden", settled && "bg-emerald-500/[0.04] border-emerald-500/30")}>
+    <div className={cn("rounded-md border overflow-hidden", settled && "bg-emerald-500/[0.04] border-success/30")}>
       <div className="flex items-center">
         <button
           onClick={() => setExpanded(!expanded)}
@@ -531,7 +531,7 @@ export function ReceiptBreakdown({
               {receipt.title}
             </span>
             {settled && (
-              <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
+              <span className="flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success shrink-0">
                 <Check className="h-3 w-3" />
                 Paid
               </span>
@@ -574,7 +574,7 @@ export function ReceiptBreakdown({
                 className={cn(
                   "touch-manipulation hidden h-11 w-11 items-center justify-center rounded-md transition-colors sm:flex",
                   allPaid
-                    ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    ? "text-success hover:bg-success/10"
                     : "text-muted-foreground hover:bg-muted hover:text-emerald-600"
                 )}
               >
@@ -652,7 +652,7 @@ export function ReceiptBreakdown({
           </p>
           {onTogglePaidShare && (
             <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Check className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <Check className="h-3 w-3 shrink-0 text-success" />
               Tap <span className="font-medium text-foreground">Mark paid</span> when someone has settled their share.
             </p>
           )}
@@ -664,7 +664,7 @@ export function ReceiptBreakdown({
             </p>
           )}
           {summary.totalDiscount > 0 && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+            <p className="text-xs text-success">
               Includes − {money(summary.totalDiscount)} discount
               (bill {money(summary.grandTotal)})
             </p>
@@ -1029,7 +1029,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             Settlements
           </h4>
           {settlements.length === 0 ? (
-            <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
+            <div className="text-sm text-center py-2 text-success bg-success/10 rounded-md">
               ✓ All settled!
             </div>
           ) : settleStatic ? (
@@ -1065,7 +1065,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                     className={cn(
                       "touch-manipulation group w-full flex min-h-[44px] flex-col justify-center sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
                       paid
-                        ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                        ? "bg-success/10 hover:bg-success/15"
                         : "bg-muted/50 hover:bg-muted"
                     )}
                   >
@@ -1092,7 +1092,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                     {/* The number the whole screen exists to produce. On a
                         phone the row wraps and this gets its own line, so it
                         can afford text-2xl; from sm: up it shares the row. */}
-                    <span className={cn("text-2xl font-bold sm:ml-auto sm:text-xl", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                    <span className={cn("text-2xl font-bold sm:ml-auto sm:text-xl", paid ? "text-success" : "text-primary")}>
                       Rp {formatCurrency(s.amount)}
                     </span>
                   </button>
@@ -1165,11 +1165,13 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
           <div className="text-right">{money(receipt.tax)}</div>
           <div className="text-muted-foreground">Service</div>
           <div className="text-right">{money(receipt.service)}</div>
+          {/* Fragment, not <>: the keys were on the children while the wrapper
+              inside .map() had none, which warns on every render with a fee. */}
           {(receipt.fees ?? []).map((fee) => (
-            <>
-              <div key={`${fee.id}-label`} className="text-muted-foreground truncate">{fee.label}</div>
-              <div key={`${fee.id}-amount`} className="text-right">{money(fee.amount)}</div>
-            </>
+            <Fragment key={fee.id}>
+              <div className="text-muted-foreground truncate">{fee.label}</div>
+              <div className="text-right">{money(fee.amount)}</div>
+            </Fragment>
           ))}
           <div className="text-muted-foreground font-medium pt-2 border-t">
             Grand Total
@@ -1179,8 +1181,8 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
           </div>
           {summary.totalDiscount > 0 && (
             <>
-              <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
-              <div className="text-right text-emerald-600 dark:text-emerald-400">
+              <div className="text-success">Discount</div>
+              <div className="text-right text-success">
                 − {money(summary.totalDiscount)}
               </div>
               <div className="text-muted-foreground font-medium pt-2 border-t">
@@ -1207,7 +1209,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 {receipt.fxRate!.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
               </>
             ) : (
-              <span className="text-amber-600 dark:text-amber-400">· set an exchange rate to convert</span>
+              <span className="text-warning">· set an exchange rate to convert</span>
             )}
           </div>
         )}
@@ -1227,7 +1229,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                       · {d.scope === "receipt" ? "bill" : d.scope === "item" ? "item" : "person"}
                     </span>
                   </span>
-                  <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">
+                  <span className="shrink-0 font-medium text-success">
                     − {formatDiscountValue(d, receipt.currency)}
                   </span>
                 </div>
@@ -1410,7 +1412,7 @@ export function MultipleReceiptSummaryPanel({
                         group actually has a rate — otherwise the figure would be
                         the native amount relabelled, which is worse than blank. */}
                     {g.unconverted > 0 ? (
-                      <span className="text-amber-600 dark:text-amber-400">rate needed</span>
+                      <span className="text-warning">rate needed</span>
                     ) : (
                       <span className="text-muted-foreground">≈ Rp {formatCurrency(g.base)}</span>
                     )}
@@ -1421,7 +1423,7 @@ export function MultipleReceiptSummaryPanel({
           ))}
       </div>
       {unconvertedReceipts.length > 0 && (
-        <p className="flex items-start gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+        <p className="flex items-start gap-1.5 rounded-md bg-warning/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
           <span aria-hidden="true">⚠️</span>
           <span>
             {unconvertedReceipts.length === 1
@@ -1823,7 +1825,7 @@ export function MultipleReceiptSummaryPanel({
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <p className={cn("text-xs text-right", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+              <p className={cn("text-xs text-right", over ? "text-destructive font-medium" : "text-muted-foreground")}>
                 {over ? `Over by Rp ${formatCurrency(totalPaid - budget)}` : `Rp ${formatCurrency(budget - totalPaid)} left`}
               </p>
             </div>
@@ -1839,9 +1841,9 @@ export function MultipleReceiptSummaryPanel({
                     className={cn(
                       "font-semibold shrink-0",
                       net > 0.01
-                        ? "text-emerald-600 dark:text-emerald-400"
+                        ? "text-success"
                         : net < -0.01
-                        ? "text-red-500"
+                        ? "text-destructive"
                         : "text-muted-foreground"
                     )}
                   >
@@ -1931,8 +1933,8 @@ export function MultipleReceiptSummaryPanel({
           </div>
           {totalDiscount > 0 && (
             <>
-              <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
-              <div className="text-right text-emerald-600 dark:text-emerald-400">
+              <div className="text-success">Discount</div>
+              <div className="text-right text-success">
                 − Rp {formatCurrency(totalDiscount)}
               </div>
               <div className="text-muted-foreground font-medium pt-2 border-t">
@@ -1967,7 +1969,7 @@ export function MultipleReceiptSummaryPanel({
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <p className={cn("text-xs text-right", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+              <p className={cn("text-xs text-right", over ? "text-destructive font-medium" : "text-muted-foreground")}>
                 {over
                   ? `Over budget by Rp ${formatCurrency(spent - budget)}`
                   : `Rp ${formatCurrency(budget - spent)} left`}
@@ -2044,9 +2046,9 @@ export function MultipleReceiptSummaryPanel({
                         <span
                           className={`text-sm font-semibold ${
                             net > 0
-                              ? "text-emerald-600 dark:text-emerald-400"
+                              ? "text-success"
                               : net < 0
-                              ? "text-red-500"
+                              ? "text-destructive"
                               : "text-muted-foreground"
                           }`}
                         >
@@ -2058,9 +2060,9 @@ export function MultipleReceiptSummaryPanel({
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex flex-wrap justify-between gap-x-2 p-1.5 rounded bg-emerald-500/10">
-                        <span className="text-emerald-700 dark:text-emerald-300">Paid</span>
-                        <span className="font-medium text-emerald-700 dark:text-emerald-300 whitespace-nowrap">Rp {formatCurrency(paid)}</span>
+                      <div className="flex flex-wrap justify-between gap-x-2 p-1.5 rounded bg-success/10">
+                        <span className="text-success">Paid</span>
+                        <span className="font-medium text-success whitespace-nowrap">Rp {formatCurrency(paid)}</span>
                       </div>
                       <div className="flex flex-wrap justify-between gap-x-2 p-1.5 rounded bg-orange-500/10">
                         <span className="text-orange-700 dark:text-orange-300">Consumed</span>
@@ -2078,7 +2080,7 @@ export function MultipleReceiptSummaryPanel({
                           {breakdown.paid.map((entry, i) => (
                             <div key={i} className="flex justify-between py-0.5 border-b border-border/30 last:border-0">
                               <span className="truncate pr-2 text-muted-foreground">{entry.receiptTitle}</span>
-                              <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">Rp {formatCurrency(entry.amount)}</span>
+                              <span className="shrink-0 font-medium text-success">Rp {formatCurrency(entry.amount)}</span>
                             </div>
                           ))}
                         </div>
@@ -2127,7 +2129,7 @@ export function MultipleReceiptSummaryPanel({
                   <div key={p.id} className="rounded-lg border bg-card px-3 py-2 space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium truncate">{getParticipantName(p.id)}</span>
-                      <span className={cn("text-xs font-medium whitespace-nowrap", over ? "text-red-500" : "text-muted-foreground")}>
+                      <span className={cn("text-xs font-medium whitespace-nowrap", over ? "text-destructive" : "text-muted-foreground")}>
                         Rp {formatCurrency(spent)} / Rp {formatCurrency(budget)}
                       </span>
                     </div>
@@ -2137,7 +2139,7 @@ export function MultipleReceiptSummaryPanel({
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <p className={cn("text-[11px]", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                    <p className={cn("text-[11px]", over ? "text-destructive font-medium" : "text-muted-foreground")}>
                       {over ? `Over by Rp ${formatCurrency(spent - budget)}` : `Rp ${formatCurrency(budget - spent)} left`}
                     </p>
                   </div>
@@ -2170,16 +2172,16 @@ export function MultipleReceiptSummaryPanel({
               collapsed by default so a long list of marked-paid receipts doesn't
               dominate the summary (settle-up section shows manual entries only). */}
           {alreadyPaid.length > 0 && (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs">
+            <div className="rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-xs">
               <CollapsibleSection
                 title={
-                  <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
+                  <span className="flex items-center gap-1.5 font-medium text-success">
                     <Check className="h-3.5 w-3.5 shrink-0" />
                     Already paid — not included in settlement
                   </span>
                 }
                 badge={
-                  <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                  <span className="rounded-full bg-success/20 px-1.5 py-0.5 text-[10px] font-semibold text-success">
                     {alreadyPaid.length}
                   </span>
                 }
@@ -2202,7 +2204,7 @@ export function MultipleReceiptSummaryPanel({
                       )}
                     </span>
                     <span className="flex items-center gap-1.5 shrink-0">
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                      <span className="font-semibold text-success">
                         Rp {formatCurrency(p.amount)}
                         {p.nativeLabel && (
                           <span className="ml-1 font-normal text-[11px] text-muted-foreground">
@@ -2249,8 +2251,8 @@ export function MultipleReceiptSummaryPanel({
                       <span className="font-medium">{getParticipantName(id)}</span>
                       <span className={cn(
                         "font-mono text-right",
-                        balance > 0.01 ? "text-emerald-600 dark:text-emerald-400" :
-                        balance < -0.01 ? "text-red-500" :
+                        balance > 0.01 ? "text-success" :
+                        balance < -0.01 ? "text-destructive" :
                         "text-muted-foreground"
                       )}>
                         {balance > 0.01
@@ -2272,16 +2274,16 @@ export function MultipleReceiptSummaryPanel({
                   return (
                     <div key={i} className="rounded border border-border/50 bg-background/60 px-2.5 py-2 space-y-1">
                       <div className="flex items-center gap-1.5 font-medium">
-                        <span className="text-red-500">{getParticipantName(step.transfer.from)}</span>
+                        <span className="text-destructive">{getParticipantName(step.transfer.from)}</span>
                         <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <span className="text-emerald-600 dark:text-emerald-400">{getParticipantName(step.transfer.to)}</span>
+                        <span className="text-success">{getParticipantName(step.transfer.to)}</span>
                         <span className="ml-auto text-foreground">Rp {formatCurrency(step.transfer.amount)}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground pl-0.5">
                         <span>
                           {getParticipantName(step.transfer.from)}:{" "}
                           {Math.abs(fromAfter) < 0.01
-                            ? <span className="text-emerald-600 dark:text-emerald-400">settled ✓</span>
+                            ? <span className="text-success">settled ✓</span>
                             : <span>{fromAfter < -0.01 ? `-Rp ${formatCurrency(Math.abs(fromAfter))} still owes` : `+Rp ${formatCurrency(fromAfter)} remaining`}</span>
                           }
                         </span>
@@ -2289,7 +2291,7 @@ export function MultipleReceiptSummaryPanel({
                         <span>
                           {getParticipantName(step.transfer.to)}:{" "}
                           {Math.abs(toAfter) < 0.01
-                            ? <span className="text-emerald-600 dark:text-emerald-400">settled ✓</span>
+                            ? <span className="text-success">settled ✓</span>
                             : <span>{toAfter > 0.01 ? `+Rp ${formatCurrency(toAfter)} still owed` : `-Rp ${formatCurrency(Math.abs(toAfter))} remaining`}</span>
                           }
                         </span>
@@ -2302,7 +2304,7 @@ export function MultipleReceiptSummaryPanel({
           )}
 
           {settlements.length === 0 ? (
-            <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
+            <div className="text-sm text-center py-2 text-success bg-success/10 rounded-md">
               ✓ Everyone is settled!
             </div>
           ) : onRecordPayment ? (
@@ -2351,7 +2353,7 @@ export function MultipleReceiptSummaryPanel({
                     className={cn(
                       "touch-manipulation group w-full flex min-h-[44px] flex-col justify-center sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
                       paid
-                        ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                        ? "bg-success/10 hover:bg-success/15"
                         : "bg-muted/50 hover:bg-muted"
                     )}
                   >
@@ -2378,7 +2380,7 @@ export function MultipleReceiptSummaryPanel({
                     {/* The number the whole screen exists to produce. On a
                         phone the row wraps and this gets its own line, so it
                         can afford text-2xl; from sm: up it shares the row. */}
-                    <span className={cn("text-2xl font-bold sm:ml-auto sm:text-xl", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                    <span className={cn("text-2xl font-bold sm:ml-auto sm:text-xl", paid ? "text-success" : "text-primary")}>
                       Rp {formatCurrency(s.amount)}
                     </span>
                   </button>
