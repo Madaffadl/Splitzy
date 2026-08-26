@@ -25,7 +25,8 @@ export function AuthButton() {
 
   if (isLoading) {
     return (
-      <div className="h-9 w-9 rounded-full bg-muted animate-pulse" />
+      // Matches the resolved control's height so the header doesn't shift.
+      <div className="h-11 w-11 rounded-full bg-muted animate-pulse" />
     );
   }
 
@@ -35,7 +36,7 @@ export function AuthButton() {
         variant="outline"
         size="sm"
         onClick={() => signIn()}
-        className="gap-2"
+        className="touch-manipulation h-11 min-w-[44px] gap-2"
         aria-label="Sign in with Google"
       >
         <LogIn className="h-4 w-4" />
@@ -54,7 +55,7 @@ export function AuthButton() {
         aria-label={`Account menu — ${displayName}`}
         aria-expanded={showMenu}
         aria-haspopup="menu"
-        className="flex items-center gap-2 rounded-full border border-border/50 bg-background/80 px-2 py-1 hover:bg-muted transition-colors"
+        className="touch-manipulation flex min-h-[44px] items-center gap-2 rounded-full border border-border/50 bg-background/80 px-2 py-1 hover:bg-muted transition-colors"
       >
         {avatarUrl ? (
           <Image
@@ -85,7 +86,7 @@ export function AuthButton() {
           <Link
             href="/dashboard"
             onClick={() => setShowMenu(false)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border"
+            className="touch-manipulation w-full flex min-h-[44px] items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border"
           >
             <LayoutDashboard className="h-4 w-4 text-primary" />
             Dashboard
@@ -94,7 +95,7 @@ export function AuthButton() {
             <Link
               href="/admin"
               onClick={() => setShowMenu(false)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border"
+              className="touch-manipulation w-full flex min-h-[44px] items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors border-b border-border"
             >
               <Shield className="h-4 w-4 text-violet-500" />
               Admin dashboard
@@ -105,7 +106,7 @@ export function AuthButton() {
               setShowMenu(false);
               await signOut();
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+            className="touch-manipulation w-full flex min-h-[44px] items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
           >
             <LogOut className="h-4 w-4" />
             Sign Out

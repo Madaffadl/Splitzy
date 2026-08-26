@@ -15,7 +15,11 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <button className="w-8 h-8 rounded-lg bg-muted text-muted-foreground flex items-center justify-center opacity-50">
+      <button
+        aria-hidden="true"
+        tabIndex={-1}
+        className="w-11 h-11 rounded-lg bg-muted text-muted-foreground flex items-center justify-center opacity-50"
+      >
         <Sun className="h-4 w-4" />
       </button>
     )
@@ -24,7 +28,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className="w-8 h-8 rounded-lg bg-muted text-muted-foreground hover:bg-primary/10 hover:text-foreground flex items-center justify-center transition-all relative overflow-hidden"
+      className="touch-manipulation w-11 h-11 rounded-lg bg-muted text-muted-foreground hover:bg-primary/10 hover:text-foreground flex items-center justify-center transition-all relative overflow-hidden"
       aria-label="Toggle theme"
     >
       <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />

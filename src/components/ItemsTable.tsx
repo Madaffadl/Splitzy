@@ -283,7 +283,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                       variant="ghost"
                       size="icon"
                       onClick={() => removeItem(item.id)}
-                      className="text-muted-foreground hover:text-destructive shrink-0"
+                      className="touch-manipulation h-11 w-11 text-muted-foreground hover:text-destructive shrink-0"
                       aria-label={`Remove item ${index + 1}`}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -405,7 +405,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                         onClick={() =>
                           isQtyMode ? distributeEvenly(item.id) : assignAll(item.id)
                         }
-                        className="text-xs h-6"
+                        className="touch-manipulation h-9 text-xs"
                       >
                         {isQtyMode ? "Distribute Evenly" : "Select All"}
                       </Button>
@@ -436,7 +436,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                                   onClick={() =>
                                     updateAssignment(item.id, participant.id, personQty - 1)
                                   }
-                                  className="w-7 h-7 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  className="touch-manipulation h-9 w-9 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                   <Minus className="h-3 w-3" />
                                 </button>
@@ -450,7 +450,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                                   onClick={() =>
                                     updateAssignment(item.id, participant.id, personQty + 1)
                                   }
-                                  className="w-7 h-7 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  className="touch-manipulation h-9 w-9 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                   <Plus className="h-3 w-3" />
                                 </button>
@@ -464,7 +464,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                           <button
                             type="button"
                             onClick={() => exitQtyMode(item.id)}
-                            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                            className="touch-manipulation px-1 py-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
                           >
                             ← Equal split
                           </button>
@@ -498,7 +498,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                                 key={participant.id}
                                 aria-pressed={isAssigned}
                                 onClick={() => toggleAssignment(item.id, participant.id)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-all select-none shrink-0 ${
+                                className={`touch-manipulation flex min-h-[44px] items-center gap-2 px-3 py-2 rounded-full border text-sm transition-all select-none shrink-0 ${
                                   isAssigned
                                     ? "bg-primary/15 border-primary/40 text-foreground font-medium shadow-sm"
                                     : "bg-background border-border hover:bg-muted/80 text-muted-foreground"
@@ -525,7 +525,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                           <button
                             type="button"
                             onClick={() => enterQtyMode(item.id)}
-                            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                            className="touch-manipulation px-1 py-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
                           >
                             Split by quantity →
                           </button>

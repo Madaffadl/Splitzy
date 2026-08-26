@@ -276,14 +276,14 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
             <div className="flex flex-col sm:flex-row items-center lg:items-start lg:justify-start justify-center gap-3">
               <Link
                 href="/single"
-                className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                className="touch-manipulation w-full sm:w-auto px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
               >
                 <Receipt className="h-5 w-5" />
                 {dict.hero.ctaPrimary}
               </Link>
               <Link
                 href="/travel"
-                className="w-full sm:w-auto px-6 py-3.5 rounded-xl text-foreground font-semibold hover:bg-foreground/5 transition-all flex items-center justify-center gap-2"
+                className="touch-manipulation w-full sm:w-auto px-6 py-3.5 rounded-xl text-foreground font-semibold hover:bg-foreground/5 transition-all flex items-center justify-center gap-2"
               >
                 <Plane className="h-5 w-5 text-emerald-500" />
                 {dict.hero.ctaSecondary}

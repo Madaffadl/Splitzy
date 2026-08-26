@@ -226,7 +226,7 @@ export function ReceiptEditor({
                   <select
                     value={receipt.currency ?? "IDR"}
                     onChange={(e) => handleCurrencyChange(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="touch-manipulation flex h-11 w-full rounded-md border border-input bg-background px-3 py-1 text-base sm:h-9 sm:text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     {TRAVEL_CURRENCIES.map((c) => (
                       <option key={c.code} value={c.code}>
@@ -254,7 +254,7 @@ export function ReceiptEditor({
                           setRateMeta(null);
                           onChange({ fxRate: Number.isFinite(v) && v > 0 ? v : undefined });
                         }}
-                        className="w-36"
+                        className="min-w-[6rem] flex-1 sm:w-36 sm:flex-none"
                       />
                       <span className="text-sm text-muted-foreground">Rp</span>
                       <Button
@@ -263,6 +263,7 @@ export function ReceiptEditor({
                         onClick={() => void fetchRate(receipt.currency!)}
                         disabled={fetchingRate}
                         title="Auto-fetch latest rate"
+                        className="touch-manipulation h-11 sm:h-9"
                       >
                         {fetchingRate ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -369,12 +370,22 @@ export function ReceiptEditor({
               ⚠️ {blockMsg}
             </p>
           )}
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={onCancel} className="bg-background/50 hover:bg-muted">
+          {/* Column-reverse on mobile puts Save above Cancel, so the discard
+              action is never the one under the thumb's resting position. */}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            <Button
+              variant="outline"
+              onClick={onCancel}
+              className="touch-manipulation h-11 w-full sm:w-auto bg-background/50 hover:bg-muted"
+            >
               <X className="h-4 w-4 mr-2" />
               Cancel
             </Button>
-            <Button onClick={onSave} disabled={!canSave || isSaving} className="shadow-md shadow-primary/20">
+            <Button
+              onClick={onSave}
+              disabled={!canSave || isSaving}
+              className="touch-manipulation h-11 w-full sm:w-auto shadow-md shadow-primary/20"
+            >
               <Check className="h-4 w-4 mr-2" />
               Save Receipt
             </Button>

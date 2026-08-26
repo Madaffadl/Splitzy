@@ -50,7 +50,7 @@ export function Stepper({ steps, currentStep, onStepClick }: StepperProps) {
                 disabled={!isClickable}
                 aria-current={isCurrent ? "step" : undefined}
                 className={cn(
-                  "flex flex-col items-center gap-2 transition-transform duration-300",
+                  "touch-manipulation flex flex-col items-center gap-2 transition-transform duration-300",
                   isClickable && "cursor-pointer hover:scale-105",
                   !isClickable && "cursor-default"
                 )}

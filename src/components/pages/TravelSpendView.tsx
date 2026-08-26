@@ -263,12 +263,12 @@ function IndividualBudgets({
                     {p.name.charAt(0).toUpperCase()}
                   </div>
                   <span className="text-sm font-medium flex-1 truncate">{p.name}</span>
-                  <div className="relative w-32 shrink-0">
+                  <div className="relative w-28 shrink-0 sm:w-32">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">Rp</span>
                     <Input
                       type="text"
                       inputMode="numeric"
-                      className="pl-8 h-8 text-sm"
+                      className="pl-8 h-11 text-base sm:h-9 sm:text-sm"
                       placeholder="0"
                       aria-label={`${p.name} budget`}
                       value={draft !== undefined ? draft : hasBudget ? formatCurrency(budget) : ""}
@@ -424,7 +424,7 @@ function SettleUpCard({
                   type="button"
                   onClick={() => onDelete(p.id)}
                   aria-label="Delete payment"
-                  className="shrink-0 h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                  className="touch-manipulation shrink-0 h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -442,7 +442,7 @@ function SettleUpCard({
                 aria-label="Payer"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
-                className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
+                className="touch-manipulation min-w-0 flex-1 h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm"
               >
                 <option value="">From…</option>
                 {participants.map((p) => (
@@ -454,7 +454,7 @@ function SettleUpCard({
                 aria-label="Recipient"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
+                className="touch-manipulation min-w-0 flex-1 h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm"
               >
                 <option value="">To…</option>
                 {participants.map((p) => (
@@ -463,27 +463,28 @@ function SettleUpCard({
               </select>
             </div>
 
-            {/* Currency + Amount */}
-            <div className="flex items-center gap-2">
+            {/* Currency + Amount. Note lives on its own row until sm: —
+                three fields on one line leaves ~70px of typing space at 375px. */}
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 aria-label="Currency"
                 value={currency}
                 onChange={(e) => handleCurrencyChange(e.target.value)}
-                className="h-9 rounded-md border bg-background px-2 text-sm w-24 shrink-0"
+                className="touch-manipulation h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm w-24 shrink-0"
               >
                 <option value="IDR">IDR</option>
                 {TRAVEL_CURRENCIES.filter((c) => c.code !== "IDR").map((c) => (
                   <option key={c.code} value={c.code}>{c.code}</option>
                 ))}
               </select>
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
                   {isForeign ? (currencyMeta?.symbol ?? currency) : "Rp"}
                 </span>
                 <Input
                   type="text"
                   inputMode="numeric"
-                  className="pl-8 h-9"
+                  className="pl-8 h-11 text-base sm:h-9 sm:text-sm"
                   placeholder="Amount"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -491,7 +492,7 @@ function SettleUpCard({
                 />
               </div>
               <Input
-                className="flex-1 h-9"
+                className="basis-full sm:basis-0 flex-1 h-11 text-base sm:h-9 sm:text-sm"
                 placeholder="Note (optional)"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -509,7 +510,7 @@ function SettleUpCard({
                   <Input
                     type="text"
                     inputMode="decimal"
-                    className="pl-14 h-9 text-sm"
+                    className="pl-14 h-11 text-base sm:h-9 sm:text-sm"
                     placeholder="rate in Rp"
                     value={fxRate}
                     onChange={(e) => { setFxRate(e.target.value); setRateError(null); }}
@@ -520,7 +521,7 @@ function SettleUpCard({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 shrink-0 gap-1.5"
+                  className="touch-manipulation h-11 sm:h-9 shrink-0 gap-1.5"
                   onClick={() => void fetchRate(currency)}
                   disabled={fetchingRate}
                 >
@@ -536,7 +537,7 @@ function SettleUpCard({
               </p>
             )}
 
-            <Button size="sm" className="w-full gap-2" onClick={submit} disabled={!canSubmit}>
+            <Button size="sm" className="touch-manipulation h-11 w-full gap-2" onClick={submit} disabled={!canSubmit}>
               <Plus className="h-4 w-4" />
               Record payment
             </Button>

@@ -55,7 +55,7 @@ function CollapsibleSection({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+        className="touch-manipulation w-full flex min-h-[44px] items-center justify-between gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
         <span className="flex items-center gap-2">{title}{badge}</span>
         {open ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
@@ -157,7 +157,7 @@ function PaymentDestinationRow({
           variant={line ? "ghost" : "outline"}
           size="sm"
           onClick={openDialog}
-          className="h-8 shrink-0"
+          className="touch-manipulation h-11 min-w-[44px] shrink-0"
         >
           {line ? (
             <>
@@ -316,7 +316,7 @@ function PersonBreakdown({
       <div className="flex items-center">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex-1 min-w-0 flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
+          className="touch-manipulation flex-1 min-w-0 flex min-h-[44px] items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
         >
           <div className="flex items-center gap-2 min-w-0">
             <span className={cn("font-medium truncate", paid && "text-muted-foreground line-through")}>{name}</span>
@@ -344,7 +344,7 @@ function PersonBreakdown({
             aria-pressed={paid}
             aria-label={paid ? `${name} has paid their share — tap to undo` : `Mark ${name}'s share as paid`}
             className={cn(
-              "mr-2 shrink-0 flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors",
+              "touch-manipulation mr-2 shrink-0 flex min-h-[36px] items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
               paid
                 ? "bg-emerald-500 text-white hover:bg-emerald-600"
                 : "border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
@@ -519,7 +519,7 @@ export function ReceiptBreakdown({
       <div className="flex items-center">
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex-1 min-w-0 flex items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
+          className="touch-manipulation flex-1 min-w-0 flex min-h-[44px] items-center justify-between text-sm py-2 px-3 hover:bg-muted/50 transition-colors"
         >
           <div className="flex items-center gap-2 min-w-0">
             <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded bg-primary/10 px-1 text-xs font-semibold text-primary">
@@ -577,7 +577,7 @@ export function ReceiptBreakdown({
                 type="button"
                 onClick={onEdit}
                 aria-label={`Edit ${receipt.title}`}
-                className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="touch-manipulation h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <Edit2 className="h-4 w-4" />
               </button>
@@ -587,7 +587,7 @@ export function ReceiptBreakdown({
                 type="button"
                 onClick={onDelete}
                 aria-label={`Delete ${receipt.title}`}
-                className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
+                className="touch-manipulation ml-1 h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -936,7 +936,9 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
   }
 
   return (
-    <Card className={cn("border-2 border-primary/20 shadow-premium-lg", !readOnly && "sticky top-24")}>
+    // `sticky` only from lg: — below that the panel is a stacked full-width
+    // block, so pinning it parks a tall card over the rest of the page.
+    <Card className={cn("border-2 border-primary/20 shadow-premium-lg", !readOnly && "lg:sticky lg:top-24")}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -946,19 +948,19 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             <span className="gradient-text font-bold">Summary</span>
           </CardTitle>
           {!readOnly && !preview && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareLink}
                 disabled={creatingLink}
-                className="h-9 px-2 sm:px-3"
+                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3"
                 aria-label="Create and share a read-only link"
               >
                 {creatingLink ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Share2 className="h-3.5 w-3.5" />
+                  <Share2 className="h-4 w-4" />
                 )}
                 <span className="hidden md:inline ml-1.5">Share</span>
               </Button>
@@ -967,10 +969,10 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 size="sm"
                 onClick={handleShareWhatsApp}
                 disabled={creatingLink}
-                className="h-9 px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
+                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
                 aria-label="Share the split to WhatsApp"
               >
-                <MessageCircle className="h-3.5 w-3.5" />
+                <MessageCircle className="h-4 w-4" />
                 <span className="hidden md:inline ml-1.5">WhatsApp</span>
               </Button>
               <Button
@@ -978,7 +980,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 size="sm"
                 onClick={handleCopy}
                 disabled={creatingLink}
-                className="h-9"
+                className="touch-manipulation h-11"
               >
                 {copied ? (
                   <>
@@ -1128,9 +1130,9 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                   className="flex items-center gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
                 >
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">{getParticipantName(s.from)}</span>
+                    <span className="min-w-0 flex-1 font-medium truncate">{getParticipantName(s.from)}</span>
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate max-w-[80px] sm:max-w-none">{getParticipantName(s.to)}</span>
+                    <span className="min-w-0 flex-1 font-medium truncate">{getParticipantName(s.to)}</span>
                   </div>
                   <span className="font-bold text-primary sm:ml-auto">Rp {formatCurrency(s.amount)}</span>
                 </div>
@@ -1149,7 +1151,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                     aria-pressed={paid}
                     aria-label={`${paid ? "Mark unpaid" : "Mark paid"}: ${getParticipantName(s.from)} pays ${getParticipantName(s.to)} Rp ${formatCurrency(s.amount)}`}
                     className={cn(
-                      "group w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
+                      "touch-manipulation group w-full flex min-h-[44px] flex-col justify-center sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
                       paid
                         ? "bg-emerald-500/10 hover:bg-emerald-500/15"
                         : "bg-muted/50 hover:bg-muted"
@@ -1167,11 +1169,11 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                       >
                         {paid && <Check className="h-3 w-3" />}
                       </span>
-                      <span className={cn("font-medium truncate max-w-[80px] sm:max-w-none", paid && "line-through text-muted-foreground")}>
+                      <span className={cn("min-w-0 flex-1 font-medium truncate", paid && "line-through text-muted-foreground")}>
                         {getParticipantName(s.from)}
                       </span>
                       <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className={cn("font-medium truncate max-w-[80px] sm:max-w-none", paid && "line-through text-muted-foreground")}>
+                      <span className={cn("min-w-0 flex-1 font-medium truncate", paid && "line-through text-muted-foreground")}>
                         {getParticipantName(s.to)}
                       </span>
                     </div>
@@ -1798,7 +1800,8 @@ export function MultipleReceiptSummaryPanel({
   }
 
   return (
-    <Card className={cn(!readOnly && "sticky top-4")}>
+    // Same as SummaryPanel: only pin from lg:, where this is an actual sidebar.
+    <Card className={cn(!readOnly && "lg:sticky lg:top-4")}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -1806,19 +1809,19 @@ export function MultipleReceiptSummaryPanel({
             Summary
           </CardTitle>
           {!readOnly && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareLink}
                 disabled={creatingLink}
-                className="h-8 px-2 sm:px-3"
+                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3"
                 aria-label="Create and share a read-only link"
               >
                 {creatingLink ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Share2 className="h-3.5 w-3.5" />
+                  <Share2 className="h-4 w-4" />
                 )}
                 <span className="hidden sm:inline ml-1.5">Share</span>
               </Button>
@@ -1827,7 +1830,7 @@ export function MultipleReceiptSummaryPanel({
                 size="sm"
                 onClick={handleCopy}
                 disabled={creatingLink}
-                className="h-8"
+                className="touch-manipulation h-11"
               >
                 {copied ? (
                   <>
@@ -2240,18 +2243,18 @@ export function MultipleReceiptSummaryPanel({
               {settlements.map((s, i) => (
                 <div
                   key={`${s.from}>${s.to}:${i}`}
-                  className="flex items-center gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
+                  className="flex flex-wrap items-center gap-2 text-sm py-2 px-3 rounded-md bg-muted/50"
                 >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="font-medium truncate">{getParticipantName(s.from)}</span>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 basis-full sm:basis-0">
+                    <span className="min-w-0 flex-1 font-medium truncate">{getParticipantName(s.from)}</span>
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium truncate">{getParticipantName(s.to)}</span>
+                    <span className="min-w-0 flex-1 font-medium truncate">{getParticipantName(s.to)}</span>
                   </div>
                   <span className="font-bold text-primary shrink-0">Rp {formatCurrency(s.amount)}</span>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7 gap-1 text-xs shrink-0"
+                    className="touch-manipulation ml-auto h-9 gap-1 text-xs shrink-0"
                     onClick={() => onRecordPayment(s.from, s.to, s.amount)}
                   >
                     <Check className="h-3.5 w-3.5" />
@@ -2273,7 +2276,7 @@ export function MultipleReceiptSummaryPanel({
                     aria-pressed={paid}
                     aria-label={`${paid ? "Mark unpaid" : "Mark paid"}: ${getParticipantName(s.from)} pays ${getParticipantName(s.to)} Rp ${formatCurrency(s.amount)}`}
                     className={cn(
-                      "group w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
+                      "touch-manipulation group w-full flex min-h-[44px] flex-col justify-center sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
                       paid
                         ? "bg-emerald-500/10 hover:bg-emerald-500/15"
                         : "bg-muted/50 hover:bg-muted"
@@ -2291,11 +2294,11 @@ export function MultipleReceiptSummaryPanel({
                       >
                         {paid && <Check className="h-3 w-3" />}
                       </span>
-                      <span className={cn("font-medium truncate max-w-[80px] sm:max-w-none", paid && "line-through text-muted-foreground")}>
+                      <span className={cn("min-w-0 flex-1 font-medium truncate", paid && "line-through text-muted-foreground")}>
                         {getParticipantName(s.from)}
                       </span>
                       <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className={cn("font-medium truncate max-w-[80px] sm:max-w-none", paid && "line-through text-muted-foreground")}>
+                      <span className={cn("min-w-0 flex-1 font-medium truncate", paid && "line-through text-muted-foreground")}>
                         {getParticipantName(s.to)}
                       </span>
                     </div>

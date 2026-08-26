@@ -438,7 +438,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             type="button"
             variant="outline"
             onClick={resetUpload}
-            className="w-full"
+            className="touch-manipulation h-11 w-full"
           >
             Upload Another Receipt
           </Button>
@@ -481,6 +481,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
               type="button"
               variant="outline"
               onClick={resetUpload}
+              className="touch-manipulation h-11"
             >
               Upload New
             </Button>
@@ -488,6 +489,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
               <Button
                 type="button"
                 onClick={retryProcessing}
+                className="touch-manipulation h-11"
               >
                 Try Again
               </Button>

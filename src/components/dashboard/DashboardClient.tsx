@@ -62,7 +62,7 @@ export function DashboardClient() {
             <span className="font-bold text-lg tracking-tight">{BRAND.name}</span>
           </Link>
           <div className="flex items-center gap-3 sm:gap-4">
-            <Link href="/history" aria-label="Receipt history" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/history" aria-label="Receipt history" className="touch-manipulation flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors sm:justify-start">
               <History className="h-4 w-4" />
               <span className="hidden sm:inline">History</span>
             </Link>
@@ -81,7 +81,7 @@ export function DashboardClient() {
             </p>
             <button
               onClick={() => signIn("/dashboard")}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/25 hover:-translate-y-0.5 transition-all"
+              className="touch-manipulation inline-flex min-h-[44px] items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/25 hover:-translate-y-0.5 transition-all"
             >
               <LogIn className="h-4 w-4" />
               Sign in with Google
