@@ -166,9 +166,13 @@ export function FeesInput({
             </div>
           ))}
 
-          {/* Add fee row */}
-          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-end">
-            <div className="space-y-1">
+          {/* Add fee row.
+              Mobile-first: the four-across grid this used to be needed ~300px
+              of fixed width (w-28 amount + w-32 select + button + gaps), which
+              left the label field about 44px wide on a 360px phone. Stacks
+              instead, and only becomes a single row from `sm:` up. */}
+          <div className="grid grid-cols-2 gap-2 items-end sm:grid-cols-[1fr_auto_auto_auto]">
+            <div className="col-span-2 space-y-1 sm:col-span-1">
               <Label className="text-xs text-muted-foreground">Label</Label>
               <Input
                 value={newFeeLabel}
@@ -189,14 +193,14 @@ export function FeesInput({
                   value={newFeeAmount}
                   onChange={(e) => setNewFeeAmount(e.target.value)}
                   placeholder="0"
-                  className="pl-8 h-9 text-sm w-28"
+                  className="pl-8 h-9 text-sm w-full sm:w-28"
                 />
               </div>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Split</Label>
               <Select value={newFeeSplit} onValueChange={(v) => setNewFeeSplit(v as "equal" | "proportional")}>
-                <SelectTrigger className="h-9 text-sm w-32">
+                <SelectTrigger className="h-9 text-sm w-full sm:w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -208,8 +212,7 @@ export function FeesInput({
             <Button
               type="button"
               variant="outline"
-              size="icon"
-              className="h-9 w-9 shrink-0"
+              className="col-span-2 h-10 w-full touch-manipulation sm:col-span-1 sm:h-9 sm:w-9 sm:shrink-0 sm:p-0"
               disabled={!addFeeAllowed}
               aria-label="Add fee"
               onClick={() => {
@@ -227,7 +230,8 @@ export function FeesInput({
                 setNewFeeAmount("");
               }}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4 sm:mx-auto" />
+              <span className="ml-1.5 sm:hidden">Add fee</span>
             </Button>
           </div>
 

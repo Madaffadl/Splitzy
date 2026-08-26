@@ -43,6 +43,7 @@ import {
   ArrowRight,
   Calculator,
   Cloud,
+  History,
   RotateCcw,
   Receipt as ReceiptIcon,
   PartyPopper,
@@ -388,19 +389,20 @@ export function SingleSplitView() {
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Signed-in only: saving parks a copy on the server so the split
-                can be resumed on another device. Guests keep working locally. */}
+            {/* Saved splits were reachable only via the account menu → Dashboard
+                → Receipt history, so the "you can pick this up again from Saved
+                splits" toast named a place with no route to it. */}
             {isAuthenticated && (
               <Button
-                variant="outline"
+                asChild
+                variant="ghost"
                 size="sm"
-                onClick={handleSave}
-                disabled={saving || state.items.length === 0}
-                aria-label="Save split"
-                className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+                className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation"
               >
-                <Cloud className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">{saving ? "Saving…" : "Save"}</span>
+                <Link href="/history" aria-label="Saved splits">
+                  <History className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Saved</span>
+                </Link>
               </Button>
             )}
             <ThemeToggle />
@@ -639,17 +641,32 @@ export function SingleSplitView() {
               </div>
             )}
 
-            {/* Navigation */}
-            <div className="space-y-2 pt-6">
+            {/* Action bar.
+                Sticky at the bottom on mobile, where most of the traffic is: the
+                step actions sit in the thumb zone instead of the top-right
+                corner. Save lives here rather than in the header because the
+                header is navigation, and because it used to sit next to Reset —
+                "save my work" one tap away from "erase everything", on a
+                cramped bar. Static from `sm:` up, where a fixed bar would just
+                eat vertical space on a mouse-driven screen. */}
+            <div
+              className="
+                sticky bottom-0 z-10 -mx-3 mt-6 space-y-2 border-t
+                bg-background/95 px-3 pt-3 backdrop-blur
+                pb-[max(0.75rem,env(safe-area-inset-bottom))]
+                sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0
+                sm:pb-0 sm:backdrop-blur-none
+              "
+            >
               {blockingMessage && (
                 <p
                   role="status"
-                  className="text-right text-xs font-medium text-amber-600 dark:text-amber-400"
+                  className="text-xs font-medium text-amber-600 dark:text-amber-400 sm:text-right"
                 >
                   ⚠️ {blockingMessage}
                 </p>
               )}
-              <div className="flex justify-between">
+              <div className="flex items-center gap-2">
                 {/* Step 0 already has the header "Back" (to home); a second,
                     disabled Back here just adds a dead control — so on the first
                     step we render a spacer instead to keep Next right-aligned. */}
@@ -659,19 +676,41 @@ export function SingleSplitView() {
                     onClick={handleBack}
                     disabled={isTransitioning}
                     size="lg"
+                    className="min-h-[44px] touch-manipulation"
                   >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back
+                    <ArrowLeft className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Back</span>
                   </Button>
                 ) : (
                   <span aria-hidden="true" />
                 )}
+
+                {/* Pushes the step action to the right on every step, with or
+                    without a Back button present. */}
+                <span className="flex-1" aria-hidden="true" />
+
+                {isAuthenticated && (
+                  <Button
+                    variant="outline"
+                    onClick={handleSave}
+                    disabled={saving || state.items.length === 0}
+                    size="lg"
+                    className="min-h-[44px] touch-manipulation"
+                  >
+                    <Cloud className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">
+                      {saving ? "Saving…" : "Save"}
+                    </span>
+                  </Button>
+                )}
+
                 {currentStep < STEPS.length - 1 && (
                   <Button
                     onClick={handleNext}
                     disabled={!canProceed || isTransitioning}
                     size="lg"
                     variant={currentStep === 1 ? "accent" : "default"}
+                    className="min-h-[44px] touch-manipulation"
                   >
                     {currentStep === 1 ? "View Summary" : "Next"}
                     <ArrowRight className="h-4 w-4 ml-2" />

@@ -54,69 +54,79 @@ export function ReceiptHistoryCard({
       });
 
   return (
-    <div className="relative">
-      <Link href={`/history/${id}`}>
-      <Card className="hover:shadow-md transition-all hover:border-primary/30 cursor-pointer group">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <Receipt className="h-4 w-4 text-primary shrink-0" />
-                <h3 className="font-semibold text-sm truncate">{title}</h3>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {displayDate}
-                </span>
-                <span>{itemCount} items</span>
-                {participantCount ? <span>{participantCount} people</span> : null}
-              </div>
-              {daysLeft !== null && (
-                <p
-                  className={
-                    "mt-1.5 flex items-center gap-1 text-[11px] " +
-                    (expiringSoon
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-muted-foreground")
-                  }
-                >
-                  <Clock className="h-3 w-3 shrink-0" />
-                  {daysLeft === 0
-                    ? "Expires today"
-                    : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}
-                </p>
-              )}
-              {tripName && (
-                <Badge variant="secondary" className="mt-2 text-xs">
-                  {tripName}
-                </Badge>
-              )}
+    // Two explicit actions in normal flow, rather than a whole-card link with a
+    // small Edit button absolutely positioned in the corner. That version
+    // overlapped the amount on a narrow screen, and its 28px height was under
+    // the 44px touch minimum. It also made the primary action a guess: tap the
+    // card to view, tap the corner to edit.
+    <Card className="transition-colors hover:border-primary/30">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center gap-2">
+              <Receipt className="h-4 w-4 shrink-0 text-primary" />
+              <h3 className="truncate text-sm font-semibold">{title}</h3>
             </div>
-            <div className="text-right shrink-0 flex items-center gap-2">
-              <span className="font-bold text-sm">
-                Rp {formatCurrency(totalAmount)}
+            {/* Wraps on a phone instead of overflowing — three metadata chips
+                plus a date does not fit on one 360px line. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
+                {displayDate}
               </span>
-              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              <span>{itemCount} items</span>
+              {participantCount ? <span>{participantCount} people</span> : null}
             </div>
+            {daysLeft !== null && (
+              <p
+                className={
+                  "mt-1.5 flex items-center gap-1 text-[11px] " +
+                  (expiringSoon
+                    ? "text-amber-600 dark:text-amber-400"
+                    : "text-muted-foreground")
+                }
+              >
+                <Clock className="h-3 w-3 shrink-0" />
+                {daysLeft === 0
+                  ? "Expires today"
+                  : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}
+              </p>
+            )}
+            {tripName && (
+              <Badge variant="secondary" className="mt-2 text-xs">
+                {tripName}
+              </Badge>
+            )}
           </div>
-        </CardContent>
-      </Card>
-      </Link>
+          <span className="shrink-0 text-sm font-bold">
+            Rp {formatCurrency(totalAmount)}
+          </span>
+        </div>
 
-      {/* Outside the Link: a nested <a> would be invalid HTML and the whole
-          card would swallow the click. */}
-      <Button
-        asChild
-        size="sm"
-        variant="secondary"
-        className="absolute bottom-3 right-3 h-7 px-2 text-xs"
-      >
-        <Link href={resumeHref} aria-label={`Continue editing ${title}`}>
-          <Edit2 className="h-3 w-3 mr-1" />
-          Edit
-        </Link>
-      </Button>
-    </div>
+        <div className="mt-3 flex gap-2 border-t pt-3">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="min-h-[44px] flex-1 touch-manipulation sm:min-h-0"
+          >
+            <Link href={`/history/${id}`}>
+              View
+              <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Link>
+          </Button>
+          <Button
+            asChild
+            size="sm"
+            className="min-h-[44px] flex-1 touch-manipulation sm:min-h-0"
+          >
+            <Link href={resumeHref} aria-label={`Continue editing ${title}`}>
+              <Edit2 className="mr-1 h-3.5 w-3.5" />
+              Continue
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

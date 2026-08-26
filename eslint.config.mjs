@@ -11,6 +11,12 @@ const config = [
       "node_modules/**",
       "prisma/migrations/**",
       "next-env.d.ts",
+      // Installed AI skill assets (see .gitignore). It ships a handful of .cjs
+      // helper scripts, and linting CommonJS from outside the app breaks
+      // eslint-config-next's plugin resolution — "could not find plugin react".
+      // Not our source either way. Note ESLint does not read .gitignore, so
+      // this has to be listed explicitly.
+      ".claude/**",
     ],
   },
   {

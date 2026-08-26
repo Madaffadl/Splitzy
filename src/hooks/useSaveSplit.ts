@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabaseDataService } from "@/lib/data/supabase-data-service";
 import { useToast } from "@/components/ui/toast";
 import type { SavedSplitPayload } from "@/lib/data/types";
@@ -32,6 +33,7 @@ const EMPTY: SaveState = { id: null, version: null, expiresAt: null, shareCode: 
 
 export function useSaveSplit(initial: SaveState = EMPTY) {
   const { toast } = useToast();
+  const router = useRouter();
   const [state, setState] = useState<SaveState>(initial);
   const [saving, setSaving] = useState(false);
 
@@ -55,6 +57,9 @@ export function useSaveSplit(initial: SaveState = EMPTY) {
           title: "Split saved",
           description: `You can pick this up again from Saved splits for ${result.ttlDays} days.`,
           variant: "success",
+          // The toast names a destination, so it had better offer a way there —
+          // this is the moment the user is actually wondering where it went.
+          action: { label: "View", onClick: () => router.push("/history") },
         });
         return true;
       } catch (err) {
@@ -73,7 +78,7 @@ export function useSaveSplit(initial: SaveState = EMPTY) {
         setSaving(false);
       }
     },
-    [state.id, state.version, state.shareCode, toast]
+    [state.id, state.version, state.shareCode, toast, router]
   );
 
   /** Adopt the identity of a split that was just loaded from the server. */

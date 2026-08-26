@@ -34,6 +34,7 @@ import {
 import {
   ArrowLeft,
   Cloud,
+  History,
   RotateCcw,
   Plus,
   Layers,
@@ -332,21 +333,20 @@ export function MultipleReceiptView() {
             <span className="font-semibold text-sm sm:text-base">Multiple Receipts</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Signed-in only: parks a copy on the server so the split can be
-                resumed later or from another device. Guests stay local. */}
-            {isAuthenticated && viewMode === "overview" && (
+            {/* Save moved to the bottom action bar; the header is navigation.
+                This is the route to Saved splits, which previously existed only
+                behind the account menu → Dashboard → Receipt history. */}
+            {isAuthenticated && (
               <Button
-                variant="outline"
+                asChild
+                variant="ghost"
                 size="sm"
-                onClick={handleSaveSplit}
-                disabled={savingSplit || split.receipts.length === 0}
-                aria-label="Save split"
-                className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
+                className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation"
               >
-                <Cloud className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">
-                  {savingSplit ? "Saving…" : "Save"}
-                </span>
+                <Link href="/history" aria-label="Saved splits">
+                  <History className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Saved</span>
+                </Link>
               </Button>
             )}
             <ThemeToggle />
@@ -523,6 +523,35 @@ export function MultipleReceiptView() {
                 />
               </ErrorBoundary>
             </div>
+
+            {/* Save action bar.
+                Sticky at the bottom on mobile so it sits in the thumb zone —
+                this overview scrolls, and an action pinned to the top-right
+                corner is the hardest place to reach one-handed. It also used to
+                sit beside Reset, which is a bad neighbour for "save my work".
+                Spans both grid columns; static from `sm:` up. */}
+            {isAuthenticated && (
+              <div
+                className="
+                  sticky bottom-0 z-10 -mx-3 border-t bg-background/95 px-3 pt-3
+                  backdrop-blur lg:col-span-2
+                  pb-[max(0.75rem,env(safe-area-inset-bottom))]
+                  sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0
+                  sm:pb-0 sm:backdrop-blur-none
+                "
+              >
+                <Button
+                  onClick={handleSaveSplit}
+                  disabled={savingSplit || split.receipts.length === 0}
+                  size="lg"
+                  variant="outline"
+                  className="w-full min-h-[44px] touch-manipulation sm:w-auto"
+                >
+                  <Cloud className="h-4 w-4 mr-2" />
+                  {savingSplit ? "Saving…" : "Save split"}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
