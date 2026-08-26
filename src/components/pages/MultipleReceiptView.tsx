@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSaveSplit } from "@/hooks/useSaveSplit";
 import { supabaseDataService } from "@/lib/data/supabase-data-service";
 import type { ReceiptDetail } from "@/lib/data/types";
+import { receiptsFromDetail } from "@/lib/receipt-detail";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
 import { logFeatureUsage } from "@/lib/activity-client";
@@ -124,7 +125,10 @@ export function MultipleReceiptView() {
           id: detail.id,
           name: detail.title ?? "My Split",
           participants: detail.participants ?? [],
-          receipts: detail.receipts ?? [],
+          // `detail.receipts ?? []` handed back an empty split for rows saved
+          // before `receipts` existed — Continue opened, and the receipts were
+          // just gone. The shared reader synthesises them from the flat columns.
+          receipts: receiptsFromDetail(detail),
         },
       });
       adopt({

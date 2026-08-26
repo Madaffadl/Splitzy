@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSaveSplit } from "@/hooks/useSaveSplit";
 import { supabaseDataService } from "@/lib/data/supabase-data-service";
 import type { ReceiptDetail } from "@/lib/data/types";
+import { receiptsFromDetail } from "@/lib/receipt-detail";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
@@ -134,7 +135,10 @@ export function SingleSplitView() {
 
   const applyResume = useCallback(
     (detail: ReceiptDetail) => {
-      const receipt = detail.receipts?.[0];
+      // Via the shared reader: `detail.receipts?.[0]` was undefined for rows
+      // saved before `receipts` existed, and this callback then returned
+      // silently — Continue looked broken and said nothing.
+      const receipt = receiptsFromDetail(detail)[0];
       if (!receipt) return;
       setState({
         participants: detail.participants ?? [],

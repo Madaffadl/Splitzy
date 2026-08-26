@@ -6,12 +6,13 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
-import { SummaryPanel } from "@/components/SummaryPanel";
+import { SummaryPanel, MultipleReceiptSummaryPanel } from "@/components/SummaryPanel";
 import { ArrowLeft, Loader2, AlertCircle } from "@/components/ui/icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Receipt, Participant } from "@/types";
+import type { Participant } from "@/types";
 import type { ReceiptDetail } from "@/lib/data/types";
+import { isMultipleSplit, receiptsFromDetail } from "@/lib/receipt-detail";
 
 export default function HistoryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,20 +51,13 @@ export default function HistoryDetailPage() {
     if (id) fetchDetail();
   }, [id, authLoading, isAuthenticated]);
 
-  // Transform API data into the Receipt + Participant[] format
-  // that SummaryPanel expects
-  const receipt: Receipt | null = useMemo(() => {
-    if (!detail) return null;
-    return {
-      id: detail.id,
-      title: detail.title,
-      date: detail.date ?? undefined,
-      payerId: detail.payerId,
-      items: detail.items,
-      tax: detail.tax,
-      service: detail.service,
-    };
-  }, [detail]);
+  // Read through receiptsFromDetail, not the flat `detail.items/tax/service`
+  // columns: those carry no `fees` and no `discounts`, so this page used to show
+  // a Grand Total that disagreed with the one Continue opens for the same split.
+  const receipts = useMemo(
+    () => (detail ? receiptsFromDetail(detail) : []),
+    [detail]
+  );
 
   const participants: Participant[] = useMemo(() => {
     if (!detail) return [];
@@ -117,7 +111,7 @@ export default function HistoryDetailPage() {
           </Card>
         )}
 
-        {!isLoading && !error && detail && receipt && (
+        {!isLoading && !error && detail && receipts.length > 0 && (
           <div className="space-y-4">
             {/* Title & meta */}
             <div>
@@ -138,11 +132,27 @@ export default function HistoryDetailPage() {
               </div>
             </div>
 
-            {/* Reuse existing SummaryPanel */}
-            <SummaryPanel
-              receipt={receipt}
-              participants={participants}
-            />
+            {/* A saved "multiple" split has to render through the multi-receipt
+                panel — the single panel only ever showed receipts[0], so the
+                other receipts in the split were simply missing from the page.
+                `savedSplitId` is passed so Share reuses this split's existing
+                link instead of minting an orphan second one. */}
+            {isMultipleSplit(detail) ? (
+              <MultipleReceiptSummaryPanel
+                receipts={receipts}
+                participants={participants}
+                splitName={detail.title}
+                splitId={detail.id}
+                savedSplitId={detail.id}
+              />
+            ) : (
+              <SummaryPanel
+                receipt={receipts[0]}
+                participants={participants}
+                title={detail.title}
+                savedSplitId={detail.id}
+              />
+            )}
           </div>
         )}
       </div>
