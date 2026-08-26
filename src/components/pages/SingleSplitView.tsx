@@ -142,6 +142,39 @@ export function SingleSplitView() {
   const resumeId = searchParams.get("resume");
   const [pendingResume, setPendingResume] = useState<ReceiptDetail | null>(null);
 
+  // ── The wizard's position lives in the URL ─────────────────────────────────
+  //
+  // It did not, which meant the system back gesture — swipe from the left edge
+  // on iOS, the back button on Android — left /single entirely from step 2
+  // instead of returning to step 1. That is the same defect the trip and
+  // receipt views were fixed for; the wizard was simply missed.
+  //
+  // It also decides the shape of the visible controls. With the position in
+  // history, one back control at the top-left is enough: it reads as "back"
+  // because of where it sits, and the ergonomic path — the thumb-zone gesture —
+  // is handled by the OS. Two arrows, one of them unlabelled at the bottom of
+  // the screen, was solving a problem the platform already solves.
+  const stepParam = searchParams.get("step");
+  const stepFromUrl = useMemo(() => {
+    const i = STEPS.findIndex((step) => step.id === stepParam);
+    return i >= 0 ? i : 0;
+  }, [stepParam]);
+
+  const stepUrl = useCallback((index: number) => {
+    const id = STEPS[index]?.id;
+    return index <= 0 || !id ? "/single" : `/single?step=${id}`;
+  }, []);
+
+  // How many forward entries in the history stack are ours. A backward move
+  // pops one when we have it; after a reload straight onto ?step=bill we own
+  // nothing, so it navigates explicitly rather than leaving the site.
+  const ownedHistoryRef = useRef(0);
+
+  // URL → state. Only ever writes state; the handlers only ever write the URL.
+  useEffect(() => {
+    setCurrentStep((prev) => (prev === stepFromUrl ? prev : stepFromUrl));
+  }, [stepFromUrl]);
+
   const applyResume = useCallback(
     (detail: ReceiptDetail) => {
       // Via the shared reader: `detail.receipts?.[0]` was undefined for rows
@@ -181,7 +214,7 @@ export function SingleSplitView() {
         if (cancelled) return;
         // Drop the query param either way so a refresh doesn't re-trigger the
         // load (and re-prompt) after the user has answered.
-        router.replace("/single");
+        router.replace(stepUrl(1));
         // Overwriting unsaved local work without asking is exactly the kind of
         // silent loss this feature is meant to prevent.
         if (stateRef.current.items.length > 0 && stateRef.current.title !== detail.title) {
@@ -204,7 +237,7 @@ export function SingleSplitView() {
     return () => {
       cancelled = true;
     };
-  }, [resumeId, applyResume, router, toast]);
+  }, [resumeId, applyResume, router, toast, stepUrl]);
 
   const receipt: Receipt = useMemo(
     () => ({
@@ -288,7 +321,10 @@ export function SingleSplitView() {
         // Reaching the summary is the "completed a split" moment for this feature.
         logFeatureUsage("single");
       }
-      setCurrentStep((s) => s + 1);
+      const next = currentStep + 1;
+      ownedHistoryRef.current += 1;
+      setCurrentStep(next);
+      router.push(stepUrl(next));
     } finally {
       // Release on next tick so rapid clicks during the same paint are dropped.
       setTimeout(() => setIsTransitioning(false), 0);
@@ -306,19 +342,38 @@ export function SingleSplitView() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [currentStep, state.items.length]);
 
+  // The single back control, wired to be indistinguishable from the system
+  // back gesture: it pops one step, and popping the first step leaves the split.
+  // That is how a nav-bar back behaves in a pushed-view stack, and it is why one
+  // control can cover both jobs without either of them being mislabelled.
   const handleBack = () => {
-    if (isTransitioning || currentStep === 0) return;
+    if (isTransitioning) return;
+    if (currentStep === 0) {
+      router.push("/");
+      return;
+    }
     setIsTransitioning(true);
-    setCurrentStep((s) => s - 1);
+    const target = currentStep - 1;
+    setCurrentStep(target);
+    if (ownedHistoryRef.current > 0) {
+      ownedHistoryRef.current -= 1;
+      router.back();
+    } else {
+      // Arrived here directly (a reload on ?step=bill) — nothing of ours to pop.
+      router.replace(stepUrl(target));
+    }
     setTimeout(() => setIsTransitioning(false), 0);
   };
 
   const handleStepClick = (target: number) => {
-    if (isTransitioning) return;
-    // Stepper only allows clicking completed/current steps, so this is always
-    // a backward jump or a no-op.
+    if (isTransitioning || target === currentStep) return;
+    // The Stepper only allows completed/current steps, so this is always a
+    // backward jump — possibly of more than one step, which is why it replaces
+    // rather than popping. Our forward entries are no longer reachable after it.
     setIsTransitioning(true);
     setCurrentStep(target);
+    ownedHistoryRef.current = 0;
+    router.replace(stepUrl(target));
     setTimeout(() => setIsTransitioning(false), 0);
   };
 
@@ -329,6 +384,8 @@ export function SingleSplitView() {
   const confirmReset = () => {
     resetState();
     setCurrentStep(0);
+    ownedHistoryRef.current = 0;
+    router.replace("/single");
     setShowResetDialog(false);
     // A reset is what actually begins a new split, so the next summary counts.
     countedRef.current = false;
@@ -393,16 +450,25 @@ export function SingleSplitView() {
       {/* Header */}
       <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link
-            href="/"
-            aria-label={t.common.back}
+          {/* One back control, and it is here because top-left is where the
+              meaning lives: an arrow in this corner reads as "back" with no
+              label at all, which the same arrow at the bottom of a button bar
+              does not. It pops a step, and popping the first step leaves the
+              split — see handleBack. */}
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={isTransitioning}
+            aria-label={currentStep === 0 ? t.common.exit : t.common.back}
             className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
           >
             <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium hidden sm:inline">{t.common.back}</span>
-          </Link>
+            <span className="text-sm font-medium hidden sm:inline">
+              {currentStep === 0 ? t.common.exit : t.common.back}
+            </span>
+          </button>
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/25">
               <Calculator className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
@@ -718,27 +784,13 @@ export function SingleSplitView() {
                   <AlertTriangle className="mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]" aria-hidden="true" />{blockingMessage}
                 </p>
               )}
+              {/* Forward motion only. Back used to live here too, as a bare
+                  unlabelled arrow on mobile — the control most in need of being
+                  recognised was the one with no label. It moved to the header,
+                  where its position carries the meaning, and the ~80px that
+                  freed is spent on showing the Save label instead. Net: two
+                  controls got clearer, not one. */}
               <div className="flex items-center gap-2">
-                {/* Step 0 already has the header "Back" (to home); a second,
-                    disabled Back here just adds a dead control — so on the first
-                    step we render a spacer instead to keep Next right-aligned. */}
-                {currentStep > 0 ? (
-                  <Button
-                    variant="outline"
-                    onClick={handleBack}
-                    disabled={isTransitioning}
-                    size="lg"
-                    className="min-h-[44px] touch-manipulation"
-                  >
-                    <ArrowLeft className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Back</span>
-                  </Button>
-                ) : (
-                  <span aria-hidden="true" />
-                )}
-
-                {/* Pushes the step action to the right on every step, with or
-                    without a Back button present. */}
                 <span className="flex-1" aria-hidden="true" />
 
                 {isAuthenticated && (
@@ -749,10 +801,8 @@ export function SingleSplitView() {
                     size="lg"
                     className="min-h-[44px] touch-manipulation"
                   >
-                    <Cloud className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">
-                      {saving ? "Saving…" : "Save"}
-                    </span>
+                    <Cloud className="h-4 w-4 mr-2" />
+                    {saving ? t.common.saving : t.common.save}
                   </Button>
                 )}
 

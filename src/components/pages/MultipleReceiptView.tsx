@@ -337,20 +337,11 @@ export function MultipleReceiptView() {
               <span className="hidden sm:inline text-sm font-medium">{t.common.back}</span>
             </Link>
           ) : (
-            <button
-              onClick={() => {
-                setEditingReceipt(null);
-                setViewMode("overview");
-                router.push("/multiple");
-              }}
-              aria-label={t.modes.multiple.backToSplit}
-              className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
-                <ArrowLeft className="h-4 w-4" />
-              </div>
-              <span className="hidden sm:inline text-sm font-medium">{t.modes.multiple.backToSplit}</span>
-            </button>
+            // No back control while editing a receipt: the editor's own
+            // Cancel does exactly this, and "Cancel" is the honest label —
+            // both discard the edits, only one of them admits it. The system
+            // back gesture still returns here (?view= is in the URL).
+            <span aria-hidden="true" className="h-11 w-11" />
           )}
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">

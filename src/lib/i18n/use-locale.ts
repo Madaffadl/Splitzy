@@ -45,11 +45,28 @@ export function storeLocale(locale: Locale): void {
     }
 }
 
+/**
+ * `?lang=` on a tool route, which is how the localized landing hands its
+ * language over. The stored preference alone was a race: LocaleSync writes it
+ * from an effect, the hero CTA sits above the fold, and a tap that lands before
+ * hydration finishes leaves with nothing written. The link carries it instead,
+ * and reading it also persists it so the rest of the session follows.
+ */
+export const LANG_PARAM = "lang";
+
 /** The active locale for a client component. */
 export function useLocale(): Locale {
     const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
 
     useEffect(() => {
+        const fromUrl = new URLSearchParams(window.location.search).get(LANG_PARAM);
+        if (LOCALES.includes(fromUrl as Locale)) {
+            const explicit = fromUrl as Locale;
+            storeLocale(explicit);
+            setLocale(explicit);
+            return;
+        }
+
         const stored = readStoredLocale();
         if (stored) {
             setLocale(stored);

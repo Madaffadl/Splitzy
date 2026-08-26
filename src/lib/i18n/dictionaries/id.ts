@@ -460,6 +460,9 @@ export const id = {
   app: {
     common: {
       back: "Kembali",
+      exit: "Keluar",
+      save: "Simpan",
+      saving: "Menyimpan…",
       saved: "Tersimpan",
       savedSplitsAria: "Split tersimpan",
       reset: "Atur ulang split ini",

@@ -443,6 +443,9 @@ export const en: Dictionary = {
   app: {
     common: {
       back: "Back",
+      exit: "Exit",
+      save: "Save",
+      saving: "Saving…",
       saved: "Saved",
       savedSplitsAria: "Saved splits",
       reset: "Reset this split",

@@ -215,6 +215,13 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
 
   // Bilingual routes need the locale prefix; the tool and legal routes are
   // single-URL for now and are linked as-is.
+  // The tool routes are single-URL, so localePath() cannot help here — there is
+  // no /id/single to point at. The locale rides along as a query param instead,
+  // which is deterministic in a way the persisted preference is not: it survives
+  // a tap that beats hydration.
+  const tool = (href: string) =>
+    locale === DEFAULT_LOCALE ? href : `${href}?lang=${locale}`;
+
   const home = localePath(locale, "/");
   const about = localePath(locale, "/about");
   const faq = localePath(locale, "/faq");
@@ -281,14 +288,14 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
             </p>
             <div className="flex flex-col sm:flex-row items-center lg:items-start lg:justify-start justify-center gap-3">
               <Link
-                href="/single"
+                href={tool("/single")}
                 className="touch-manipulation w-full sm:w-auto px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
               >
                 <Receipt className="h-5 w-5" />
                 {dict.hero.ctaPrimary}
               </Link>
               <Link
-                href="/travel"
+                href={tool("/travel")}
                 className="touch-manipulation w-full sm:w-auto px-6 py-3.5 rounded-xl text-foreground font-semibold hover:bg-foreground/5 transition-all flex items-center justify-center gap-2"
               >
                 <Plane className="h-5 w-5 text-success" />
@@ -476,7 +483,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
               return (
                 <Link
                   key={style.href}
-                  href={style.href}
+                  href={tool(style.href)}
                   className={`group relative overflow-hidden rounded-2xl border-2 border-transparent bg-background p-6 text-left transition-all duration-300 hover:shadow-premium-lg ${style.ring}`}
                 >
                   {badge && (
@@ -593,7 +600,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
                 ))}
               </ul>
               <Link
-                href="/single"
+                href={tool("/single")}
                 className="mt-6 w-full px-5 py-3 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-primary/5 text-foreground font-semibold text-center transition-all"
               >
                 {dict.pricing.freeCta}
@@ -683,7 +690,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
           </h2>
           <p className="text-lead text-muted-foreground max-w-xl mx-auto mb-10">{dict.finalCta.lead}</p>
           <Link
-            href="/single"
+            href={tool("/single")}
             className="inline-flex px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 transition-all items-center justify-center gap-2"
           >
             <Receipt className="h-5 w-5" />
