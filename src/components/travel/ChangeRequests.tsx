@@ -72,6 +72,7 @@ function ReviewItem({
 }) {
   const [busy, setBusy] = useState<null | "approve" | "decline">(null);
   const [showDecline, setShowDecline] = useState(false);
+  const [confirmApprove, setConfirmApprove] = useState(false);
   const [note, setNote] = useState("");
 
   // The trip changed after this proposal was built — approval is last-write-wins,
@@ -118,11 +119,43 @@ function ReviewItem({
         />
       )}
 
+      {/* Approve merges someone else's edits into the shared trip, last write
+          wins, with no undo anywhere in this UI — and it used to be one tap
+          while Decline, which the member can simply revise and resubmit after,
+          took two. The friction was on the reversible action. Now Approve
+          confirms too, and the stale warning is repeated at the moment of
+          commit rather than sitting further up the card. */}
+      {confirmApprove && (
+        <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-2">
+          <p className="text-xs text-foreground/90">
+            {stale
+              ? "The trip has changed since this was submitted. Approving applies these changes on top of the current trip and cannot be undone."
+              : "Apply these changes to the trip? This cannot be undone."}
+          </p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => void run("approve")} disabled={busy !== null}>
+              <Check className="h-4 w-4 mr-1" />
+              {busy === "approve" ? "Approving…" : "Yes, apply"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setConfirmApprove(false)}
+              disabled={busy !== null}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={() => void run("approve")} disabled={busy !== null}>
-          <Check className="h-4 w-4 mr-1" />
-          {busy === "approve" ? "Approving…" : "Approve"}
-        </Button>
+        {!confirmApprove && (
+          <Button size="sm" onClick={() => setConfirmApprove(true)} disabled={busy !== null}>
+            <Check className="h-4 w-4 mr-1" />
+            Approve
+          </Button>
+        )}
         {showDecline ? (
           <Button size="sm" variant="destructive" onClick={() => void run("decline")} disabled={busy !== null}>
             <X className="h-4 w-4 mr-1" />

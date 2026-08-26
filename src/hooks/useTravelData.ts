@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import {
+  classifyPersistError,
+  useLocalStorage,
+  type PersistError,
+} from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { isEnabled } from "@/lib/flags";
 import { TravelTrip, Receipt, Participant, TripPayment } from "@/types";
@@ -58,12 +62,23 @@ function readScoped<T>(key: string, uid: string): T | null {
   }
 }
 
-function writeScoped<T>(key: string, uid: string, data: T): void {
-  if (typeof window === "undefined") return;
+/**
+ * Returns null on success, or the failure so the caller can tell the user.
+ *
+ * This used to swallow the error with a "best effort" comment. The mirror it
+ * writes IS the trip data for an authenticated user between loads, so a full
+ * quota meant every receipt added after that point looked saved, worked all
+ * day, and was gone on the next reload — silently, in the one mode that
+ * accumulates the most data.
+ */
+function writeScoped<T>(key: string, uid: string, data: T): PersistError | null {
+  if (typeof window === "undefined") return null;
   try {
     window.localStorage.setItem(key, JSON.stringify({ uid, data }));
-  } catch {
-    // quota / disabled storage — best effort
+    return null;
+  } catch (error) {
+    console.warn(`useTravelData: failed to save "${key}":`, error);
+    return { kind: classifyPersistError(error), key, at: Date.now() };
   }
 }
 
@@ -78,7 +93,24 @@ function writeScoped<T>(key: string, uid: string, data: T): void {
  */
 export function useTravelData() {
   const { isAuthenticated, isLoading: authLoading, dbUser } = useAuth();
-  const [local, setLocal] = useLocalStorage<TravelStore>(LOCAL_KEY, DEFAULT);
+  // The 4th element was being dropped on the floor. It is the only signal that
+  // a guest's trips have stopped being written to disk.
+  const [local, setLocal, , localPersistError] = useLocalStorage<TravelStore>(
+    LOCAL_KEY,
+    DEFAULT
+  );
+  // Failures from the per-account mirror / outbox / proposal writes, which do
+  // not go through useLocalStorage.
+  const [scopedPersistError, setScopedPersistError] =
+    useState<PersistError | null>(null);
+  // Stable, so adding it to a dependency array changes nothing. Clears itself
+  // once a write succeeds again — e.g. after the user deletes an old trip.
+  const trackScoped = useCallback((err: PersistError | null) => {
+    setScopedPersistError((prev) => {
+      if (err) return err;
+      return prev === null ? prev : null;
+    });
+  }, []);
   // Stable per-account key for the mirror/outbox. dbUser is the canonical app
   // user; using it (not the transient supabase id) keeps the key from changing
   // mid-session, which would otherwise orphan the cached data.
@@ -144,9 +176,9 @@ export function useTravelData() {
     (next: Record<string, TripProposal>) => {
       proposalsRef.current = next;
       setProposals(next);
-      if (uid) writeScoped(PROPOSALS_KEY, uid, next);
+      if (uid) trackScoped(writeScoped(PROPOSALS_KEY, uid, next));
     },
-    [uid]
+    [uid, trackScoped]
   );
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -222,9 +254,9 @@ export function useTravelData() {
 
   // Persist the outbox and surface its size (drives the "will sync" banner).
   const persistOutbox = useCallback(() => {
-    if (uid) writeScoped(OUTBOX_KEY, uid, outboxRef.current);
+    if (uid) trackScoped(writeScoped(OUTBOX_KEY, uid, outboxRef.current));
     setPendingSync(outboxRef.current.length);
-  }, [uid]);
+  }, [uid, trackScoped]);
 
   // Wraps a cloud write: tracks in-flight count, distinguishes a version
   // conflict (409 / VERSION_CONFLICT) from a generic failure, and never throws
@@ -424,8 +456,9 @@ export function useTravelData() {
   // Persist the mirror on every cloud-state change so the last-known trips
   // survive a reload / offline restart.
   useEffect(() => {
-    if (isAuthenticated && uid && hydratedRef.current) writeScoped(MIRROR_KEY, uid, cloudTrips);
-  }, [cloudTrips, isAuthenticated, uid]);
+    if (isAuthenticated && uid && hydratedRef.current)
+      trackScoped(writeScoped(MIRROR_KEY, uid, cloudTrips));
+  }, [cloudTrips, isAuthenticated, uid, trackScoped]);
 
   // Hydrate the member's proposal buffers once the account key is known, so
   // pending (draft/submitted) edits survive a reload.
@@ -1045,10 +1078,17 @@ export function useTravelData() {
   // Single derived status for the UI banner (cloud mode only).
   const syncStatus = deriveSyncStatus(pendingWrites, syncError, conflict);
 
+  // A failed local write, from whichever store noticed first. Travel had no
+  // path for this at all: /single and /multiple have warned about full or
+  // blocked storage since useLocalStorage grew the 4th tuple element, while the
+  // mode that accumulates a whole trip's worth of receipts stayed silent.
+  const persistError = localPersistError ?? scopedPersistError;
+
   return {
     trips,
     activeId,
     isLoading,
+    persistError,
     cloudMode: isAuthenticated,
     setActiveId,
     createTrip,

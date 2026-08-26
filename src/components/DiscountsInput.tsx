@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   Discount,
   DiscountScope,
@@ -52,6 +52,7 @@ export function DiscountsInput({
   const [value, setValue] = useState("");
   const [label, setLabel] = useState("");
   const [targetId, setTargetId] = useState("");
+  const typeLabelId = useId();
 
   const open = expanded || discounts.length > 0;
 
@@ -153,7 +154,7 @@ export function DiscountsInput({
                 size="icon"
                 onClick={() => handleRemove(d.id)}
                 aria-label="Remove discount"
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                className="touch-manipulation h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -224,13 +225,26 @@ export function DiscountsInput({
 
         <div className="flex items-end gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs">Type</Label>
-            <div className="flex rounded-md border overflow-hidden">
+            <Label className="text-xs" id={typeLabelId}>
+              Type
+            </Label>
+            {/* A radiogroup, not two plain buttons. Which one is selected
+                decides whether "10" means Rp 10 or 10% off the bill, and it was
+                conveyed by background colour alone — nothing a screen reader
+                could read, and nothing that survives colour blindness. */}
+            <div
+              role="radiogroup"
+              aria-labelledby={typeLabelId}
+              className="flex h-11 rounded-md border overflow-hidden sm:h-9"
+            >
               <button
                 type="button"
+                role="radio"
+                aria-checked={type === "amount"}
+                aria-label={`Discount in ${symbol}`}
                 onClick={() => setType("amount")}
                 className={cn(
-                  "px-3 py-2 text-sm font-medium transition-colors",
+                  "touch-manipulation px-4 text-sm font-medium transition-colors",
                   type === "amount"
                     ? "bg-primary text-primary-foreground"
                     : "bg-background hover:bg-muted"
@@ -240,9 +254,12 @@ export function DiscountsInput({
               </button>
               <button
                 type="button"
+                role="radio"
+                aria-checked={type === "percent"}
+                aria-label="Discount in percent"
                 onClick={() => setType("percent")}
                 className={cn(
-                  "px-3 py-2 text-sm font-medium transition-colors",
+                  "touch-manipulation px-4 text-sm font-medium transition-colors",
                   type === "percent"
                     ? "bg-primary text-primary-foreground"
                     : "bg-background hover:bg-muted"

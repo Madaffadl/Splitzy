@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
 import { useTravelData } from "@/hooks/useTravelData";
+import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
 import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
@@ -48,6 +49,7 @@ import {
   Upload,
   Link2,
   Copy,
+  MessageCircle,
   X,
   Crown,
   UserPlus,
@@ -569,6 +571,9 @@ function MembersCard({
   const [loadingInvites, setLoadingInvites] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
   const fetchInvites = useCallback(async () => {
     if (!isOwner) return;
@@ -578,7 +583,11 @@ function MembersCard({
       if (res.ok) {
         const { invites: list } = (await res.json()) as { invites: InviteInfo[] };
         setInvites(list);
+      } else {
+        setInviteError("Couldn't load the invite link. Try again.");
       }
+    } catch {
+      setInviteError("Couldn't load the invite link — you may be offline.");
     } finally {
       setLoadingInvites(false);
     }
@@ -588,28 +597,80 @@ function MembersCard({
 
   const generateInvite = async () => {
     setGenerating(true);
+    setInviteError(null);
     try {
       const res = await fetch(`/api/travel/${tripId}/invites`, { method: "POST" });
       if (res.ok) {
         const inv = (await res.json()) as InviteInfo;
         setInvites((prev) => [inv, ...prev]);
+      } else {
+        // Silence here meant the spinner stopped and nothing appeared.
+        setInviteError("Couldn't create an invite link. Try again.");
       }
+    } catch {
+      setInviteError("Couldn't create an invite link — you may be offline.");
     } finally {
       setGenerating(false);
     }
   };
 
+  // Revoking is how an owner takes back access after sending the link to the
+  // wrong chat. It used to fire and forget: the row was filtered out of state
+  // unconditionally, so a failed DELETE — offline, 403, 500 — left the owner
+  // certain they had revoked a link that was still live. Confirm first, then
+  // only drop it if the server agreed.
   const revokeInvite = async (token: string) => {
-    await fetch(`/api/travel/${tripId}/invites/${token}`, { method: "DELETE" });
-    setInvites((prev) => prev.filter((i) => i.token !== token));
+    setRevoking(true);
+    setInviteError(null);
+    try {
+      const res = await fetch(`/api/travel/${tripId}/invites/${token}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setInviteError("Couldn't revoke the link — it is still active. Try again.");
+        return;
+      }
+      setInvites((prev) => prev.filter((i) => i.token !== token));
+      setConfirmRevoke(null);
+      toast({ title: "Invite link revoked", variant: "success" });
+    } catch {
+      setInviteError("Couldn't revoke the link — it is still active. Try again.");
+    } finally {
+      setRevoking(false);
+    }
   };
 
+  const inviteUrl = (token: string) =>
+    `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${token}`;
+
+  // Unguarded `writeText` throws on a non-secure context or a denied
+  // permission, and the success toast simply never fired — no error either.
+  // SummaryPanel has caught this for its own copy for a while; this is the
+  // path a collaborator's whole onboarding runs through.
   const copyLink = async (token: string) => {
-    const url = `${window.location.origin}/invite/${token}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast({ title: "Link copied!", variant: "success" });
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(inviteUrl(token));
+      setCopied(true);
+      toast({ title: "Link copied!", variant: "success" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({
+        title: "Couldn't copy the link",
+        description: "Long-press the link above to copy it manually.",
+        variant: "error",
+      });
+    }
+  };
+
+  // The invite link is destined for a group chat — that is the whole point of
+  // it — and every other share surface in this app already offers WhatsApp.
+  const shareLinkToWhatsApp = (token: string) => {
+    const text = `Join our trip on Splitzy: ${inviteUrl(token)}`;
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   const activeInvite = invites[0] ?? null;
@@ -665,16 +726,25 @@ function MembersCard({
             ) : activeInvite ? (
               <div className="rounded-lg border bg-muted/40 px-3 py-2 space-y-2">
                 <p className="text-xs text-muted-foreground break-all font-mono select-all">
-                  {`${typeof window !== "undefined" ? window.location.origin : ""}/invite/${activeInvite.token}`}
+                  {inviteUrl(activeInvite.token)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Expires {new Date(activeInvite.expiresAt).toLocaleDateString()}
+                  Expires{" "}
+                  {new Date(activeInvite.expiresAt).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
                 </p>
+                {/* Copy and Revoke used to be two 28px buttons 8px apart: the
+                    action you take every time, flush against the one that
+                    cannot be undone. Revoke moves to its own row, behind a
+                    confirm, and the two sharing actions get the top row. */}
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="flex-1 gap-1.5 text-xs h-7"
+                    className="touch-manipulation flex-1 gap-1.5 text-xs"
                     onClick={() => void copyLink(activeInvite.token)}
                   >
                     {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
@@ -682,20 +752,58 @@ function MembersCard({
                   </Button>
                   <Button
                     size="sm"
-                    variant="ghost"
-                    className="gap-1.5 text-xs h-7 text-destructive hover:text-destructive"
-                    onClick={() => void revokeInvite(activeInvite.token)}
+                    variant="secondary"
+                    className="touch-manipulation flex-1 gap-1.5 text-xs text-green-700 dark:text-green-500"
+                    onClick={() => shareLinkToWhatsApp(activeInvite.token)}
                   >
-                    <X className="h-3.5 w-3.5" />
-                    Revoke
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    WhatsApp
                   </Button>
                 </div>
+                {confirmRevoke === activeInvite.token ? (
+                  <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-2">
+                    <p className="text-xs text-foreground/90">
+                      Revoke this link? Anyone who has it will no longer be able
+                      to join, and you will need to generate a new one.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="touch-manipulation flex-1 text-xs"
+                        disabled={revoking}
+                        onClick={() => void revokeInvite(activeInvite.token)}
+                      >
+                        {revoking ? "Revoking…" : "Yes, revoke"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="touch-manipulation flex-1 text-xs"
+                        disabled={revoking}
+                        onClick={() => setConfirmRevoke(null)}
+                      >
+                        Keep it
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="touch-manipulation w-full gap-1.5 text-xs text-destructive hover:text-destructive"
+                    onClick={() => setConfirmRevoke(activeInvite.token)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Revoke link
+                  </Button>
+                )}
               </div>
             ) : (
               <Button
                 size="sm"
                 variant="outline"
-                className="w-full gap-2 text-xs h-8"
+                className="touch-manipulation w-full gap-2 text-xs"
                 onClick={() => void generateInvite()}
                 disabled={generating}
               >
@@ -707,6 +815,11 @@ function MembersCard({
                 Generate invite link
               </Button>
             )}
+            {inviteError && (
+              <p role="alert" className="text-xs font-medium text-destructive">
+                {inviteError}
+              </p>
+            )}
           </div>
         )}
       </CardContent>
@@ -717,6 +830,10 @@ function MembersCard({
 // ── Main page ────────────────────────────────────────────────────────────────
 export function TravelSpendView() {
   const travel = useTravelData();
+  // Warns when the browser has stopped accepting writes — full quota, or
+  // storage blocked outright. Without this, a trip could gain receipts all day
+  // and lose them on the next reload without a word.
+  usePersistErrorToast(travel.persistError);
   const { dbUser, signOut } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);

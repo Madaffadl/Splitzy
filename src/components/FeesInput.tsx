@@ -158,7 +158,7 @@ export function FeesInput({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                className="touch-manipulation h-11 w-11 shrink-0 text-destructive hover:text-destructive"
                 onClick={() => onFeesChange(fees.filter((f) => f.id !== fee.id))}
               >
                 <Trash2 className="h-3.5 w-3.5" />

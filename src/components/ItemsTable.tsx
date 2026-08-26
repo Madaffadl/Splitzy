@@ -428,7 +428,10 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                           return (
                             <div key={participant.id} className="flex items-center gap-3">
                               <span className="text-sm flex-1 truncate">{participant.name}</span>
-                              <div className="flex items-center gap-1.5">
+                              {/* The most-tapped pair in the app — "Es Teh
+                                  Manis ×4, split three ways" is all these two
+                                  buttons. They were 36px at 6px apart. */}
+                              <div className="flex items-center gap-2">
                                 <button
                                   type="button"
                                   aria-label={`Remove one unit from ${participant.name}`}
@@ -436,7 +439,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                                   onClick={() =>
                                     updateAssignment(item.id, participant.id, personQty - 1)
                                   }
-                                  className="touch-manipulation h-9 w-9 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  className="touch-manipulation h-11 w-11 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                   <Minus className="h-3 w-3" />
                                 </button>
@@ -450,7 +453,7 @@ export function ItemsTable({ items, participants, onChange }: ItemsTableProps) {
                                   onClick={() =>
                                     updateAssignment(item.id, participant.id, personQty + 1)
                                   }
-                                  className="touch-manipulation h-9 w-9 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  className="touch-manipulation h-11 w-11 rounded-md border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
                                   <Plus className="h-3 w-3" />
                                 </button>

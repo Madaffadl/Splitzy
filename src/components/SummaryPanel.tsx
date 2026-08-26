@@ -344,7 +344,9 @@ function PersonBreakdown({
             aria-pressed={paid}
             aria-label={paid ? `${name} has paid their share — tap to undo` : `Mark ${name}'s share as paid`}
             className={cn(
-              "touch-manipulation mr-2 shrink-0 flex min-h-[36px] items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+              // 44px, like the expand button it sits beside — this was
+              // min-h-[36px] on the same row as a min-h-[44px] sibling.
+              "touch-manipulation mr-2 shrink-0 flex min-h-[44px] items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors",
               paid
                 ? "bg-emerald-500 text-white hover:bg-emerald-600"
                 : "border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
@@ -554,7 +556,14 @@ export function ReceiptBreakdown({
           </div>
         </button>
         {(onEdit || onDelete || onToggleAllPaid) && (
-          <div className="flex items-center gap-0.5 pr-1 shrink-0">
+          <div className="flex items-center gap-1 pr-1 shrink-0">
+            {/* Hidden below sm:. Three 44px actions plus the title and the
+                amount do not fit on a 375px row — the title truncated to about
+                five characters. And on a phone this button is redundant: the
+                "Tap to mark paid" chip row directly below does the same job per
+                person, and wraps. It used to be h-8 (32px) at gap-0.5 (2px)
+                from Delete, which is a bulk ledger write two pixels from an
+                irreversible one. */}
             {onToggleAllPaid && (
               <button
                 type="button"
@@ -563,7 +572,7 @@ export function ReceiptBreakdown({
                 aria-label={allPaid ? `Mark ${receipt.title} as unpaid` : `Mark everyone's share of ${receipt.title} as paid`}
                 title={allPaid ? "Everyone has paid — click to undo" : "Mark everyone's share as paid"}
                 className={cn(
-                  "h-8 w-8 flex items-center justify-center rounded-md transition-colors",
+                  "touch-manipulation hidden h-11 w-11 items-center justify-center rounded-md transition-colors sm:flex",
                   allPaid
                     ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
                     : "text-muted-foreground hover:bg-muted hover:text-emerald-600"
@@ -582,12 +591,14 @@ export function ReceiptBreakdown({
                 <Edit2 className="h-4 w-4" />
               </button>
             )}
+            {/* ml-2 so the one action that cannot be undone keeps a real gap
+                from the one next to it. */}
             {onDelete && (
               <button
                 type="button"
                 onClick={onDelete}
                 aria-label={`Delete ${receipt.title}`}
-                className="touch-manipulation ml-1 h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
+                className="touch-manipulation ml-2 h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -599,10 +610,14 @@ export function ReceiptBreakdown({
       {/* Inline paid tracker — tap a person to mark their share paid, right from
           the receipt row (no need to expand). Green = paid back the payer. */}
       {onTogglePaidShare && owing.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2 -mt-0.5">
+        <div className="flex flex-wrap items-center gap-2 px-3 pb-2 -mt-0.5">
           {paidBy.size === 0 && (
             <span className="text-[10px] text-muted-foreground mr-0.5">Tap to mark paid:</span>
           )}
+          {/* Each of these records or removes a payment in the trip ledger and
+              syncs it to every member. They were ~20px tall at gap-1.5 (6px),
+              five to eight of them wrapped together — the smallest targets in
+              the app, on the control that moves money. 44px, gap-2. */}
           {owing.map((p) => {
             const isPaid = paidBy.has(p.id);
             return (
@@ -613,7 +628,7 @@ export function ReceiptBreakdown({
                 aria-pressed={isPaid}
                 aria-label={isPaid ? `${p.name} has paid — tap to undo` : `Mark ${p.name}'s share as paid`}
                 className={cn(
-                  "flex items-center gap-1 rounded-full border py-0.5 pl-1.5 pr-2 text-[11px] font-medium transition-colors",
+                  "touch-manipulation flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 text-[11px] font-medium transition-colors",
                   isPaid
                     ? "border-emerald-500 bg-emerald-500 text-white"
                     : "border-dashed border-muted-foreground/40 text-muted-foreground hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
@@ -2140,13 +2155,16 @@ export function MultipleReceiptSummaryPanel({
                           </span>
                         )}
                       </span>
+                      {/* Deletes a synced ledger payment. It was a 20px target
+                          with no confirmation — under the 24px WCAG pointer
+                          minimum, let alone this app's 44px. */}
                       {onDeletePayment && (
                         <button
                           type="button"
                           onClick={() => onDeletePayment(p.id)}
                           aria-label="Undo this payment"
                           title="Undo — move back to settlement"
-                          className="h-5 w-5 flex items-center justify-center rounded text-emerald-700/70 hover:text-destructive hover:bg-background/60 transition-colors"
+                          className="touch-manipulation -my-2 h-11 w-11 flex items-center justify-center rounded text-emerald-700/70 hover:text-destructive hover:bg-background/60 transition-colors"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>

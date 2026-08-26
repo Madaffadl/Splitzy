@@ -84,7 +84,7 @@ export function ReceiptHistoryList() {
           placeholder="Search by receipt or trip name..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="pl-10 pr-10"
+          className="pl-10 pr-12"
           aria-label="Search receipts"
         />
         {search && (
@@ -92,7 +92,7 @@ export function ReceiptHistoryList() {
             type="button"
             onClick={() => setSearch("")}
             aria-label="Clear search"
-            className="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="touch-manipulation absolute right-0 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>

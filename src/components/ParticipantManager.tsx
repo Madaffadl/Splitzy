@@ -226,7 +226,11 @@ export function ParticipantManager({
                 type="button"
                 onClick={() => removeParticipant(participant.id)}
                 aria-label={`Remove ${participant.name}`}
-                className="touch-manipulation -mr-1 ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-transparent text-muted-foreground/70 opacity-60 transition-all hover:bg-destructive/20 hover:text-destructive hover:opacity-100 group-hover:opacity-100"
+                // 28px and permanently at 42% effective alpha on a phone:
+                // `opacity-60` only lifted on hover, and a touch screen has no
+                // hover, so the one control that removes a person measured
+                // about 1.6:1 against the chip. 44px, always fully visible.
+                className="touch-manipulation -mr-2 ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-transparent text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
