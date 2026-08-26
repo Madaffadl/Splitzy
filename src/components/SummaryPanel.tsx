@@ -30,6 +30,7 @@ import { Fragment, useState, useMemo, useEffect, type ReactNode } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
 import { parseShareSource, coveredShareParticipants } from "@/lib/settle-up";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 // Shared empty set so ReceiptBreakdown's default doesn't allocate each render.
 const EMPTY_PAID: ReadonlySet<string> = new Set<string>();
@@ -107,6 +108,7 @@ function PaymentDestinationRow({
   readOnly: boolean;
   onSave?: (info: PaymentInfo | undefined) => void;
 }) {
+  const t = useDictionary().app.summary;
   const info = participant.paymentInfo;
   const line = formatPaymentInfoText(info);
   const editable = !readOnly && !!onSave;
@@ -146,7 +148,7 @@ function PaymentDestinationRow({
             <p className="mt-0.5 text-xs text-muted-foreground break-all">{line}</p>
           ) : (
             <p className="mt-0.5 text-xs italic text-muted-foreground/70">
-              No account added
+              {t.noAccount}
             </p>
           )}
         </div>
@@ -162,12 +164,12 @@ function PaymentDestinationRow({
           {line ? (
             <>
               <Pencil className="h-3.5 w-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Edit</span>
+              <span className="hidden sm:inline">{t.edit}</span>
             </>
           ) : (
             <>
               <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Add</span>
+              <span className="hidden sm:inline">{t.add}</span>
             </>
           )}
         </Button>
@@ -177,7 +179,7 @@ function PaymentDestinationRow({
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Payment details</DialogTitle>
+              <DialogTitle>{t.paymentDialogTitle}</DialogTitle>
               <DialogDescription>
                 Where to pay {participant.name} so others can transfer directly.
                 All fields are optional.
@@ -185,7 +187,7 @@ function PaymentDestinationRow({
             </DialogHeader>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Bank / E-Wallet</Label>
+                <Label>{t.bank}</Label>
                 <Input
                   value={bank}
                   maxLength={PAYMENT_INFO_LIMITS.bank}
@@ -194,7 +196,7 @@ function PaymentDestinationRow({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Account Number</Label>
+                <Label>{t.accountNumber}</Label>
                 <Input
                   value={accountNumber}
                   maxLength={PAYMENT_INFO_LIMITS.accountNumber}
@@ -204,7 +206,7 @@ function PaymentDestinationRow({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Account Holder Name</Label>
+                <Label>{t.accountName}</Label>
                 <Input
                   value={accountName}
                   maxLength={PAYMENT_INFO_LIMITS.accountName}
@@ -254,6 +256,7 @@ export function PaymentDestinationsSection({
   readOnly: boolean;
   onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
 }) {
+  const t = useDictionary().app.summary;
   const editable = !readOnly && !!onUpdatePaymentInfo;
   const recipients = recipientIds
     .map((id) => participantsById.get(id) ?? { id, name: getParticipantName(id) })
@@ -265,8 +268,8 @@ export function PaymentDestinationsSection({
     <div className="space-y-2">
       <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
         <Landmark className="h-4 w-4" />
-        Payment Details
-        {editable && <span className="text-xs font-normal">(where to pay)</span>}
+        {t.paymentDetails}
+        {editable && <span className="text-xs font-normal">{t.whereToPay}</span>}
       </h4>
       <div className="space-y-2">
         {recipients.map((p) => (
@@ -305,6 +308,7 @@ function PersonBreakdown({
   // Native currency of the receipt this breakdown belongs to (undefined = IDR).
   currency?: string;
 }) {
+  const t = useDictionary().app.summary;
   const [expanded, setExpanded] = useState(false);
   const showPaidToggle = !!onTogglePaid && !isPayer;
   const money = (n: number) => formatMoney(n, currency);
@@ -322,7 +326,7 @@ function PersonBreakdown({
             <span className={cn("font-medium truncate", paid && "text-muted-foreground line-through")}>{name}</span>
             {isPayer && (
               <Badge variant="outline" className="text-xs py-0 shrink-0">
-                Payer
+                {t.payer}
               </Badge>
             )}
           </div>
@@ -365,7 +369,7 @@ function PersonBreakdown({
           {detail.items.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <Eye className="h-3 w-3" /> Items Consumed
+                <Eye className="h-3 w-3" /> {t.itemsConsumed}
               </p>
               {detail.items.map((item) => (
                 <div
@@ -394,14 +398,14 @@ function PersonBreakdown({
 
           {/* Subtotal */}
           <div className="flex justify-between text-xs pt-1 border-t">
-            <span className="text-muted-foreground">Subtotal</span>
+            <span className="text-muted-foreground">{t.subtotal}</span>
             <span>{money(detail.subtotal)}</span>
           </div>
 
           {/* Tax allocation */}
           {detail.taxAllocation > 0 && (
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">+ Tax share</span>
+              <span className="text-muted-foreground">{t.taxShare}</span>
               <span>{money(detail.taxAllocation)}</span>
             </div>
           )}
@@ -409,7 +413,7 @@ function PersonBreakdown({
           {/* Service allocation */}
           {detail.serviceAllocation > 0 && (
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">+ Service share</span>
+              <span className="text-muted-foreground">{t.serviceShare}</span>
               <span>{money(detail.serviceAllocation)}</span>
             </div>
           )}
@@ -417,7 +421,7 @@ function PersonBreakdown({
           {/* Extra fees allocation (delivery, platform, etc.) */}
           {detail.feesAllocation > 0 && (
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">+ Other fees share</span>
+              <span className="text-muted-foreground">{t.feesShare}</span>
               <span>{money(detail.feesAllocation)}</span>
             </div>
           )}
@@ -425,14 +429,14 @@ function PersonBreakdown({
           {/* Discount credit */}
           {detail.discount > 0 && (
             <div className="flex justify-between text-xs text-success">
-              <span>− Discount</span>
+              <span>− {t.discount}</span>
               <span>− {money(detail.discount)}</span>
             </div>
           )}
 
           {/* Final total */}
           <div className="flex justify-between text-sm pt-1 border-t font-medium">
-            <span>Total</span>
+            <span>{t.total}</span>
             <span className="text-primary">{money(detail.total)}</span>
           </div>
         </div>
@@ -691,6 +695,7 @@ export function ReceiptBreakdown({
 }
 
 export function SummaryPanel({ receipt, participants, title, savedSplitId, readOnly = false, onUpdatePaymentInfo, preview = false }: SummaryPanelProps) {
+  const t = useDictionary().app.summary;
   // The read-only shared view shows settlements but not interactively; the
   // editor preview hides them entirely (see `preview`).
   const settleStatic = readOnly;
@@ -944,7 +949,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
       <Card className="border-dashed">
         <CardContent className="py-8 text-center text-muted-foreground">
           <Calculator className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>Add participants and select payer to see summary</p>
+          <p>{t.needPayer}</p>
         </CardContent>
       </Card>
     );
@@ -963,7 +968,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Wallet className="h-4 w-4 text-primary" />
             </div>
-            <span className="gradient-text font-bold">Summary</span>
+            <span className="gradient-text font-bold">{t.title}</span>
           </CardTitle>
           {!readOnly && !preview && (
             <div className="flex w-full items-center gap-2 sm:w-auto">
@@ -973,14 +978,14 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 onClick={handleShareLink}
                 disabled={creatingLink}
                 className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-3"
-                aria-label="Create and share a read-only link"
+                aria-label={t.shareAria}
               >
                 {creatingLink ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Share2 className="h-4 w-4" />
                 )}
-                <span className="ml-1.5">Share</span>
+                <span className="ml-1.5">{t.share}</span>
               </Button>
               <Button
                 variant="outline"
@@ -988,10 +993,10 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 onClick={handleShareWhatsApp}
                 disabled={creatingLink}
                 className="touch-manipulation flex-1 px-2 text-green-600 dark:text-green-500 hover:text-green-600 sm:flex-none sm:px-3"
-                aria-label="Share the split to WhatsApp"
+                aria-label={t.whatsappAria}
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="ml-1.5">WhatsApp</span>
+                <span className="ml-1.5">{t.whatsapp}</span>
               </Button>
               <Button
                 variant="accent"
@@ -1003,12 +1008,12 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 {copied ? (
                   <>
                     <Check className="mr-1 h-3 w-3" />
-                    Copied!
+                    {t.copied}
                   </>
                 ) : (
                   <>
                     <Copy className="mr-1 h-3 w-3" />
-                    Copy
+                    {t.copy}
                   </>
                 )}
               </Button>
@@ -1021,13 +1026,13 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
 
         {/* Totals */}
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="text-muted-foreground">Subtotal</div>
+          <div className="text-muted-foreground">{t.subtotal}</div>
           <div className="text-right font-medium">
             {money(summary.receiptSubtotal)}
           </div>
-          <div className="text-muted-foreground">Tax</div>
+          <div className="text-muted-foreground">{t.tax}</div>
           <div className="text-right">{money(receipt.tax)}</div>
-          <div className="text-muted-foreground">Service</div>
+          <div className="text-muted-foreground">{t.service}</div>
           <div className="text-right">{money(receipt.service)}</div>
           {/* Fragment, not <>: the keys were on the children while the wrapper
               inside .map() had none, which warns on every render with a fee. */}
@@ -1038,19 +1043,19 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             </Fragment>
           ))}
           <div className="text-muted-foreground font-medium pt-2 border-t">
-            Grand Total
+            {t.grandTotal}
           </div>
           <div className={cn("text-right pt-2 border-t", summary.totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
             {money(summary.grandTotal)}
           </div>
           {summary.totalDiscount > 0 && (
             <>
-              <div className="text-success">Discount</div>
+              <div className="text-success">{t.discount}</div>
               <div className="text-right text-success">
                 − {money(summary.totalDiscount)}
               </div>
               <div className="text-muted-foreground font-medium pt-2 border-t">
-                Amount to Pay
+                {t.amountToPay}
               </div>
               <div className="text-right font-bold pt-2 border-t text-primary">
                 {money(summary.amountPaid)}
@@ -1079,7 +1084,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
         )}
 
         <div className="text-xs text-muted-foreground">
-          Paid by:{" "}
+          {t.paidBy}{" "}
           <Badge variant="secondary" className="ml-1">
             {getParticipantName(receipt.payerId)}
           </Badge>
@@ -1089,7 +1094,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
           <div className="space-y-1.5">
             <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Tag className="h-4 w-4" />
-              Discounts
+              {t.discountsHeading}
             </h4>
             <div className="space-y-1">
               {receipt.discounts.map((d) => (
@@ -1097,7 +1102,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                   <span className="truncate text-muted-foreground">
                     {d.label || describeDiscountTarget(d, receipt.items, participants)}
                     <span className="ml-1 text-muted-foreground/60">
-                      · {d.scope === "receipt" ? "bill" : d.scope === "item" ? "item" : "person"}
+                      · {d.scope === "receipt" ? t.scopeBill : d.scope === "item" ? t.scopeItem : t.scopePerson}
                     </span>
                   </span>
                   <span className="shrink-0 font-medium text-success">
@@ -1112,8 +1117,8 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
         {/* Per Person Breakdown with Expandable Audit */}
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            Per Person
-            <span className="text-xs font-normal">(tap to expand)</span>
+            {t.perPerson}
+            <span className="text-xs font-normal">{t.tapToExpand}</span>
           </h4>
           <div className="space-y-2">
             {shareDetails.map((detail) => (
@@ -1139,11 +1144,12 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
           <>
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">
-            Settlements
+            {t.settlements}
           </h4>
           {settlements.length === 0 ? (
-            <div className="text-sm text-center py-2 text-success bg-success/10 rounded-md">
-              ✓ All settled!
+            <div className="flex items-center justify-center gap-1.5 rounded-md bg-success/10 py-2 text-sm text-success">
+              <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {t.allSettled}
             </div>
           ) : settleStatic ? (
             // Static rows — no cosmetic per-receipt toggle (settle-up is

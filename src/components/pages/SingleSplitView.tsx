@@ -53,7 +53,7 @@ import {
   Lightbulb,
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
-import { useDictionary } from "@/lib/i18n/use-locale";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 const STEPS: Step[] = [
   { id: "participants", labelKey: "participants" },
@@ -226,8 +226,8 @@ export function SingleSplitView() {
         if (!cancelled) {
           router.replace("/single");
           toast({
-            title: "Couldn't open that split",
-            description: "It may have expired or been deleted.",
+            title: t.cards.resumeFailed,
+            description: t.cards.resumeFailedBody,
             variant: "error",
           });
         }
@@ -237,7 +237,7 @@ export function SingleSplitView() {
     return () => {
       cancelled = true;
     };
-  }, [resumeId, applyResume, router, toast, stepUrl]);
+  }, [resumeId, applyResume, router, toast, stepUrl, t.cards.resumeFailed, t.cards.resumeFailedBody]);
 
   const receipt: Receipt = useMemo(
     () => ({
@@ -394,8 +394,8 @@ export function SingleSplitView() {
     // itself is untouched and still resumable from Saved splits.
     forget();
     toast({
-      title: "Split reset",
-      description: "All participants and items were cleared.",
+      title: t.cards.resetDone,
+      description: t.cards.resetDoneBody,
       variant: "success",
     });
   };
@@ -439,8 +439,8 @@ export function SingleSplitView() {
       fees: [],
     });
     toast({
-      title: "Sample data loaded",
-      description: "Click Next to walk through the rest of the flow.",
+      title: t.cards.sampleLoaded,
+      description: t.cards.sampleLoadedBody,
       variant: "success",
     });
   };
@@ -526,15 +526,15 @@ export function SingleSplitView() {
           >
             <span>
               {splitsRemaining === 0
-                ? `You've used all ${maxSplits} free splits.`
-                : `${splitsRemaining} of ${maxSplits} free splits left.`}
+                ? fill(t.cards.freeSplitsNone, { max: maxSplits })
+                : fill(t.cards.freeSplitsLeft, { left: splitsRemaining, max: maxSplits })}
             </span>
             <button
               type="button"
               onClick={() => signIn(window.location.pathname)}
               className="touch-manipulation font-semibold text-primary underline underline-offset-2"
             >
-              Sign in for unlimited
+              {t.cards.signInUnlimited}
             </button>
           </div>
         )}
@@ -551,8 +551,8 @@ export function SingleSplitView() {
                       <Sparkles className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <CardTitle>Who&rsquo;s splitting the bill?</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-0.5">Add at least 2 people to continue</p>
+                      <CardTitle>{t.cards.whoSplitting}</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-0.5">{t.cards.whoSplittingHint}</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -570,7 +570,7 @@ export function SingleSplitView() {
                       className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
                     >
                       <Sparkles className="h-4 w-4" />
-                      Try with sample data (3 friends, dinner for Rp 240k)
+                      {t.cards.sampleData}
                     </button>
                   )}
                 </CardContent>
@@ -588,23 +588,23 @@ export function SingleSplitView() {
                         <ReceiptIcon className="h-5 w-5 text-accent-strong" />
                       </div>
                       <div>
-                        <CardTitle>Receipt Details</CardTitle>
-                        <p className="text-sm text-muted-foreground mt-0.5">Scan or add items manually</p>
+                        <CardTitle>{t.cards.receiptTitle}</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t.cards.receiptSubtitle}</p>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">Receipt Title</Label>
+                        <Label className="text-sm font-medium">{t.cards.receiptTitleLabel}</Label>
                         <Input
                           value={state.title}
                           onChange={(e) => updateState({ title: e.target.value })}
-                          placeholder="e.g., Dinner at Restaurant"
+                          placeholder={t.cards.receiptTitlePlaceholder}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">Date</Label>
+                        <Label className="text-sm font-medium">{t.cards.date}</Label>
                         <Input
                           type="date"
                           value={state.date ? state.date.slice(0, 10) : ""}
@@ -643,8 +643,8 @@ export function SingleSplitView() {
                           <Calculator className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <CardTitle>Items & Assignments</CardTitle>
-                          <p className="text-sm text-muted-foreground mt-0.5">{state.items.length} items added</p>
+                          <CardTitle>{t.cards.itemsTitle}</CardTitle>
+                          <p className="text-sm text-muted-foreground mt-0.5">{fill(t.cards.itemsSubtitle, { count: state.items.length })}</p>
                         </div>
                       </div>
                     </div>
@@ -667,8 +667,8 @@ export function SingleSplitView() {
                         <ReceiptIcon className="h-5 w-5 text-success" />
                       </div>
                       <div>
-                        <CardTitle>Fees & Payer</CardTitle>
-                        <p className="text-sm text-muted-foreground mt-0.5">Add tax, service, and select who paid</p>
+                        <CardTitle>{t.cards.feesTitle}</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t.cards.feesSubtitle}</p>
                       </div>
                     </div>
                   </CardHeader>
@@ -709,7 +709,7 @@ export function SingleSplitView() {
                     <PartyPopper className="h-7 w-7 text-accent-strong" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">Split complete</h2>
+                    <h2 className="text-xl font-bold">{t.cards.splitComplete}</h2>
                     <p className="text-sm text-muted-foreground mt-1">
                       <span className="font-semibold text-foreground">{state.title}</span>
                     </p>
@@ -727,15 +727,15 @@ export function SingleSplitView() {
                     <p className="text-2xl font-bold text-success break-all sm:break-normal">
                       Rp {formatCurrency(summary.grandTotal)}
                     </p>
-                    <p className="text-xs text-muted-foreground">Total bill</p>
+                    <p className="text-xs text-muted-foreground">{t.cards.totalBill}</p>
                   </Card>
                   <Card className="text-center p-3 sm:p-4 bg-primary/5 border-primary/20">
                     <p className="text-base font-semibold text-primary">{state.participants.length}</p>
-                    <p className="text-xs text-muted-foreground">Participants</p>
+                    <p className="text-xs text-muted-foreground">{t.cards.participants}</p>
                   </Card>
                   <Card className="text-center p-3 sm:p-4 bg-accent/5 border-accent/20">
                     <p className="text-base font-semibold text-accent-strong">{state.items.length}</p>
-                    <p className="text-xs text-muted-foreground">Items</p>
+                    <p className="text-xs text-muted-foreground">{t.cards.items}</p>
                   </Card>
                 </div>
 
@@ -755,7 +755,7 @@ export function SingleSplitView() {
                 <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
                   <CardContent className="py-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                      <Lightbulb className="mr-1 inline h-4 w-4 align-[-3px] text-accent-strong" aria-hidden="true" /><span className="font-medium">Tip:</span> Use the <span className="font-semibold text-primary">Export</span> button above to copy & share via WhatsApp or other apps
+                      <Lightbulb className="mr-1 inline h-4 w-4 align-[-3px] text-accent-strong" aria-hidden="true" />{t.cards.exportTip}
                     </p>
                   </CardContent>
                 </Card>
@@ -817,7 +817,7 @@ export function SingleSplitView() {
                     variant={currentStep === 1 ? "accent" : "default"}
                     className="min-h-[44px] touch-manipulation"
                   >
-                    {currentStep === 1 ? "View Summary" : "Next"}
+                    {currentStep === 1 ? t.cards.viewSummary : t.cards.next}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 )}
@@ -866,9 +866,9 @@ export function SingleSplitView() {
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset everything?</DialogTitle>
+            <DialogTitle>{t.cards.resetTitle}</DialogTitle>
             <DialogDescription>
-              This will clear all participants, items, fees, and the payer for this split. This action cannot be undone.
+              {t.cards.resetBody}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -877,7 +877,7 @@ export function SingleSplitView() {
             </Button>
             <Button variant="destructive" onClick={confirmReset}>
               <RotateCcw className="h-4 w-4 mr-2" />
-              Yes, reset
+              {t.cards.resetConfirm}
             </Button>
           </DialogFooter>
         </DialogContent>

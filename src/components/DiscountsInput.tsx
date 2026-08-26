@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2, Tag } from "@/components/ui/icons";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 interface DiscountsInputProps {
   discounts: Discount[];
@@ -42,6 +43,7 @@ export function DiscountsInput({
 }: DiscountsInputProps) {
   // Amount discounts are entered in the receipt's native currency, so the
   // "amount" toggle shows that symbol (₫, ฿, …) instead of a hardcoded "Rp".
+  const t = useDictionary().app.discounts;
   const symbol = getCurrencyMeta(currency).symbol;
   // Progressive disclosure: discounts are an edge case, so keep the panel
   // collapsed behind a lightweight trigger by default. Force it open whenever
@@ -104,7 +106,7 @@ export function DiscountsInput({
         className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
       >
         <Tag className="h-4 w-4" />
-        Add a discount or voucher
+        {t.addTrigger}
       </button>
     );
   }
@@ -115,7 +117,7 @@ export function DiscountsInput({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium">
           <Tag className="h-4 w-4 text-success" />
-          Discounts &amp; Vouchers
+          {t.heading}
         </div>
         {discounts.length === 0 && (
           <button
@@ -123,7 +125,7 @@ export function DiscountsInput({
             onClick={() => setExpanded(false)}
             className="text-xs font-medium text-muted-foreground hover:text-foreground"
           >
-            Hide
+            {t.hide}
           </button>
         )}
       </div>
@@ -142,8 +144,8 @@ export function DiscountsInput({
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   {d.scope === "receipt"
-                    ? "Whole bill"
-                    : `${d.scope === "item" ? "Item" : "Person"}: ${describeDiscountTarget(d, items, participants)}`}
+                    ? t.wholeBill
+                    : `${d.scope === "item" ? t.item : t.person}: ${describeDiscountTarget(d, items, participants)}`}
                 </p>
               </div>
               <span className="shrink-0 text-sm font-semibold text-success">
@@ -153,7 +155,7 @@ export function DiscountsInput({
                 variant="ghost"
                 size="icon"
                 onClick={() => handleRemove(d.id)}
-                aria-label="Remove discount"
+                aria-label={t.removeAria}
                 className="touch-manipulation h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive"
               >
                 <Trash2 className="h-4 w-4" />
@@ -167,7 +169,7 @@ export function DiscountsInput({
       <div className="space-y-3 rounded-lg border border-dashed p-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs">Applies to</Label>
+            <Label className="text-xs">{t.appliesTo}</Label>
             <Select
               value={scope}
               onValueChange={(v) => {
@@ -179,19 +181,19 @@ export function DiscountsInput({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="receipt">Whole bill</SelectItem>
-                <SelectItem value="item">An item</SelectItem>
-                <SelectItem value="participant">A person (voucher)</SelectItem>
+                <SelectItem value="receipt">{t.wholeBill}</SelectItem>
+                <SelectItem value="item">{t.anItem}</SelectItem>
+                <SelectItem value="participant">{t.aPerson}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {scope === "item" && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Item</Label>
+              <Label className="text-xs">{t.item}</Label>
               <Select value={targetId} onValueChange={setTargetId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select item" />
+                  <SelectValue placeholder={t.selectItem} />
                 </SelectTrigger>
                 <SelectContent>
                   {items.map((it, i) => (
@@ -206,10 +208,10 @@ export function DiscountsInput({
 
           {scope === "participant" && (
             <div className="space-y-1.5">
-              <Label className="text-xs">Person</Label>
+              <Label className="text-xs">{t.person}</Label>
               <Select value={targetId} onValueChange={setTargetId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select person" />
+                  <SelectValue placeholder={t.selectPerson} />
                 </SelectTrigger>
                 <SelectContent>
                   {participants.map((p) => (
@@ -226,7 +228,7 @@ export function DiscountsInput({
         <div className="flex items-end gap-2">
           <div className="space-y-1.5">
             <Label className="text-xs" id={typeLabelId}>
-              Type
+              {t.type}
             </Label>
             {/* A radiogroup, not two plain buttons. Which one is selected
                 decides whether "10" means Rp 10 or 10% off the bill, and it was
@@ -241,7 +243,7 @@ export function DiscountsInput({
                 type="button"
                 role="radio"
                 aria-checked={type === "amount"}
-                aria-label={`Discount in ${symbol}`}
+                aria-label={fill(t.inCurrency, { symbol })}
                 onClick={() => setType("amount")}
                 className={cn(
                   "touch-manipulation px-4 text-sm font-medium transition-colors",
@@ -256,7 +258,7 @@ export function DiscountsInput({
                 type="button"
                 role="radio"
                 aria-checked={type === "percent"}
-                aria-label="Discount in percent"
+                aria-label={t.inPercent}
                 onClick={() => setType("percent")}
                 className={cn(
                   "touch-manipulation px-4 text-sm font-medium transition-colors",
@@ -270,24 +272,24 @@ export function DiscountsInput({
             </div>
           </div>
           <div className="flex-1 space-y-1.5">
-            <Label className="text-xs">Value</Label>
+            <Label className="text-xs">{t.value}</Label>
             <Input
               type="text"
               inputMode="numeric"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder={type === "percent" ? "e.g. 10" : "e.g. 50000"}
+              placeholder={type === "percent" ? t.percentPlaceholder : t.amountPlaceholder}
             />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-xs">Label (optional)</Label>
+          <Label className="text-xs">{t.labelOptional}</Label>
           <Input
             value={label}
             maxLength={60}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="e.g. GoFood voucher"
+            placeholder={t.labelPlaceholder}
           />
         </div>
 
@@ -305,7 +307,7 @@ export function DiscountsInput({
           className="w-full"
         >
           <Plus className="h-4 w-4 mr-2" />
-          Add discount
+          {t.add}
         </Button>
       </div>
     </div>

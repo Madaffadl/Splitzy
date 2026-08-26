@@ -82,7 +82,9 @@ test.describe("summary hierarchy", () => {
         await page.getByRole("button", { name: /sample data/i }).click();
         await page.getByRole("button", { name: /^Next$/ }).click();
         await page.getByRole("button", { name: /View Summary/i }).click();
-        await expect(page.locator("h4", { hasText: /^Settlements$/ })).toBeVisible();
+        // "Settlements" was jargon; the heading is "Who pays whom" now, in both
+        // languages ("Siapa bayar ke siapa").
+        await expect(page.locator("h4", { hasText: /who pays whom/i })).toBeVisible();
 
         // The owner prefers the bill arithmetic first, so the settlement is
         // scrolled to rather than led with — but it must still be the loudest
@@ -215,6 +217,35 @@ test.describe("language", () => {
         await expect(page.locator("nav").first()).toContainText("Peserta");
     });
 
+    test("the whole /single flow speaks Indonesian, not half of it", async ({ page }) => {
+        // A flow that is translated up to the result and English from there is
+        // worse than one that is English throughout — the switch lands exactly
+        // where the user is reading numbers they need to trust.
+        await page.addInitScript(() => {
+            localStorage.setItem("splitzy-locale", "id");
+            localStorage.setItem("splitzy-onboarding-seen", "1");
+        });
+        await page.goto("/single");
+        await page.getByRole("button", { name: /data contoh/i }).click();
+        await page.getByRole("button", { name: /^Lanjut$/ }).click();
+        await page.getByRole("button", { name: /Lihat ringkasan/i }).click();
+
+        for (const phrase of ["Ringkasan", "Pajak", "Biaya layanan", "Total tagihan",
+                              "Dibayar oleh", "Per orang", "Siapa bayar ke siapa",
+                              "Rekening tujuan"]) {
+            await expect(page.getByText(phrase, { exact: false }).first()).toBeVisible();
+        }
+
+        // "Subtotal" is the same word in Indonesian and appears on real receipts,
+        // so it is expected. Anything else from this list is a missed string.
+        const leaks = await page.evaluate(() => {
+            const english = ["Grand Total", "Paid by", "Per Person", "Settlements",
+                             "Payment Details", "Total bill", "Participants", "Tip:"];
+            return english.filter((w) => document.body.innerText.includes(w));
+        });
+        expect(leaks, `untranslated on the summary: ${leaks.join(", ")}`).toHaveLength(0);
+    });
+
     test("the input path speaks Indonesian after /id", async ({ page }) => {
         await page.addInitScript(() => localStorage.setItem("splitzy-locale", "id"));
         await page.goto("/single");
@@ -228,4 +259,3 @@ test.describe("language", () => {
         }
     });
 });
-
