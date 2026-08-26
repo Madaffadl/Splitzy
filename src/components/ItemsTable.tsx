@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Plus, Minus, Trash2, ShoppingCart, AlertTriangle,} from "@/components/ui/icons";
+import { Plus, Minus, Trash2, ShoppingCart, AlertTriangle } from "@/components/ui/icons";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 interface ItemsTableProps {
   items: ReceiptItem[];
@@ -26,6 +27,7 @@ interface ItemsTableProps {
 }
 
 export function ItemsTable({ items, participants, onChange, scrollToUnassignedKey }: ItemsTableProps) {
+  const t = useDictionary().app.items;
   // Ref map for name inputs — used to auto-focus after a new item is added
   const nameInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   // ID of the item that should receive focus on the next render
@@ -238,14 +240,12 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-muted-foreground">
           <ShoppingCart className="h-4 w-4" />
-          <span className="text-sm font-medium">
-            {items.length} item{items.length !== 1 ? "s" : ""}
-          </span>
+          <span className="text-sm font-medium">{fill(t.count, { count: items.length })}</span>
         </div>
         <Button type="button" onClick={addItem} size="sm" variant="outline" className="shrink-0">
           <Plus className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">Add Item Manually</span>
-          <span className="sm:hidden">Add Manual</span>
+          <span className="hidden sm:inline">{t.addManual}</span>
+          <span className="sm:hidden">{t.addManualShort}</span>
         </Button>
       </div>
 
@@ -258,8 +258,8 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
           <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
             <ShoppingCart className="h-6 w-6 text-muted-foreground opacity-50" />
           </div>
-          <p className="font-semibold text-foreground mb-1">No items yet</p>
-          <p className="text-sm text-muted-foreground max-w-sm">Scan a receipt or add items manually to start splitting the bill.</p>
+          <p className="font-semibold text-foreground mb-1">{t.emptyTitle}</p>
+          <p className="text-sm text-muted-foreground max-w-sm">{t.emptyBody}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -291,11 +291,11 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                   <div className="flex items-end gap-2">
                     <div className="flex-1">
                       <Label className="text-xs text-muted-foreground">
-                        Item #{index + 1}
+                        {fill(t.itemN, { n: index + 1 })}
                       </Label>
                       <Input
                         ref={(el) => { nameInputRefs.current[item.id] = el; }}
-                        placeholder="Item name"
+                        placeholder={t.namePlaceholder}
                         value={item.name}
                         onChange={(e) =>
                           updateItem(item.id, { name: e.target.value })
@@ -305,7 +305,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                       />
                       {nameInvalid && (
                         <p id={nameErrorId} className="sr-only">
-                          Item name is required
+                          {t.nameRequired}
                         </p>
                       )}
                     </div>
@@ -315,7 +315,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                       size="icon"
                       onClick={() => removeItem(item.id)}
                       className="touch-manipulation h-11 w-11 text-muted-foreground hover:text-destructive shrink-0"
-                      aria-label={`Remove item ${index + 1}`}
+                      aria-label={fill(t.removeAria, { n: index + 1 })}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -324,7 +324,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                   {/* Qty, Price, Total - 3 columns */}
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <Label className="text-xs text-muted-foreground">Qty</Label>
+                      <Label className="text-xs text-muted-foreground">{t.qty}</Label>
                       <Input
                         type="number"
                         inputMode="numeric"
@@ -357,9 +357,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                       />
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">
-                        Price
-                      </Label>
+                      <Label className="text-xs text-muted-foreground">{t.price}</Label>
                       <Input
                         type="text"
                         inputMode="numeric"
@@ -385,7 +383,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                       />
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">Total</Label>
+                      <Label className="text-xs text-muted-foreground">{t.total}</Label>
                       <Input
                         type="text"
                         inputMode="numeric"
@@ -415,7 +413,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                       />
                       {totalInvalid && (
                         <p id={totalErrorId} className="sr-only">
-                          Total must be greater than zero
+                          {t.totalRequired}
                         </p>
                       )}
                     </div>
@@ -427,7 +425,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs text-muted-foreground">
-                        {isQtyMode ? "How many units per person?" : "Who’s having this?"}
+                        {isQtyMode ? t.unitsPerPerson : t.whoIsHaving}
                       </Label>
                       <Button
                         type="button"
@@ -438,7 +436,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                         }
                         className="touch-manipulation text-xs"
                       >
-                        {isQtyMode ? "Distribute Evenly" : "Select All"}
+                        {isQtyMode ? t.distributeEvenly : t.selectAll}
                       </Button>
                     </div>
 
@@ -446,7 +444,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                       /* Qty-based stepper mode — user explicitly opted in */
                       <div
                         role="group"
-                        aria-label={`Assign units of ${item.name || `item ${index + 1}`}`}
+                        aria-label={fill(t.assignUnitsAria, { item: item.name || fill(t.itemN, { n: index + 1 }) })}
                         aria-describedby={noAssignees ? assignmentErrorId : undefined}
                         className="space-y-1.5"
                       >
@@ -465,7 +463,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  aria-label={`Remove one unit from ${participant.name}`}
+                                  aria-label={fill(t.minusOneAria, { name: participant.name })}
                                   disabled={personQty <= 0}
                                   onClick={() =>
                                     updateAssignment(item.id, participant.id, personQty - 1)
@@ -479,7 +477,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                                 </span>
                                 <button
                                   type="button"
-                                  aria-label={`Add one unit to ${participant.name}`}
+                                  aria-label={fill(t.plusOneAria, { name: participant.name })}
                                   disabled={!canAdd}
                                   onClick={() =>
                                     updateAssignment(item.id, participant.id, personQty + 1)
@@ -500,7 +498,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                             onClick={() => exitQtyMode(item.id)}
                             className="touch-manipulation px-1 py-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
                           >
-                            ← Equal split
+                            ← {t.backToEqual}
                           </button>
                           <span
                             className={`text-xs font-medium ${
@@ -511,7 +509,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                                 : "text-muted-foreground"
                             }`}
                           >
-                            {totalAssigned}/{item.qty} units
+                            {fill(t.unitsOf, { done: totalAssigned, total: item.qty })}
                           </span>
                         </div>
                       </div>
@@ -520,7 +518,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                       <>
                         <div
                           role="group"
-                          aria-label={`Assign ${item.name || `item ${index + 1}`} to`}
+                          aria-label={fill(t.assignAria, { item: item.name || fill(t.itemN, { n: index + 1 }) })}
                           aria-describedby={noAssignees ? assignmentErrorId : undefined}
                           className="flex flex-wrap gap-2"
                         >
@@ -561,7 +559,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                             onClick={() => enterQtyMode(item.id)}
                             className="touch-manipulation px-1 py-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
                           >
-                            Split by quantity →
+                            {t.splitByQty} →
                           </button>
                         )}
                       </>
@@ -573,8 +571,7 @@ export function ItemsTable({ items, participants, onChange, scrollToUnassignedKe
                         role="alert"
                         className="text-xs font-semibold text-destructive mt-1 flex items-center gap-1"
                       >
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Item must be assigned to at least one
-                        person
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> {t.needsAssignee}
                       </p>
                     )}
                   </div>

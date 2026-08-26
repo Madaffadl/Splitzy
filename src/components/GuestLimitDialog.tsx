@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LogIn, Lock } from "@/components/ui/icons";
 import { MAX_GUEST_SPLITS } from "@/hooks/useGuestLimit";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 interface GuestLimitDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ interface GuestLimitDialogProps {
 
 export function GuestLimitDialog({ open, onClose }: GuestLimitDialogProps) {
   const { signIn } = useAuth();
+  const t = useDictionary().app.guestLimit;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -28,16 +30,12 @@ export function GuestLimitDialog({ open, onClose }: GuestLimitDialogProps) {
           <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
             <Lock className="h-6 w-6 text-primary" />
           </div>
-          <DialogTitle className="text-center">
-            Free Split Limit Reached
-          </DialogTitle>
+          <DialogTitle className="text-center">{t.title}</DialogTitle>
           {/* The count came from a hardcoded "3" while the real limit lived in
               MAX_GUEST_SPLITS. And the old copy said nothing about the work the
               user had just done, which is the first thing they worry about. */}
           <DialogDescription className="text-center">
-            You&apos;ve used all {MAX_GUEST_SPLITS} free splits. Nothing is lost —
-            this split is still here, and signing in with Google unlocks it plus
-            unlimited splits and receipt history.
+            {fill(t.body, { max: MAX_GUEST_SPLITS })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">
@@ -49,10 +47,10 @@ export function GuestLimitDialog({ open, onClose }: GuestLimitDialogProps) {
             className="w-full gap-2"
           >
             <LogIn className="h-4 w-4" />
-            Sign in with Google
+            {t.signIn}
           </Button>
           <Button variant="ghost" onClick={onClose} className="w-full">
-            Maybe Later
+            {t.later}
           </Button>
         </DialogFooter>
       </DialogContent>

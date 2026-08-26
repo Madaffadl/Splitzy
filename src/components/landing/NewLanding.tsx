@@ -24,6 +24,7 @@ import { AuthButton } from "@/components/AuthButton";
 import { BRAND, copyrightYear } from "@/lib/brand";
 import { LoginBanner } from "@/components/landing/LoginBanner";
 import { LocaleSync } from "@/components/i18n/LocaleSync";
+import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 import {
   FREE_PLAN,
   PRO_PLAN,
@@ -252,6 +253,7 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
             <Link href="/pricing" className="hidden sm:inline text-sm text-muted-foreground hover:text-foreground transition-colors">
               {dict.header.pricing}
             </Link>
+            <LocaleSwitcher />
             <ThemeToggle />
             <AuthButton />
           </div>

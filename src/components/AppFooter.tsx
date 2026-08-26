@@ -2,6 +2,7 @@
 import { Mail } from "@/components/ui/icons";
 import { BRAND, copyrightYear } from "@/lib/brand";
 import { Logo } from "@/components/ui/Logo";
+import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
 
 // Shared footer used across the single, trip, and history pages. Keep all
 // links and styling in one place — the previous copy-paste in three pages
@@ -20,6 +21,10 @@ export function AppFooter() {
           </span>
         </div>
         <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          {/* The language control for anyone already inside a split. The tool
+              headers have 50-78px of slack at 375px — /multiple would keep 6px
+              after a 44px button — so it lives here rather than up there. */}
+          <LocaleSwitcher className="-my-1" />
           <Link href="/privacy" className="hover:text-foreground transition-colors">
             Privacy
           </Link>

@@ -5,6 +5,7 @@ import { Participant, ReceiptFee } from "@/types";
 import { formatCurrency, generateId } from "@/lib/utils";
 import { canAddFee, feeInputError } from "@/lib/input-limits";
 import { Info, Plus, Trash2, AlertTriangle,} from "@/components/ui/icons";
+import { useDictionary } from "@/lib/i18n/use-locale";
 import { getCurrencyMeta } from "@/lib/currencies";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,6 +67,7 @@ export function FeesInput({
     existingCount: fees.length,
     symbol,
   };
+  const t = useDictionary().app.fees;
   const feeError = feeInputError(feeCheck);
   const addFeeAllowed = canAddFee(feeCheck);
 
@@ -76,7 +78,7 @@ export function FeesInput({
         <div className="space-y-2">
           <Label className="flex items-center gap-2">
             <Receipt className="h-4 w-4" />
-            Tax
+            {t.tax}
           </Label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
@@ -103,7 +105,7 @@ export function FeesInput({
         <div className="space-y-2">
           <Label className="flex items-center gap-2">
             <Receipt className="h-4 w-4" />
-            Service Charge
+            {t.service}
           </Label>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
@@ -133,25 +135,21 @@ export function FeesInput({
         <div className="mt-0.5 shrink-0 text-primary">
           <Info className="h-4 w-4" />
         </div>
-        <p>
-          Tax and service charges are <span className="font-medium text-foreground">scaled proportionally</span> based on each person&rsquo;s subtotal share.
-        </p>
+        <p>{t.scaledNote}</p>
       </div>
 
       {/* Extra fees (delivery, platform, etc.) */}
       {onFeesChange && (
         <div className="space-y-3 pt-2 border-t">
-          <Label className="text-sm font-medium">Other Fees</Label>
-          <p className="text-xs text-muted-foreground -mt-1">
-            Delivery fee, platform fee, packaging, etc. — typically split equally.
-          </p>
+          <Label className="text-sm font-medium">{t.otherTitle}</Label>
+          <p className="text-xs text-muted-foreground -mt-1">{t.otherHint}</p>
 
           {/* Existing fees */}
           {fees.map((fee) => (
             <div key={fee.id} className="flex items-center gap-2 text-sm">
               <span className="flex-1 truncate font-medium">{fee.label}</span>
               <span className="text-muted-foreground text-xs">
-                {fee.splitMethod === "equal" ? "equal" : "proportional"}
+                {fee.splitMethod === "equal" ? t.splitEqual : t.splitProportional}
               </span>
               <span className="whitespace-nowrap">{symbol} {formatCurrency(fee.amount)}</span>
               <Button
@@ -173,19 +171,19 @@ export function FeesInput({
               instead, and only becomes a single row from `sm:` up. */}
           <div className="grid grid-cols-2 gap-2 items-end sm:grid-cols-[1fr_auto_auto_auto]">
             <div className="col-span-2 space-y-1 sm:col-span-1">
-              <Label className="text-xs text-muted-foreground">Label</Label>
+              <Label className="text-xs text-muted-foreground">{t.label}</Label>
               {/* h-11/text-base until sm:. A bare `h-9 text-sm` overrode the
                   Input default back to 14px, and iOS Safari auto-zooms the page
                   on any field under 16px — mid-form, one-handed, standing up. */}
               <Input
                 value={newFeeLabel}
                 onChange={(e) => setNewFeeLabel(e.target.value)}
-                placeholder="Delivery Fee"
+                placeholder={t.labelPlaceholder}
                 className="h-11 text-base sm:h-9 sm:text-sm"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Amount</Label>
+              <Label className="text-xs text-muted-foreground">{t.amount}</Label>
               <div className="relative">
                 <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium">
                   {symbol}
@@ -201,14 +199,14 @@ export function FeesInput({
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Split</Label>
+              <Label className="text-xs text-muted-foreground">{t.splitMethod}</Label>
               <Select value={newFeeSplit} onValueChange={(v) => setNewFeeSplit(v as "equal" | "proportional")}>
                 <SelectTrigger className="h-11 text-base sm:h-9 sm:text-sm w-full sm:w-32">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="equal">Equal</SelectItem>
-                  <SelectItem value="proportional">Proportional</SelectItem>
+                  <SelectItem value="equal">{t.splitEqual}</SelectItem>
+                  <SelectItem value="proportional">{t.splitProportional}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -217,7 +215,7 @@ export function FeesInput({
               variant="outline"
               className="col-span-2 h-11 w-full touch-manipulation sm:col-span-1 sm:h-9 sm:w-9 sm:shrink-0 sm:p-0"
               disabled={!addFeeAllowed}
-              aria-label="Add fee"
+              aria-label={t.addFee}
               onClick={() => {
                 if (!addFeeAllowed) return;
                 onFeesChange([
@@ -234,7 +232,7 @@ export function FeesInput({
               }}
             >
               <Plus className="h-4 w-4 sm:mx-auto" />
-              <span className="ml-1.5 sm:hidden">Add fee</span>
+              <span className="ml-1.5 sm:hidden">{t.addFee}</span>
             </Button>
           </div>
 
@@ -250,12 +248,12 @@ export function FeesInput({
       <div className="space-y-2">
         <Label className="flex items-center gap-2">
           <User className="h-4 w-4" />
-          Who paid?
+          {t.whoPaid}
         </Label>
         {participants.length > 0 ? (
           <Select value={payerId} onValueChange={onPayerChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Select payer..." />
+              <SelectValue placeholder={t.selectPayer} />
             </SelectTrigger>
             <SelectContent>
               {participants.map((participant) => (
@@ -267,11 +265,11 @@ export function FeesInput({
           </Select>
         ) : (
           <p className="text-sm text-muted-foreground p-3 rounded-lg bg-muted/50">
-            Add participants first
+            {t.addPeopleFirst}
           </p>
         )}
         {participants.length > 0 && !payerId && (
-          <p className="text-xs text-warning"><AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />Please select who paid</p>
+          <p className="text-xs text-warning"><AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{t.pickPayer}</p>
         )}
       </div>
     </div>

@@ -188,3 +188,44 @@ test.describe("layout regressions", () => {
         expect(small, JSON.stringify(small)).toHaveLength(0);
     });
 });
+
+// The only way to change language used to be a link twelve sections below the
+// fold of the landing page, and nothing at all once you were inside a split.
+test.describe("language", () => {
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test("the switcher is reachable from the landing header and from inside a split", async ({ page }) => {
+        await page.addInitScript(() => localStorage.setItem("splitzy-onboarding-seen", "1"));
+
+        await page.goto("/");
+        await expect(page.locator("header").getByLabel(/change language|ganti bahasa/i)).toBeVisible();
+
+        await page.goto("/single");
+        await expect(page.locator("footer").getByLabel(/change language|ganti bahasa/i)).toBeVisible();
+    });
+
+    test("switching from inside a split keeps you in the split, in the new language", async ({ page }) => {
+        await page.addInitScript(() => localStorage.setItem("splitzy-onboarding-seen", "1"));
+        await page.goto("/single");
+        await page.getByPlaceholder(/participant name/i).fill("Alya");
+
+        await page.locator("footer").getByLabel(/change language/i).click();
+        await expect(page).toHaveURL(/\/single/);
+        // Stepper copy is the cheapest proof the whole product UI followed.
+        await expect(page.locator("nav").first()).toContainText("Peserta");
+    });
+
+    test("the input path speaks Indonesian after /id", async ({ page }) => {
+        await page.addInitScript(() => localStorage.setItem("splitzy-locale", "id"));
+        await page.goto("/single");
+        await page.getByRole("button", { name: /sample data|data contoh/i }).click();
+        await page.getByRole("button", { name: /^(Next|Lanjut)$/ }).click();
+        await page.waitForTimeout(400);
+
+        // ItemsTable, FeesInput and the item labels are all on this step.
+        for (const phrase of ["Harga", "Pajak", "Biaya layanan", "Siapa yang bayar?"]) {
+            await expect(page.getByText(phrase, { exact: false }).first()).toBeVisible();
+        }
+    });
+});
+
