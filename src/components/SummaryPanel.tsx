@@ -1820,7 +1820,7 @@ export function MultipleReceiptSummaryPanel({
                 />
               </div>
               <p className={cn("text-xs text-right", over ? "text-destructive font-medium" : "text-muted-foreground")}>
-                {over ? `Over by Rp ${formatCurrency(totalPaid - budget)}` : `Rp ${formatCurrency(budget - totalPaid)} left`}
+                {over ? fill(t.overBudget, { amount: formatCurrency(totalPaid - budget) }) : fill(t.leftOfBudget, { amount: formatCurrency(budget - totalPaid) })}
               </p>
             </div>
           )}
@@ -1956,7 +1956,7 @@ export function MultipleReceiptSummaryPanel({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1.5">
                   <Target className="h-4 w-4" />
-                  Budget
+                  {t.budget}
                 </span>
                 <span className="font-medium">Rp {formatCurrency(budget)}</span>
               </div>
@@ -1968,9 +1968,9 @@ export function MultipleReceiptSummaryPanel({
               </div>
               <p className={cn("text-xs text-right", over ? "text-destructive font-medium" : "text-muted-foreground")}>
                 {over
-                  ? `Over budget by Rp ${formatCurrency(spent - budget)}`
-                  : `Rp ${formatCurrency(budget - spent)} left`}
-                {" · "}spent Rp {formatCurrency(spent)}
+                  ? fill(t.overBudget, { amount: formatCurrency(spent - budget) })
+                  : fill(t.leftOfBudget, { amount: formatCurrency(budget - spent) })}
+                {" · "}{fill(t.spent, { amount: formatCurrency(spent) })}
               </p>
             </div>
           );
@@ -2137,7 +2137,7 @@ export function MultipleReceiptSummaryPanel({
                       />
                     </div>
                     <p className={cn("text-[11px]", over ? "text-destructive font-medium" : "text-muted-foreground")}>
-                      {over ? `Over by Rp ${formatCurrency(spent - budget)}` : `Rp ${formatCurrency(budget - spent)} left`}
+                      {over ? fill(t.overBudget, { amount: formatCurrency(spent - budget) }) : fill(t.leftOfBudget, { amount: formatCurrency(budget - spent) })}
                     </p>
                   </div>
                 );

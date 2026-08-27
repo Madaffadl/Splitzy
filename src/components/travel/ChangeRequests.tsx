@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, X, Clock, GitPullRequestArrow, AlertTriangle, PlusCircle, MinusCircle, PencilLine, Trash2 } from "@/components/ui/icons";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 function money(amount?: number, currency?: string): string | null {
   if (amount == null) return null;
@@ -70,6 +71,7 @@ function ReviewItem({
   onApprove: (crId: string) => Promise<boolean>;
   onDecline: (crId: string, note?: string) => Promise<boolean>;
 }) {
+  const t = useDictionary().app.review;
   const [busy, setBusy] = useState<null | "approve" | "decline">(null);
   const [showDecline, setShowDecline] = useState(false);
   const [confirmApprove, setConfirmApprove] = useState(false);
@@ -93,10 +95,10 @@ function ReviewItem({
     <div className="rounded-lg border border-border bg-background p-3 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm">
-          <span className="font-semibold">{cr.authorName || "A member"}</span>
+          <span className="font-semibold">{cr.authorName || t.aMember}</span>
           <span className="text-muted-foreground"> · {new Date(cr.createdAt).toLocaleString()}</span>
         </div>
-        <Badge variant="secondary">{cr.ops.length} change{cr.ops.length === 1 ? "" : "s"}</Badge>
+        <Badge variant="secondary">{fill(t.changesCount, { count: cr.ops.length })}</Badge>
       </div>
 
       {cr.note && <p className="text-sm text-muted-foreground italic">“{cr.note}”</p>}
@@ -106,7 +108,7 @@ function ReviewItem({
       {stale && (
         <p className="flex items-center gap-1.5 text-xs text-warning">
           <AlertTriangle className="h-3.5 w-3.5" />
-          The trip changed since this was submitted — review carefully before approving.
+          {t.staleWarning}
         </p>
       )}
 
@@ -114,7 +116,7 @@ function ReviewItem({
         <Textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Reason (optional) — shown to the member"
+          placeholder={t.declineReasonPlaceholder}
           rows={2}
         />
       )}
@@ -129,13 +131,13 @@ function ReviewItem({
         <div className="space-y-2 rounded-md border border-primary/40 bg-primary/5 p-2">
           <p className="text-xs text-foreground/90">
             {stale
-              ? "The trip has changed since this was submitted. Approving applies these changes on top of the current trip and cannot be undone."
-              : "Apply these changes to the trip? This cannot be undone."}
+              ? t.confirmStale
+              : t.confirmFresh}
           </p>
           <div className="flex items-center gap-2">
             <Button size="sm" onClick={() => void run("approve")} disabled={busy !== null}>
               <Check className="h-4 w-4 mr-1" />
-              {busy === "approve" ? "Approving…" : "Yes, apply"}
+              {busy === "approve" ? t.approving : t.approveYes}
             </Button>
             <Button
               size="sm"
@@ -143,7 +145,7 @@ function ReviewItem({
               onClick={() => setConfirmApprove(false)}
               disabled={busy !== null}
             >
-              Cancel
+              {t.cancel}
             </Button>
           </div>
         </div>
@@ -153,18 +155,18 @@ function ReviewItem({
         {!confirmApprove && (
           <Button size="sm" onClick={() => setConfirmApprove(true)} disabled={busy !== null}>
             <Check className="h-4 w-4 mr-1" />
-            Approve
+            {t.approve}
           </Button>
         )}
         {showDecline ? (
           <Button size="sm" variant="destructive" onClick={() => void run("decline")} disabled={busy !== null}>
             <X className="h-4 w-4 mr-1" />
-            {busy === "decline" ? "Declining…" : "Confirm decline"}
+            {busy === "decline" ? t.declining : t.declineConfirm}
           </Button>
         ) : (
           <Button size="sm" variant="outline" onClick={() => setShowDecline(true)} disabled={busy !== null}>
             <X className="h-4 w-4 mr-1" />
-            Decline
+            {t.decline}
           </Button>
         )}
       </div>
@@ -186,13 +188,14 @@ export function ReviewInbox({
   onApprove: (crId: string) => Promise<boolean>;
   onDecline: (crId: string, note?: string) => Promise<boolean>;
 }) {
+  const t = useDictionary().app.review;
   if (!requests || requests.length === 0) return null;
   return (
     <Card className="border-amber-300 dark:border-amber-700/60">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <GitPullRequestArrow className="h-5 w-5 text-warning" />
-          Changes waiting for your review
+          {t.changesWaiting}
           <Badge variant="default">{requests.length}</Badge>
         </CardTitle>
       </CardHeader>
@@ -226,6 +229,7 @@ export function ProposalBar({
   onSubmit: (note?: string) => Promise<boolean>;
   onDiscard: () => void;
 }) {
+  const t = useDictionary().app.review;
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
 
@@ -255,12 +259,12 @@ export function ProposalBar({
           {submitted ? (
             <>
               <Clock className="h-5 w-5 text-blue-500" />
-              Waiting for the owner to review
+              {t.waitingOwner}
             </>
           ) : (
             <>
               <GitPullRequestArrow className="h-5 w-5 text-warning" />
-              You have changes to submit
+              {t.youHaveChanges}
             </>
           )}
           <Badge variant="secondary">{proposal.ops.length}</Badge>
@@ -270,7 +274,7 @@ export function ProposalBar({
         {proposal.reviewNote && !submitted && (
           <p className="flex items-start gap-1.5 text-sm text-destructive">
             <X className="h-4 w-4 mt-0.5 shrink-0" />
-            <span>Owner declined your last submission: “{proposal.reviewNote}”. Revise and resubmit.</span>
+            <span>{fill(t.ownerDeclined, { note: proposal.reviewNote ?? "" })}</span>
           </p>
         )}
 
@@ -278,24 +282,24 @@ export function ProposalBar({
 
         {submitted ? (
           <p className="text-sm text-muted-foreground">
-            Your changes are visible only to you until the owner approves them. Editing is paused until then.
+            {t.onlyVisibleToYou}
           </p>
         ) : (
           <>
             <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a note for the owner (optional)"
+              placeholder={t.notePlaceholder}
               rows={2}
             />
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => void submit()} disabled={busy}>
                 <Check className="h-4 w-4 mr-1" />
-                {busy ? "Submitting…" : "Submit for review"}
+                {busy ? t.submitting : t.submit}
               </Button>
               <Button size="sm" variant="outline" onClick={onDiscard} disabled={busy}>
                 <Trash2 className="h-4 w-4 mr-1" />
-                Discard
+                {t.discard}
               </Button>
             </div>
           </>

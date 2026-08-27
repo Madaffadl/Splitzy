@@ -7,7 +7,7 @@ import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTravelData } from "@/hooks/useTravelData";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
-import { useDictionary } from "@/lib/i18n/use-locale";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
 import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
@@ -153,6 +153,7 @@ function TravelSyncDialog({
   onDismiss: () => void;
   onKeepLocal: () => void;
 }) {
+  const t = useDictionary().app.travel;
   const [status, setStatus] = useState<"idle" | "syncing" | "done">("idle");
   const [count, setCount] = useState(0);
 
@@ -177,9 +178,9 @@ function TravelSyncDialog({
               <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
                 <CheckCircle2 className="h-6 w-6 text-success" />
               </div>
-              <DialogTitle className="text-center">Sync complete</DialogTitle>
+              <DialogTitle className="text-center">{t.syncDone}</DialogTitle>
               <DialogDescription className="text-center">
-                {count} trip{count !== 1 ? "s" : ""} synced to your account.
+                {fill(t.syncedCount, { count })}
               </DialogDescription>
             </>
           ) : (
@@ -187,24 +188,24 @@ function TravelSyncDialog({
               <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Upload className="h-6 w-6 text-primary" />
               </div>
-              <DialogTitle className="text-center">Sync trips to cloud?</DialogTitle>
+              <DialogTitle className="text-center">{t.syncTitle}</DialogTitle>
               <DialogDescription className="text-center">
-                You have trips saved on this device. Sync them to your account so they&apos;re accessible anywhere.
+                {fill(t.syncBody, { count })}
               </DialogDescription>
             </>
           )}
         </DialogHeader>
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">
           {status === "done" ? (
-            <Button onClick={handleClose} className="w-full">Done</Button>
+            <Button onClick={handleClose} className="w-full">{t.done}</Button>
           ) : (
             <>
               <Button onClick={handleSync} disabled={status === "syncing"} className="w-full gap-2">
                 {status === "syncing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
-                {status === "syncing" ? "Syncing…" : "Sync to my account"}
+                {status === "syncing" ? t.syncing : t.syncNow}
               </Button>
               <Button variant="ghost" onClick={() => { handleClose(); onKeepLocal(); }} disabled={status === "syncing"} className="w-full">
-                Keep local only
+                {t.keepLocalOnly}
               </Button>
             </>
           )}
@@ -227,6 +228,7 @@ function IndividualBudgets({
   spent: Map<string, number>;
   onSetBudget: (participantId: string, budget: number | undefined) => void;
 }) {
+  const t = useDictionary().app.travel;
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const commit = (id: string) => {
@@ -245,13 +247,13 @@ function IndividualBudgets({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Target className="h-5 w-5 text-success" />
-          Individual budgets
+          {t.individualBudgets}
         </CardTitle>
-        <CardDescription>Optional — a personal spending target per traveler.</CardDescription>
+        <CardDescription>{t.individualBudgetsHint}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {participants.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Add travelers first to set individual budgets.</p>
+          <p className="text-sm text-muted-foreground">{t.addTravelersForBudgets}</p>
         ) : (
           participants.map((p) => {
             const budget = p.budget;
@@ -274,7 +276,7 @@ function IndividualBudgets({
                       inputMode="numeric"
                       className="pl-8 h-11 text-base sm:h-9 sm:text-sm"
                       placeholder="0"
-                      aria-label={`${p.name} budget`}
+                      aria-label={fill(t.budgetAria, { name: p.name })}
                       value={draft !== undefined ? draft : hasBudget ? formatCurrency(budget) : ""}
                       onFocus={() => setDrafts((prev) => ({ ...prev, [p.id]: hasBudget ? String(budget) : "" }))}
                       onChange={(e) => setDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
@@ -292,10 +294,10 @@ function IndividualBudgets({
                       />
                     </div>
                     <p className={cn("text-[11px]", over ? "text-destructive font-medium" : "text-muted-foreground")}>
-                      Rp {formatCurrency(s)} of Rp {formatCurrency(budget)}
+                      {fill(t.spentOf, { spent: formatCurrency(s), budget: formatCurrency(budget) })}
                       {over
-                        ? ` · over by Rp ${formatCurrency(s - budget)}`
-                        : ` · Rp ${formatCurrency(budget - s)} left`}
+                        ? fill(t.overBy, { amount: formatCurrency(s - budget) })
+                        : fill(t.leftOver, { amount: formatCurrency(budget - s) })}
                     </p>
                   </div>
                 )}
@@ -324,6 +326,7 @@ function SettleUpCard({
   onAdd: (input: { from: string; to: string; amount: number; currency?: string; fxRate?: number; note?: string }) => void;
   onDelete: (paymentId: string) => void;
 }) {
+  const t = useDictionary().app.travel;
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
@@ -345,12 +348,12 @@ function SettleUpCard({
       const res = await fetch(`/api/fx-rate?from=${encodeURIComponent(cur)}`);
       const data = (await res.json()) as { rate?: number; error?: string };
       if (!res.ok || !data.rate) {
-        setRateError(data.error ?? "Could not fetch rate. Enter manually.");
+        setRateError(data.error ?? t.rateFetchFailed);
       } else {
         setFxRate(String(data.rate));
       }
     } catch {
-      setRateError("Network error. Enter the rate manually.");
+      setRateError(t.rateNetworkError);
     } finally {
       setFetchingRate(false);
     }
@@ -402,9 +405,9 @@ function SettleUpCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Wallet className="h-5 w-5 text-success" />
-          Settle-up payments
+          {t.settleUp}
         </CardTitle>
-        <CardDescription>Record money paid directly between travelers (partial is fine).</CardDescription>
+        <CardDescription>{t.settleUpHint}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Existing payments */}
@@ -427,7 +430,7 @@ function SettleUpCard({
                 <button
                   type="button"
                   onClick={() => onDelete(p.id)}
-                  aria-label="Delete payment"
+                  aria-label={t.deletePaymentAria}
                   className="touch-manipulation shrink-0 h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
                 >
                   <X className="h-4 w-4" />
@@ -443,24 +446,24 @@ function SettleUpCard({
             {/* From / To */}
             <div className="flex items-center gap-2">
               <select
-                aria-label="Payer"
+                aria-label={t.payerAria}
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
                 className="touch-manipulation min-w-0 flex-1 h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm"
               >
-                <option value="">From…</option>
+                <option value="">{t.from}</option>
                 {participants.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
               <ArrowRightLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
               <select
-                aria-label="Recipient"
+                aria-label={t.recipientAria}
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
                 className="touch-manipulation min-w-0 flex-1 h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm"
               >
-                <option value="">To…</option>
+                <option value="">{t.to}</option>
                 {participants.map((p) => (
                   <option key={p.id} value={p.id} disabled={p.id === from}>{p.name}</option>
                 ))}
@@ -471,7 +474,7 @@ function SettleUpCard({
                 three fields on one line leaves ~70px of typing space at 375px. */}
             <div className="flex flex-wrap items-center gap-2">
               <select
-                aria-label="Currency"
+                aria-label={t.currencyAria}
                 value={currency}
                 onChange={(e) => handleCurrencyChange(e.target.value)}
                 className="touch-manipulation h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm w-24 shrink-0"
@@ -489,7 +492,7 @@ function SettleUpCard({
                   type="text"
                   inputMode="numeric"
                   className="pl-8 h-11 text-base sm:h-9 sm:text-sm"
-                  placeholder="Amount"
+                  placeholder={t.amountPlaceholder}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && submit()}
@@ -497,7 +500,7 @@ function SettleUpCard({
               </div>
               <Input
                 className="basis-full sm:basis-0 flex-1 h-11 text-base sm:h-9 sm:text-sm"
-                placeholder="Note (optional)"
+                placeholder={t.notePlaceholder}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submit()}
@@ -515,7 +518,7 @@ function SettleUpCard({
                     type="text"
                     inputMode="decimal"
                     className="pl-14 h-11 text-base sm:h-9 sm:text-sm"
-                    placeholder="rate in Rp"
+                    placeholder={t.ratePlaceholder}
                     value={fxRate}
                     onChange={(e) => { setFxRate(e.target.value); setRateError(null); }}
                     onKeyDown={(e) => e.key === "Enter" && submit()}
@@ -530,7 +533,7 @@ function SettleUpCard({
                   disabled={fetchingRate}
                 >
                   {fetchingRate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  Auto
+                  {t.auto}
                 </Button>
               </div>
             )}
@@ -543,11 +546,11 @@ function SettleUpCard({
 
             <Button size="sm" className="touch-manipulation h-11 w-full gap-2" onClick={submit} disabled={!canSubmit}>
               <Plus className="h-4 w-4" />
-              Record payment
+              {t.recordPayment}
             </Button>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Add at least 2 travelers to record payments.</p>
+          <p className="text-sm text-muted-foreground">{t.needTwoForPayments}</p>
         )}
       </CardContent>
     </Card>
@@ -569,6 +572,7 @@ function MembersCard({
   const { toast } = useToast();
   const isOwner = members.some((m) => m.userId === currentUserId && m.role === "owner");
 
+  const t = useDictionary().app.travel;
   const [invites, setInvites] = useState<InviteInfo[]>([]);
   const [loadingInvites, setLoadingInvites] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -586,14 +590,14 @@ function MembersCard({
         const { invites: list } = (await res.json()) as { invites: InviteInfo[] };
         setInvites(list);
       } else {
-        setInviteError("Couldn't load the invite link. Try again.");
+        setInviteError(t.inviteLoadFailed);
       }
     } catch {
-      setInviteError("Couldn't load the invite link — you may be offline.");
+      setInviteError(t.inviteLoadOffline);
     } finally {
       setLoadingInvites(false);
     }
-  }, [tripId, isOwner]);
+  }, [tripId, isOwner, t]);
 
   useEffect(() => { void fetchInvites(); }, [fetchInvites]);
 
@@ -607,10 +611,10 @@ function MembersCard({
         setInvites((prev) => [inv, ...prev]);
       } else {
         // Silence here meant the spinner stopped and nothing appeared.
-        setInviteError("Couldn't create an invite link. Try again.");
+        setInviteError(t.inviteCreateFailed);
       }
     } catch {
-      setInviteError("Couldn't create an invite link — you may be offline.");
+      setInviteError(t.inviteCreateOffline);
     } finally {
       setGenerating(false);
     }
@@ -629,14 +633,14 @@ function MembersCard({
         method: "DELETE",
       });
       if (!res.ok) {
-        setInviteError("Couldn't revoke the link — it is still active. Try again.");
+        setInviteError(t.revokeFailed);
         return;
       }
       setInvites((prev) => prev.filter((i) => i.token !== token));
       setConfirmRevoke(null);
-      toast({ title: "Invite link revoked", variant: "success" });
+      toast({ title: t.linkRevoked, variant: "success" });
     } catch {
-      setInviteError("Couldn't revoke the link — it is still active. Try again.");
+      setInviteError(t.revokeFailed);
     } finally {
       setRevoking(false);
     }
@@ -653,12 +657,12 @@ function MembersCard({
     try {
       await navigator.clipboard.writeText(inviteUrl(token));
       setCopied(true);
-      toast({ title: "Link copied!", variant: "success" });
+      toast({ title: t.linkCopied, variant: "success" });
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({
-        title: "Couldn't copy the link",
-        description: "Long-press the link above to copy it manually.",
+        title: t.copyFailed,
+        description: t.copyManually,
         variant: "error",
       });
     }
@@ -682,9 +686,9 @@ function MembersCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Users className="h-4 w-4" />
-          Members
+          {t.members}
         </CardTitle>
-        <CardDescription>{members.length} member{members.length !== 1 ? "s" : ""}</CardDescription>
+        <CardDescription>{fill(t.membersCount, { count: members.length })}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Member list */}
@@ -702,12 +706,12 @@ function MembersCard({
                 <p className="text-sm font-medium leading-none truncate">
                   {m.name ?? m.email}
                   {m.userId === currentUserId && (
-                    <span className="ml-1 text-xs text-muted-foreground">(you)</span>
+                    <span className="ml-1 text-xs text-muted-foreground">{t.you}</span>
                   )}
                 </p>
               </div>
               {m.role === "owner" ? (
-                <Crown className="h-3.5 w-3.5 shrink-0 text-warning" aria-label="Owner" />
+                <Crown className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={t.owner} />
               ) : null}
             </li>
           ))}
@@ -718,12 +722,12 @@ function MembersCard({
           <div className="pt-3 border-t space-y-2">
             <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <UserPlus className="h-3.5 w-3.5" />
-              Invite link
+              {t.inviteLink}
             </p>
             {loadingInvites ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading…
+                {t.loadingInvite}
               </div>
             ) : activeInvite ? (
               <div className="rounded-lg border bg-muted/40 px-3 py-2 space-y-2">
@@ -750,7 +754,7 @@ function MembersCard({
                     onClick={() => void copyLink(activeInvite.token)}
                   >
                     {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied ? "Copied!" : "Copy"}
+                    {copied ? t.copied : t.copy}
                   </Button>
                   <Button
                     size="sm"
@@ -759,14 +763,13 @@ function MembersCard({
                     onClick={() => shareLinkToWhatsApp(activeInvite.token)}
                   >
                     <MessageCircle className="h-3.5 w-3.5" />
-                    WhatsApp
+                    {t.whatsapp}
                   </Button>
                 </div>
                 {confirmRevoke === activeInvite.token ? (
                   <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-2">
                     <p className="text-xs text-foreground/90">
-                      Revoke this link? Anyone who has it will no longer be able
-                      to join, and you will need to generate a new one.
+                      {t.revokeConfirm}
                     </p>
                     <div className="flex gap-2">
                       <Button
@@ -776,7 +779,7 @@ function MembersCard({
                         disabled={revoking}
                         onClick={() => void revokeInvite(activeInvite.token)}
                       >
-                        {revoking ? "Revoking…" : "Yes, revoke"}
+                        {revoking ? t.revoking : t.revokeYes}
                       </Button>
                       <Button
                         size="sm"
@@ -785,7 +788,7 @@ function MembersCard({
                         disabled={revoking}
                         onClick={() => setConfirmRevoke(null)}
                       >
-                        Keep it
+                        {t.keepLink}
                       </Button>
                     </div>
                   </div>
@@ -797,7 +800,7 @@ function MembersCard({
                     onClick={() => setConfirmRevoke(activeInvite.token)}
                   >
                     <X className="h-3.5 w-3.5" />
-                    Revoke link
+                    {t.revokeLink}
                   </Button>
                 )}
               </div>
@@ -814,7 +817,7 @@ function MembersCard({
                 ) : (
                   <Link2 className="h-3.5 w-3.5" />
                 )}
-                Generate invite link
+                {t.generateInvite}
               </Button>
             )}
             {inviteError && (
@@ -840,6 +843,8 @@ export function TravelSpendView() {
   usePersistErrorToast(travel.persistError);
   const { dbUser, signOut } = useAuth();
   const t = useDictionary().app;
+  const tt = t.travel;
+  const tr = t.review;
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
   const [newTripName, setNewTripName] = useState("");
@@ -882,8 +887,8 @@ export function TravelSpendView() {
   // While a member's proposal is submitted, editing is paused until the owner reviews it.
   const editingLocked = isMemberOfActive && activeProposal?.status === "submitted";
   const participantNameOf = useCallback(
-    (id: string) => activeTrip?.participants.find((p) => p.id === id)?.name ?? "Someone",
-    [activeTrip]
+    (id: string) => activeTrip?.participants.find((p) => p.id === id)?.name ?? tr.someone,
+    [activeTrip, tr]
   );
 
   const handleSubmitProposal = useCallback(
@@ -892,19 +897,19 @@ export function TravelSpendView() {
       const ok = await travel.submitChangeRequest(activeTrip.id, note);
       toast(
         ok
-          ? { title: "Submitted for review", description: "The owner will approve or decline your changes.", variant: "success" }
-          : { title: "Couldn't submit", description: "Please try again.", variant: "error" }
+          ? { title: tr.submitted, description: tr.submittedBody, variant: "success" }
+          : { title: tr.submitFailed, description: t.summary.tryAgain, variant: "error" }
       );
       return ok;
     },
-    [activeTrip, travel, toast]
+    [activeTrip, travel, toast, t, tr]
   );
 
   const handleDiscardProposal = useCallback(() => {
     if (!activeTrip) return;
     travel.discardProposal(activeTrip.id);
-    toast({ title: "Draft discarded" });
-  }, [activeTrip, travel, toast]);
+    toast({ title: tr.draftDiscarded });
+  }, [activeTrip, travel, toast, tr]);
 
   const handleApprove = useCallback(
     async (crId: string) => {
@@ -912,22 +917,22 @@ export function TravelSpendView() {
       const ok = await travel.approveChangeRequest(activeTrip.id, crId);
       toast(
         ok
-          ? { title: "Change approved", variant: "success" }
-          : { title: "Couldn't approve", description: "The trip may have changed since — reload and retry.", variant: "error" }
+          ? { title: tr.approved, variant: "success" }
+          : { title: tr.approveFailed, description: tr.approveFailedBody, variant: "error" }
       );
       return ok;
     },
-    [activeTrip, travel, toast]
+    [activeTrip, travel, toast, tr]
   );
 
   const handleDecline = useCallback(
     async (crId: string, note?: string) => {
       if (!activeTrip) return false;
       const ok = await travel.declineChangeRequest(activeTrip.id, crId, note);
-      toast(ok ? { title: "Change declined" } : { title: "Couldn't decline", variant: "error" });
+      toast(ok ? { title: tr.declined } : { title: tr.declineFailed, variant: "error" });
       return ok;
     },
-    [activeTrip, travel, toast]
+    [activeTrip, travel, toast, tr]
   );
 
   useEffect(() => {
@@ -1045,11 +1050,11 @@ export function TravelSpendView() {
     setDeleteTripId(null);
     void travel.deleteTrip(id);
     toast({
-      title: "Trip deleted",
+      title: tt.tripDeleted,
       description: removed?.name,
       variant: "success",
       duration: 6000,
-      action: removed ? { label: "Undo", onClick: () => void travel.restoreTrip(removed) } : undefined,
+      action: removed ? { label: tt.undo, onClick: () => void travel.restoreTrip(removed) } : undefined,
     });
   };
 
@@ -1097,8 +1102,8 @@ export function TravelSpendView() {
     await travel.updateParticipants(activeTrip.id, participants, receipts);
     for (const rid of droppedIds) void travel.deleteReceipt(activeTrip.id, rid);
     toast({
-      title: `${droppedIds.length} receipt${droppedIds.length > 1 ? "s" : ""} removed`,
-      description: "They referenced the traveler you removed.",
+      title: fill(tt.receiptsRemoved, { count: droppedIds.length }),
+      description: fill(tt.removeTravelerBody, { count: droppedIds.length }),
       variant: "success",
     });
   };
@@ -1182,15 +1187,15 @@ export function TravelSpendView() {
         ? await travel.addReceipt(tripId, receipt)
         : await travel.updateReceipt(tripId, receipt);
       if (ok) {
-        toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
+        toast({ title: isNew ? tt.receiptAdded : tt.receiptUpdated, description: receipt.title, variant: "success" });
         logFeatureUsage("travel", "receipt.added");
       } else {
         toast({
-          title: "Couldn't save receipt",
-          description: `${receipt.title} wasn't saved. Check your connection and retry.`,
+          title: tt.receiptSaveFailed,
+          description: fill(tt.receiptSaveFailedBody, { title: receipt.title }),
           variant: "error",
           duration: 8000,
-          action: { label: "Retry", onClick: () => submitReceipt(tripId, receipt, isNew) },
+          action: { label: tt.retry, onClick: () => submitReceipt(tripId, receipt, isNew) },
         });
       }
     })();
@@ -1215,11 +1220,11 @@ export function TravelSpendView() {
     setDeleteReceiptId(null);
     void travel.deleteReceipt(tripId, id);
     toast({
-      title: "Receipt deleted",
+      title: tt.receiptDeleted,
       description: removed?.title,
       variant: "success",
       duration: 6000,
-      action: removed ? { label: "Undo", onClick: () => void travel.addReceipt(tripId, removed) } : undefined,
+      action: removed ? { label: tt.undo, onClick: () => void travel.addReceipt(tripId, removed) } : undefined,
     });
   };
 
@@ -1252,8 +1257,11 @@ export function TravelSpendView() {
       if (remaining <= 0) {
         const nameOf = (id: string) => activeTrip.participants.find((p) => p.id === id)?.name ?? "?";
         toast({
-          title: "Already settled",
-          description: `${nameOf(participantId)} has already settled up with ${nameOf(receipt.payerId)} — no extra payment recorded.`,
+          title: tt.alreadySettled,
+          description: fill(tt.alreadySettledBody, {
+            from: nameOf(participantId),
+            to: nameOf(receipt.payerId),
+          }),
         });
         return;
       }
@@ -1314,7 +1322,7 @@ export function TravelSpendView() {
       ? `${TRAVEL_CURRENCIES.find((c) => c.code === input.currency)?.symbol ?? input.currency} ${formatCurrency(input.amount)}`
       : `Rp ${formatCurrency(input.amount)}`;
     toast({
-      title: "Payment recorded",
+      title: tt.paymentRecorded,
       description: `${nameOf(input.from)} → ${nameOf(input.to)}: ${displayAmt}`,
       variant: "success",
     });
@@ -1378,7 +1386,7 @@ export function TravelSpendView() {
     setArchivedIds(next);
     setTripPref(id, { archivedAt: new Date().toISOString() });
     travel.setActiveId(null);
-    toast({ title: "Trip archived", description: "Find it again via 'Show archived'.", variant: "success" });
+    toast({ title: tt.tripArchived, description: tt.tripArchivedBody, variant: "success" });
   };
 
   const unarchiveTrip = (id: string) => {
@@ -1449,25 +1457,24 @@ export function TravelSpendView() {
         {travel.isLoading ? (
           <div className="mb-4 flex items-center gap-3 rounded-xl border border-muted p-3 text-sm">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <p className="text-muted-foreground">Loading your trips…</p>
+            <p className="text-muted-foreground">{tt.loading}</p>
           </div>
         ) : travel.cloudMode && travel.syncStatus === "conflict" ? (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
             <p className="flex-1 text-foreground/90">
-              <span className="font-semibold text-destructive">This trip is out of sync.</span>{" "}
-              It may have changed on another device or tab, or a save didn&apos;t go through. Reload to get the
-              latest — unsaved local changes will be discarded.
+              <span className="font-semibold text-destructive">{tt.outOfSync}</span>{" "}
+              {tt.outOfSyncBody}
             </p>
             <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
-              <RefreshCw className="h-3.5 w-3.5" /> Reload
+              <RefreshCw className="h-3.5 w-3.5" /> {tt.reload}
             </Button>
           </div>
         ) : travel.cloudMode && travel.syncStatus === "error" ? (
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
             <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <p className="flex-1 text-foreground/90">
-              <span className="font-semibold text-warning">Changes may not be saved.</span>{" "}
+              <span className="font-semibold text-warning">{tt.maybeUnsaved}</span>{" "}
               {travel.syncError}
             </p>
             <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
@@ -1480,8 +1487,8 @@ export function TravelSpendView() {
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-sm">
             <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
             <p className="text-foreground/90">
-              <span className="font-semibold text-sky-700 dark:text-sky-300">Saved on this device.</span>{" "}
-              You&apos;re offline — changes will sync to your account when you reconnect.
+              <span className="font-semibold text-sky-700 dark:text-sky-300">{tt.savedOnDevice}</span>{" "}
+              {tt.savedOnDeviceOffline}
             </p>
           </div>
         ) : travel.cloudMode ? (
@@ -1496,12 +1503,12 @@ export function TravelSpendView() {
               {travel.syncStatus === "saving" || travel.pendingSync ? (
                 <>
                   <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                  Saving…
+                  {tt.saving}
                 </>
               ) : (
                 <>
                   <Cloud className="h-3 w-3 shrink-0" />
-                  Saved to your account
+                  {tt.savedToAccount}
                 </>
               )}
             </span>
@@ -1510,8 +1517,8 @@ export function TravelSpendView() {
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <p className="text-foreground/90">
-              <span className="font-semibold text-warning">Saved on this device only.</span>{" "}
-              Sign in to sync trips across devices.
+              <span className="font-semibold text-warning">{tt.localOnly}</span>{" "}
+              {tt.localOnlyBody}
             </p>
           </div>
         )}
@@ -1527,28 +1534,27 @@ export function TravelSpendView() {
                 <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
                   <Plane className="h-7 w-7 text-white" />
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Plan a group trip</h1>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{tt.heroTitle}</h1>
                 <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-                  Track shared expenses across countries, split every bill fairly,
-                  and settle up in one tap at the end of the trip.
+                  {tt.heroBody}
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
                     <Cloud className="h-3.5 w-3.5 text-success" />
-                    Cloud sync
+                    {tt.cloudSync}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
                     <Camera className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                    AI receipt scan
+                    {tt.aiScan}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
                     <Globe className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-                    Multi-currency
+                    {tt.multiCurrency}
                   </span>
                 </div>
                 <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
                   <Sparkles className="h-3.5 w-3.5 text-warning" />
-                  Name your trip below to get started
+                  {tt.nameItBelow}
                 </p>
               </div>
             )}
@@ -1557,9 +1563,9 @@ export function TravelSpendView() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Plane className="h-5 w-5 text-success" />
-                  New trip
+                  {tt.newTrip}
                 </CardTitle>
-                <CardDescription>Start tracking receipts for a trip or event.</CardDescription>
+                <CardDescription>{tt.newTripHint}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2">
@@ -1567,11 +1573,11 @@ export function TravelSpendView() {
                     value={newTripName}
                     onChange={(e) => setNewTripName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && void createTrip()}
-                    placeholder="e.g., Bali 2026"
+                    placeholder={tt.tripNamePlaceholder}
                   />
                   <Button onClick={() => void createTrip()}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Create
+                    {tt.create}
                   </Button>
                 </div>
               </CardContent>
@@ -1626,19 +1632,19 @@ export function TravelSpendView() {
                           <p className="font-semibold truncate">{t.name}</p>
                           {pendingFor(t.id) > 0 && (
                             <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
-                              {pendingFor(t.id)} to review
+                              {fill(tt.toReview, { count: pendingFor(t.id) })}
                             </span>
                           )}
                           {hasForeignCurrency && (
                             <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
                               <Globe className="h-2.5 w-2.5" />
-                              multi-currency
+                              {tt.multiCurrencyBadge}
                             </span>
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {t.participants.length} people · {(t.receipts ?? []).length} receipt(s)
-                          {t.budget ? ` · budget Rp ${formatCurrency(t.budget)}` : ""}
+                          {fill(tt.peopleReceipts, { people: t.participants.length, receipts: (t.receipts ?? []).length })}
+                          {t.budget ? fill(tt.budgetSuffix, { amount: formatCurrency(t.budget) }) : ""}
                         </p>
                         <p className="mt-1 text-sm font-semibold">Rp {formatCurrency(total)}</p>
                       </button>
@@ -1649,7 +1655,7 @@ export function TravelSpendView() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`Delete ${t.name}`}
+                          aria-label={fill(tt.deleteTripAria, { name: t.name })}
                           className="touch-manipulation ml-2 text-muted-foreground hover:text-destructive"
                           onClick={() => setDeleteTripId(t.id)}
                         >
@@ -1666,7 +1672,7 @@ export function TravelSpendView() {
                 <div className="flex items-center justify-between rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
                   <span>
                     <Archive className="inline h-3.5 w-3.5 mr-1.5 opacity-70" />
-                    {archivedIds.size} archived trip{archivedIds.size > 1 ? "s" : ""}
+                    {fill(tt.archivedCount, { count: archivedIds.size })}
                   </span>
                   <button
                     className="text-xs underline underline-offset-2 hover:text-foreground transition-colors"
@@ -1675,7 +1681,7 @@ export function TravelSpendView() {
                       ids.forEach((id) => unarchiveTrip(id));
                     }}
                   >
-                    Show all
+                    {tt.showAll}
                   </button>
                 </div>
               )}
@@ -1711,12 +1717,12 @@ export function TravelSpendView() {
               {/* Trip details + budget */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Trip details</CardTitle>
+                  <CardTitle>{tt.tripDetails}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Trip name</Label>
+                    <Label>{tt.tripName}</Label>
                     <Input
                       value={nameDraft !== null ? nameDraft : activeTrip.name}
                       onFocus={() => setNameDraft(activeTrip.name)}
@@ -1729,7 +1735,7 @@ export function TravelSpendView() {
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5">
                       <Target className="h-4 w-4" />
-                      Budget (optional)
+                      {tt.budgetOptional}
                     </Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">Rp</span>
@@ -1757,7 +1763,7 @@ export function TravelSpendView() {
                   <div className="border-t pt-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Globe className="h-4 w-4 text-muted-foreground" />
-                      <Label className="text-sm font-medium">Default receipt currency</Label>
+                      <Label className="text-sm font-medium">{tt.defaultCurrency}</Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <select
@@ -1773,7 +1779,7 @@ export function TravelSpendView() {
                       </select>
                       {activeTrip.defaultCurrency && activeTrip.defaultCurrency !== "IDR" && (
                         <p className="text-xs text-muted-foreground">
-                          New receipts will default to {activeTrip.defaultCurrency}
+                          {fill(tt.newReceiptsDefault, { code: activeTrip.defaultCurrency })}
                         </p>
                       )}
                     </div>
@@ -1784,8 +1790,8 @@ export function TravelSpendView() {
               {/* Travelers */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Travelers</CardTitle>
-                  <CardDescription>Everyone sharing expenses on this trip</CardDescription>
+                  <CardTitle>{tt.travelers}</CardTitle>
+                  <CardDescription>{tt.travelersHint}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ParticipantManager
@@ -1808,14 +1814,14 @@ export function TravelSpendView() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
                   <div className="min-w-0">
-                    <CardTitle>Receipts</CardTitle>
+                    <CardTitle>{tt.receipts}</CardTitle>
                     <CardDescription>
-                      {activeTrip.receipts.length} receipt{activeTrip.receipts.length !== 1 ? "s" : ""}
+                      {fill(tt.receiptsCount, { count: activeTrip.receipts.length })}
                     </CardDescription>
                   </div>
                   <Button onClick={startNewReceipt} disabled={!canAddReceipt}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Receipt
+                    {tt.addReceipt}
                   </Button>
                 </CardHeader>
                 <CardContent>
@@ -1824,24 +1830,24 @@ export function TravelSpendView() {
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                         <Users className="h-6 w-6 text-primary opacity-80" />
                       </div>
-                      <p className="font-semibold text-foreground mb-1">Add travelers first</p>
-                      <p className="text-sm text-muted-foreground max-w-xs">Add at least 2 travelers to start adding receipts.</p>
+                      <p className="font-semibold text-foreground mb-1">{tt.addTravelersFirst}</p>
+                      <p className="text-sm text-muted-foreground max-w-xs">{tt.addTravelersFirstBody}</p>
                     </div>
                   ) : activeTrip.receipts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
                       <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
                         <ReceiptIcon className="h-6 w-6 text-accent-strong" />
                       </div>
-                      <p className="font-semibold text-foreground mb-1">No receipts yet</p>
-                      <p className="text-sm text-muted-foreground mb-4">Scan or add a receipt to start tracking.</p>
+                      <p className="font-semibold text-foreground mb-1">{tt.noReceiptsTitle}</p>
+                      <p className="text-sm text-muted-foreground mb-4">{tt.noReceiptsBody}</p>
                       <Button size="sm" variant="secondary" onClick={startNewReceipt}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Add Receipt
+                        {tt.addReceipt}
                       </Button>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Tap a receipt to see its breakdown.</p>
+                      <p className="text-xs text-muted-foreground">{tt.tapReceiptHint}</p>
                       {activeTrip.receipts.map((r, i) => (
                         <ReceiptBreakdown
                           key={r.id}
@@ -1879,7 +1885,7 @@ export function TravelSpendView() {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-emerald-900 dark:text-emerald-100">
-                      All settled up
+                      {tt.allSettledTitle}
                     </h3>
                     <p className="text-sm text-success mt-1">
                       {activeTrip.name} · {activeTrip.receipts.length} receipt{activeTrip.receipts.length !== 1 ? "s" : ""} ·{" "}
@@ -1889,18 +1895,18 @@ export function TravelSpendView() {
                   <div className="flex gap-3 justify-center flex-wrap">
                     <Button variant="outline" className="border-emerald-300 dark:border-emerald-700" onClick={() => router.push(travelUrl(activeTrip.id, "summary"))}>
                       <ArrowRight className="h-4 w-4 mr-2" />
-                      View summary
+                      {tt.viewSummary}
                     </Button>
                     <Button
                       className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
                       onClick={() => archiveTrip(activeTrip.id)}
                     >
                       <Archive className="h-4 w-4 mr-2" />
-                      Archive trip
+                      {tt.archiveTrip}
                     </Button>
                   </div>
                   <p className="text-xs text-emerald-600/70 dark:text-emerald-400/60 border-t border-emerald-200 dark:border-emerald-800 pt-3">
-                    <span className="font-medium">Pro:</span> Export PDF · Unlimited trip history · Budget analytics
+                    {tt.proTeaser}
                   </p>
                 </div>
               )}
@@ -1913,7 +1919,7 @@ export function TravelSpendView() {
                   onClick={() => setDeleteTripId(activeTrip.id)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete trip
+                  {tt.deleteTrip}
                 </Button>
               </div>
             </div>
@@ -1934,7 +1940,7 @@ export function TravelSpendView() {
               </ErrorBoundary>
               {activeTrip.receipts.length > 0 && (
                 <Button variant="outline" className="w-full" onClick={() => router.push(travelUrl(activeTrip.id, "summary"))}>
-                  View summary
+                  {tt.viewSummary}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               )}
@@ -1956,7 +1962,7 @@ export function TravelSpendView() {
           <div className="max-w-3xl mx-auto space-y-4">
             <div>
               <h1 className="text-xl font-bold">{activeTrip.name}</h1>
-              <p className="text-sm text-muted-foreground">Full trip summary</p>
+              <p className="text-sm text-muted-foreground">{tt.fullTripSummary}</p>
             </div>
             <ErrorBoundary label="the trip summary">
               <MultipleReceiptSummaryPanel
@@ -1999,7 +2005,7 @@ export function TravelSpendView() {
       <Dialog open={pendingRemoval !== null} onOpenChange={(o) => !o && setPendingRemoval(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove traveler?</DialogTitle>
+            <DialogTitle>{tt.removeTravelerTitle}</DialogTitle>
             <DialogDescription>
               Removing this traveler will also delete the following receipt{pendingRemoval?.droppedTitles.length !== 1 ? "s" : ""} that reference them:
             </DialogDescription>
@@ -2015,7 +2021,7 @@ export function TravelSpendView() {
             </ul>
           )}
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setPendingRemoval(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setPendingRemoval(null)}>{tr.cancel}</Button>
             <Button variant="destructive" onClick={() => void confirmRemoval()}>
               <Trash2 className="h-4 w-4 mr-2" />
               Remove & delete receipts
@@ -2028,13 +2034,13 @@ export function TravelSpendView() {
       <Dialog open={deleteTripId !== null} onOpenChange={() => setDeleteTripId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this trip?</DialogTitle>
+            <DialogTitle>{tt.deleteTripTitle}</DialogTitle>
             <DialogDescription>
               The trip and all its receipts will be removed. You can undo this using the notification that appears.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDeleteTripId(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeleteTripId(null)}>{tr.cancel}</Button>
             <Button variant="destructive" onClick={() => deleteTripId && deleteTrip(deleteTripId)}>
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
@@ -2047,13 +2053,13 @@ export function TravelSpendView() {
       <Dialog open={deleteReceiptId !== null} onOpenChange={() => setDeleteReceiptId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Receipt?</DialogTitle>
+            <DialogTitle>{t.multiple.deleteTitle}</DialogTitle>
             <DialogDescription>
               The receipt will be removed. You can undo this using the notification that appears.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDeleteReceiptId(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeleteReceiptId(null)}>{tr.cancel}</Button>
             <Button variant="destructive" onClick={() => deleteReceiptId && void deleteReceipt(deleteReceiptId)}>
               Delete
             </Button>

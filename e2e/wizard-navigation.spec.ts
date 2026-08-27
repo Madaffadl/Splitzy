@@ -317,3 +317,44 @@ test.describe("multiple-receipt split in Indonesian", () => {
     });
 });
 
+test.describe("trip mode in Indonesian", () => {
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test("no untranslated strings in a trip with a receipt and a budget", async ({ page }) => {
+        await page.addInitScript(() => {
+            localStorage.setItem("splitzy-locale", "id");
+            localStorage.setItem("splitzy-onboarding-seen", "1");
+            localStorage.setItem("splitzy-travel", JSON.stringify({
+                activeId: "t1",
+                trips: [{
+                    id: "t1", name: "Bali 2026", budget: 2_000_000,
+                    participants: [{ id: "p1", name: "Alya" }, { id: "p2", name: "Budi" }],
+                    receipts: [{
+                        id: "r1", title: "Warung Sate", date: "2026-08-24", payerId: "p1",
+                        items: [{ id: "i1", name: "Sate Ayam", qty: 2, unitPrice: 35000, total: 70000, assignedToIds: ["p1", "p2"] }],
+                        tax: 7000, service: 5000,
+                    }],
+                }],
+            }));
+        });
+        await page.goto("/travel");
+        await expect(page.getByText("Rincian trip")).toBeVisible();
+
+        // The budget block was the one this list originally missed: its "left" /
+        // "Over by" / "spent Rp" fragments were assembled inline, so a heading
+        // check would not have caught them.
+        const leaks = await page.evaluate(() => {
+            const english = ["Trip details", "Trip name", "Budget (optional)", "Travelers",
+                             "Everyone sharing", "Individual budgets", "Receipts", "Add receipt",
+                             "Settle-up payments", "Record money paid", "Members", "Invite link",
+                             "Delete trip", "View summary", "Saved on this device only",
+                             "Sign in to sync", "Summary", "Balances", "Final Settlements",
+                             "Receipt details", "Spending breakdown", "Payment Details",
+                             "Default receipt currency", "Tap a receipt",
+                             "left", "Over by", "Over budget", "spent Rp", "Budget"];
+            return english.filter((w) => document.body.innerText.includes(w));
+        });
+        expect(leaks, `untranslated on /travel: ${leaks.join(", ")}`).toHaveLength(0);
+    });
+});
+
