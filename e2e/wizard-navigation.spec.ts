@@ -469,3 +469,58 @@ test.describe("protected routes explain themselves", () => {
     });
 });
 
+// The first screen every new visitor sees. It was a hand-rolled fixed div with
+// no focus trap, no Escape, no aria-modal, a 20px close button, no way back a
+// step, and English-only copy — and a stale comment claiming it was behind a
+// feature flag, which is why none of that had been fixed.
+test.describe("first-run tour", () => {
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test("is a real dialog: focus trapped, Escape closes, targets 44px", async ({ page }) => {
+        await page.goto("/");
+        const dialog = page.getByRole("dialog");
+        await expect(dialog).toBeVisible();
+
+        expect(await page.evaluate(() =>
+            document.querySelector('[role="dialog"]')!.contains(document.activeElement)
+        ), "focus must be inside the dialog").toBe(true);
+
+        const heights = await page.evaluate(() =>
+            Array.from(document.querySelectorAll('[role="dialog"] button'))
+                .map((b) => Math.round(b.getBoundingClientRect().height))
+        );
+        // Includes DialogContent's built-in close, which shipped at 16px and is
+        // shared by every dialog in the app.
+        expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+
+        await page.keyboard.press("Escape");
+        await expect(dialog).toBeHidden();
+    });
+
+    test("can go back a step, not only forward or out", async ({ page }) => {
+        await page.goto("/");
+        await page.getByRole("button", { name: /^Next$/ }).click();
+        await page.getByRole("button", { name: /^Back$/ }).click();
+        await expect(page.getByRole("button", { name: /^Skip$/ })).toBeVisible();
+    });
+
+    test("visiting the English root does not revert a chosen language", async ({ page }) => {
+        // LocaleSync wrote the page's locale unconditionally, so `/` — which is
+        // where the logo on every tool page pointed — silently reverted an
+        // Indonesian user to English. It also produced a two-language dialog:
+        // the tour read the preference before the clobber, and the mock inside
+        // it mounts a commit later through a portal and read it after.
+        await page.addInitScript(() => localStorage.setItem("splitzy-locale", "id"));
+        await page.goto("/");
+        await expect(page.getByRole("dialog")).toBeVisible();
+
+        const state = await page.evaluate(() => ({
+            stored: localStorage.getItem("splitzy-locale"),
+            text: (document.querySelector('[role="dialog"]') as HTMLElement).innerText,
+        }));
+        expect(state.stored).toBe("id");
+        expect(state.text).toContain("Ringkasan");
+        expect(state.text).not.toContain("Summary");
+    });
+});
+

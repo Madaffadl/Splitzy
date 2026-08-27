@@ -47,7 +47,8 @@ import {
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
-import { fill, useDictionary } from "@/lib/i18n/use-locale";
+import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
+import { localePath } from "@/lib/i18n/config";
 
 // A "split" here is one named group of receipts shared by the same people and
 // settled together. It reuses the Trip domain shape (id/name/participants/
@@ -90,6 +91,9 @@ export function MultipleReceiptView() {
   const { toast } = useToast();
   const { isAuthenticated } = useAuth();
   const t = useDictionary().app;
+  // Home in the language being read, not always the English root.
+  const locale = useLocale();
+  const homeHref = localePath(locale, "/");
   // `isSaving` above is about adding a receipt INTO the split; this is about
   // saving the whole split to the server. Different things, distinct names.
   const {
@@ -328,7 +332,7 @@ export function MultipleReceiptView() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {viewMode === "overview" ? (
             <Link
-              href="/"
+              href={homeHref}
               aria-label={t.common.back}
               className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >

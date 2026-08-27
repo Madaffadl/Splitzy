@@ -54,7 +54,8 @@ import {
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
-import { fill, useDictionary } from "@/lib/i18n/use-locale";
+import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
+import { localePath } from "@/lib/i18n/config";
 
 const STEPS: Step[] = [
   { id: "participants", labelKey: "participants" },
@@ -105,6 +106,7 @@ export function SingleSplitView() {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const { toast } = useToast();
   const { isAuthenticated, signIn } = useAuth();
+  const locale = useLocale();
   const dict = useDictionary();
   const t = dict.app;
   const { saving, save, adopt, forget, id: savedId, expiresAt } = useSaveSplit();
@@ -350,7 +352,7 @@ export function SingleSplitView() {
   const handleBack = () => {
     if (isTransitioning) return;
     if (currentStep === 0) {
-      router.push("/");
+      router.push(localePath(locale, "/"));
       return;
     }
     setIsTransitioning(true);

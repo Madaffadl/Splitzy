@@ -7,7 +7,8 @@ import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTravelData } from "@/hooks/useTravelData";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
-import { fill, useDictionary } from "@/lib/i18n/use-locale";
+import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
+import { localePath } from "@/lib/i18n/config";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
 import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
@@ -845,6 +846,9 @@ export function TravelSpendView() {
   const { dbUser, signOut } = useAuth();
   const t = useDictionary().app;
   const tt = t.travel;
+  // Home in the language being read, not always the English root.
+  const locale = useLocale();
+  const homeHref = localePath(locale, "/");
   const tr = t.review;
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
@@ -1433,7 +1437,7 @@ export function TravelSpendView() {
               <span className="hidden sm:inline text-sm font-medium">{t.modes.travel.allTrips}</span>
             </button>
           ) : (
-            <Link href="/" aria-label={t.common.back} className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <Link href={homeHref} aria-label={t.common.back} className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
               <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
