@@ -358,3 +358,86 @@ test.describe("trip mode in Indonesian", () => {
     });
 });
 
+// There were three sticky action bars with three different appearances. The
+// receipt editor's was a floating rounded card with a heavier blur that kept
+// floating on desktop, while the split it sits inside used an edge-to-edge bar —
+// two visual languages for two taps seconds apart.
+test.describe("action bar", () => {
+    async function measure(page: import("@playwright/test").Page) {
+        return page.evaluate(() => {
+            const el = Array.from(document.querySelectorAll("div")).find(
+                (d) => getComputedStyle(d).position === "sticky" && getComputedStyle(d).bottom === "0px"
+            ) as HTMLElement | undefined;
+            if (!el) return null;
+            const b = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            return {
+                left: Math.round(b.left),
+                width: Math.round(b.width),
+                bottom: Math.round(b.bottom),
+                radius: cs.borderTopLeftRadius,
+                blur: cs.backdropFilter,
+            };
+        });
+    }
+
+    test("the split and the receipt editor use the same bar at 375px", async ({ page }) => {
+        await page.setViewportSize({ width: 375, height: 667 });
+        await page.addInitScript(() => {
+            localStorage.setItem("splitzy-onboarding-seen", "1");
+            localStorage.setItem("splitbill-multiple", JSON.stringify({
+                split: { id: "s1", name: "X", participants: [{ id: "p1", name: "A" }, { id: "p2", name: "B" }], receipts: [] },
+            }));
+        });
+
+        await page.goto("/single");
+        await page.getByRole("button", { name: /sample data/i }).click();
+        await page.getByRole("button", { name: /^Next$/ }).click();
+        const split = await measure(page);
+
+        await page.goto("/multiple");
+        await page.getByRole("button", { name: /Add receipt/i }).first().click();
+        const editor = await measure(page);
+
+        expect(split).not.toBeNull();
+        expect(editor).toEqual(split);
+        // Edge to edge, flush to the bottom, no rounding.
+        expect(split!.left).toBe(0);
+        expect(split!.width).toBe(375);
+        expect(split!.bottom).toBe(667);
+        expect(split!.radius).toBe("0px");
+    });
+
+    test("it returns to the flow on a mouse-driven screen", async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.addInitScript(() => localStorage.setItem("splitzy-onboarding-seen", "1"));
+        await page.goto("/single");
+        await page.getByRole("button", { name: /sample data/i }).click();
+        await page.getByRole("button", { name: /^Next$/ }).click();
+
+        const position = await page.evaluate(() => {
+            const el = Array.from(document.querySelectorAll("div")).find((d) => d.className.includes("md:static"));
+            return el ? getComputedStyle(el).position : null;
+        });
+        expect(position).toBe("static");
+    });
+
+    test("no form control in the app is under 44px on a phone", async ({ page }) => {
+        // SelectTrigger was a flat h-10 (40px) — the shared component was the one
+        // breaking the rule, while the "non-compliant" native selects were right.
+        await page.setViewportSize({ width: 375, height: 667 });
+        await page.addInitScript(() => localStorage.setItem("splitzy-onboarding-seen", "1"));
+        await page.goto("/single");
+        await page.getByRole("button", { name: /sample data/i }).click();
+        await page.getByRole("button", { name: /^Next$/ }).click();
+        await page.waitForTimeout(400);
+
+        const small = await page.evaluate(() =>
+            (Array.from(document.querySelectorAll("select, [role='combobox']")) as HTMLElement[])
+                .filter((el) => el.offsetParent !== null && el.getBoundingClientRect().height < 44)
+                .map((el) => ({ tag: el.tagName.toLowerCase(), h: Math.round(el.getBoundingClientRect().height) }))
+        );
+        expect(small, JSON.stringify(small)).toHaveLength(0);
+    });
+});
+

@@ -6,6 +6,8 @@ import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
 import { FeesInput } from "@/components/FeesInput";
 import { DiscountsInput } from "@/components/DiscountsInput";
+import { nativeSelectClass } from "@/components/ui/select";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
@@ -158,7 +160,7 @@ export function ReceiptEditor({
           <CardContent className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
               <div className="space-y-2">
-                <Label>Receipt Title</Label>
+                <Label>{t.editor.receiptTitle}</Label>
                 <Input
                   value={receipt.title}
                   onChange={(e) => onChange({ title: e.target.value })}
@@ -228,7 +230,7 @@ export function ReceiptEditor({
                   <select
                     value={receipt.currency ?? "IDR"}
                     onChange={(e) => handleCurrencyChange(e.target.value)}
-                    className="touch-manipulation flex h-11 w-full rounded-md border border-input bg-background px-3 py-1 text-base sm:h-9 sm:text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className={nativeSelectClass}
                   >
                     {TRAVEL_CURRENCIES.map((c) => (
                       <option key={c.code} value={c.code}>
@@ -365,8 +367,12 @@ export function ReceiptEditor({
           </CardContent>
         </Card>
 
-        {/* Save/Cancel */}
-        <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] mx-2 md:mx-0 p-4 bg-background/80 backdrop-blur-xl border rounded-2xl shadow-premium-lg z-20">
+        {/* Save/Cancel — the shared bar, so the editor stops speaking a
+            different visual language from the split it sits inside. It was a
+            floating rounded card with its own blur that kept floating on
+            desktop; the previous "Add receipt" tap and this "Save receipt" tap
+            happen seconds apart and now look like the same control surface. */}
+        <StickyActionBar>
           {blockMsg && (
             <p role="status" className="mb-2 text-right text-xs font-medium text-warning">
               <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{blockMsg}
@@ -392,7 +398,7 @@ export function ReceiptEditor({
               {t.editor.saveReceipt}
             </Button>
           </div>
-        </div>
+        </StickyActionBar>
       </div>
 
       {/* Live preview */}

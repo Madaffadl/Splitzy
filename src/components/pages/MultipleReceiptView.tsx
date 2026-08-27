@@ -46,6 +46,7 @@ import {
   Info,
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 // A "split" here is one named group of receipts shared by the same people and
@@ -537,15 +538,7 @@ export function MultipleReceiptView() {
                 sit beside Reset, which is a bad neighbour for "save my work".
                 Spans both grid columns; static from `sm:` up. */}
             {isAuthenticated && (
-              <div
-                className="
-                  sticky bottom-0 z-20 -mx-3 border-t bg-background/95 px-3 pt-3
-                  backdrop-blur lg:col-span-2
-                  pb-[max(0.75rem,env(safe-area-inset-bottom))]
-                  md:static md:mx-0 md:border-0 md:bg-transparent md:px-0
-                  md:pb-0 md:backdrop-blur-none
-                "
-              >
+              <StickyActionBar className="mt-0 lg:col-span-2">
                 <Button
                   onClick={handleSaveSplit}
                   disabled={savingSplit || split.receipts.length === 0}
@@ -556,7 +549,7 @@ export function MultipleReceiptView() {
                   <Cloud className="h-4 w-4 mr-2" />
                   {savingSplit ? t.multiple.saving : t.multiple.saveSplit}
                 </Button>
-              </div>
+              </StickyActionBar>
             )}
 
             {/* Reset lives here, not in the header: the header is navigation,

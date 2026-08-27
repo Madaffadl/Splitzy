@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { nativeSelectClass } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -449,7 +450,7 @@ function SettleUpCard({
                 aria-label={t.payerAria}
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
-                className="touch-manipulation min-w-0 flex-1 h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm"
+                className={`${nativeSelectClass} min-w-0 flex-1 px-2`}
               >
                 <option value="">{t.from}</option>
                 {participants.map((p) => (
@@ -461,7 +462,7 @@ function SettleUpCard({
                 aria-label={t.recipientAria}
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                className="touch-manipulation min-w-0 flex-1 h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm"
+                className={`${nativeSelectClass} min-w-0 flex-1 px-2`}
               >
                 <option value="">{t.to}</option>
                 {participants.map((p) => (
@@ -477,7 +478,7 @@ function SettleUpCard({
                 aria-label={t.currencyAria}
                 value={currency}
                 onChange={(e) => handleCurrencyChange(e.target.value)}
-                className="touch-manipulation h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm w-24 shrink-0"
+                className={`${nativeSelectClass} w-24 shrink-0 px-2`}
               >
                 <option value="IDR">IDR</option>
                 {TRAVEL_CURRENCIES.filter((c) => c.code !== "IDR").map((c) => (
@@ -1769,7 +1770,7 @@ export function TravelSpendView() {
                       <select
                         value={activeTrip.defaultCurrency ?? "IDR"}
                         onChange={(e) => void setDefaultCurrency(e.target.value)}
-                        className="touch-manipulation flex h-11 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm"
+                        className={`${nativeSelectClass} max-w-xs`}
                       >
                         {TRAVEL_CURRENCIES.map((c) => (
                           <option key={c.code} value={c.code}>

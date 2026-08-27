@@ -53,6 +53,7 @@ import {
   Lightbulb,
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 const STEPS: Step[] = [
@@ -770,15 +771,7 @@ export function SingleSplitView() {
                 "save my work" one tap away from "erase everything", on a
                 cramped bar. Static from `sm:` up, where a fixed bar would just
                 eat vertical space on a mouse-driven screen. */}
-            <div
-              className="
-                sticky bottom-0 z-20 -mx-3 mt-6 space-y-2 border-t
-                bg-background/95 px-3 pt-3 backdrop-blur
-                pb-[max(0.75rem,env(safe-area-inset-bottom))]
-                md:static md:mx-0 md:border-0 md:bg-transparent md:px-0
-                md:pb-0 md:backdrop-blur-none
-              "
-            >
+            <StickyActionBar>
               {blockingMessage && (
                 <p
                   role="status"
@@ -822,7 +815,7 @@ export function SingleSplitView() {
                   </Button>
                 )}
               </div>
-            </div>
+            </StickyActionBar>
 
             {/* Reset lives here, not in the header: the header is navigation,
                 and this is the most destructive control on the screen. Same
