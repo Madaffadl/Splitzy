@@ -25,7 +25,7 @@ export interface PersistError {
  * "QuotaExceededError" (legacy code 22), Firefox "NS_ERROR_DOM_QUOTA_REACHED"
  * (code 1014), Safari sometimes only sets the code.
  */
-function classifyPersistError(error: unknown): PersistErrorKind {
+export function classifyPersistError(error: unknown): PersistErrorKind {
   if (error instanceof DOMException) {
     if (
       error.name === "QuotaExceededError" ||

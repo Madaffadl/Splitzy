@@ -36,7 +36,7 @@ export function AuthButton() {
         variant="outline"
         size="sm"
         onClick={() => signIn()}
-        className="touch-manipulation h-11 min-w-[44px] gap-2"
+        className="touch-manipulation min-w-[44px] gap-2"
         aria-label="Sign in with Google"
       >
         <LogIn className="h-4 w-4" />

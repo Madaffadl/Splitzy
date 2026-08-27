@@ -26,10 +26,11 @@ import {
 } from "@/components/ui/dialog";
 import { Copy, Check, CheckCircle2, Circle, ArrowRight, Wallet, Calculator, ChevronDown, ChevronUp, Eye, Share2, Loader2, Info, Landmark, Pencil, Plus, Tag, Target, Edit2, Trash2, X, MessageCircle } from "@/components/ui/icons";
 import { EVENTS, capture } from "@/lib/analytics";
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { Fragment, useState, useMemo, useEffect, type ReactNode } from "react";
 import { usePaidSettlements, settlementKey } from "@/hooks/usePaidSettlements";
 import { useToast } from "@/components/ui/toast";
 import { parseShareSource, coveredShareParticipants } from "@/lib/settle-up";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 // Shared empty set so ReceiptBreakdown's default doesn't allocate each render.
 const EMPTY_PAID: ReadonlySet<string> = new Set<string>();
@@ -107,6 +108,7 @@ function PaymentDestinationRow({
   readOnly: boolean;
   onSave?: (info: PaymentInfo | undefined) => void;
 }) {
+  const t = useDictionary().app.summary;
   const info = participant.paymentInfo;
   const line = formatPaymentInfoText(info);
   const editable = !readOnly && !!onSave;
@@ -146,7 +148,7 @@ function PaymentDestinationRow({
             <p className="mt-0.5 text-xs text-muted-foreground break-all">{line}</p>
           ) : (
             <p className="mt-0.5 text-xs italic text-muted-foreground/70">
-              No account added
+              {t.noAccount}
             </p>
           )}
         </div>
@@ -157,17 +159,17 @@ function PaymentDestinationRow({
           variant={line ? "ghost" : "outline"}
           size="sm"
           onClick={openDialog}
-          className="touch-manipulation h-11 min-w-[44px] shrink-0"
+          className="touch-manipulation min-w-[44px] shrink-0"
         >
           {line ? (
             <>
               <Pencil className="h-3.5 w-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Edit</span>
+              <span className="hidden sm:inline">{t.edit}</span>
             </>
           ) : (
             <>
               <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Add</span>
+              <span className="hidden sm:inline">{t.add}</span>
             </>
           )}
         </Button>
@@ -177,7 +179,7 @@ function PaymentDestinationRow({
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Payment details</DialogTitle>
+              <DialogTitle>{t.paymentDialogTitle}</DialogTitle>
               <DialogDescription>
                 Where to pay {participant.name} so others can transfer directly.
                 All fields are optional.
@@ -185,7 +187,7 @@ function PaymentDestinationRow({
             </DialogHeader>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label>Bank / E-Wallet</Label>
+                <Label>{t.bank}</Label>
                 <Input
                   value={bank}
                   maxLength={PAYMENT_INFO_LIMITS.bank}
@@ -194,7 +196,7 @@ function PaymentDestinationRow({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Account Number</Label>
+                <Label>{t.accountNumber}</Label>
                 <Input
                   value={accountNumber}
                   maxLength={PAYMENT_INFO_LIMITS.accountNumber}
@@ -204,7 +206,7 @@ function PaymentDestinationRow({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Account Holder Name</Label>
+                <Label>{t.accountName}</Label>
                 <Input
                   value={accountName}
                   maxLength={PAYMENT_INFO_LIMITS.accountName}
@@ -254,6 +256,7 @@ export function PaymentDestinationsSection({
   readOnly: boolean;
   onUpdatePaymentInfo?: (participantId: string, info: PaymentInfo | undefined) => void;
 }) {
+  const t = useDictionary().app.summary;
   const editable = !readOnly && !!onUpdatePaymentInfo;
   const recipients = recipientIds
     .map((id) => participantsById.get(id) ?? { id, name: getParticipantName(id) })
@@ -265,8 +268,8 @@ export function PaymentDestinationsSection({
     <div className="space-y-2">
       <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
         <Landmark className="h-4 w-4" />
-        Payment Details
-        {editable && <span className="text-xs font-normal">(where to pay)</span>}
+        {t.paymentDetails}
+        {editable && <span className="text-xs font-normal">{t.whereToPay}</span>}
       </h4>
       <div className="space-y-2">
         {recipients.map((p) => (
@@ -305,12 +308,13 @@ function PersonBreakdown({
   // Native currency of the receipt this breakdown belongs to (undefined = IDR).
   currency?: string;
 }) {
+  const t = useDictionary().app.summary;
   const [expanded, setExpanded] = useState(false);
   const showPaidToggle = !!onTogglePaid && !isPayer;
   const money = (n: number) => formatMoney(n, currency);
 
   return (
-    <div className={cn("rounded-md border overflow-hidden", paid && "border-emerald-500/30 bg-emerald-500/[0.04]")}>
+    <div className={cn("rounded-md border overflow-hidden", paid && "border-success/30 bg-emerald-500/[0.04]")}>
       {/* Main row: tap the name area to expand; a labelled chip on the right
           marks the share paid (so the control is self-explanatory). */}
       <div className="flex items-center">
@@ -322,7 +326,7 @@ function PersonBreakdown({
             <span className={cn("font-medium truncate", paid && "text-muted-foreground line-through")}>{name}</span>
             {isPayer && (
               <Badge variant="outline" className="text-xs py-0 shrink-0">
-                Payer
+                {t.payer}
               </Badge>
             )}
           </div>
@@ -342,16 +346,18 @@ function PersonBreakdown({
             type="button"
             onClick={onTogglePaid}
             aria-pressed={paid}
-            aria-label={paid ? `${name} has paid their share — tap to undo` : `Mark ${name}'s share as paid`}
+            aria-label={paid ? fill(t.undoPaidPersonAria, { name }) : fill(t.markPaidPersonAria, { name })}
             className={cn(
-              "touch-manipulation mr-2 shrink-0 flex min-h-[36px] items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
+              // 44px, like the expand button it sits beside — this was
+              // min-h-[36px] on the same row as a min-h-[44px] sibling.
+              "touch-manipulation mr-2 shrink-0 flex min-h-[44px] items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition-colors",
               paid
                 ? "bg-emerald-500 text-white hover:bg-emerald-600"
                 : "border border-dashed border-muted-foreground/50 text-muted-foreground hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
             )}
           >
             <Check className="h-3 w-3 shrink-0" />
-            {paid ? "Paid" : "Mark paid"}
+            {paid ? t.paid : t.markPaid}
           </button>
         )}
       </div>
@@ -363,7 +369,7 @@ function PersonBreakdown({
           {detail.items.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                <Eye className="h-3 w-3" /> Items Consumed
+                <Eye className="h-3 w-3" /> {t.itemsConsumed}
               </p>
               {detail.items.map((item) => (
                 <div
@@ -392,14 +398,14 @@ function PersonBreakdown({
 
           {/* Subtotal */}
           <div className="flex justify-between text-xs pt-1 border-t">
-            <span className="text-muted-foreground">Subtotal</span>
+            <span className="text-muted-foreground">{t.subtotal}</span>
             <span>{money(detail.subtotal)}</span>
           </div>
 
           {/* Tax allocation */}
           {detail.taxAllocation > 0 && (
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">+ Tax share</span>
+              <span className="text-muted-foreground">{t.taxShare}</span>
               <span>{money(detail.taxAllocation)}</span>
             </div>
           )}
@@ -407,7 +413,7 @@ function PersonBreakdown({
           {/* Service allocation */}
           {detail.serviceAllocation > 0 && (
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">+ Service share</span>
+              <span className="text-muted-foreground">{t.serviceShare}</span>
               <span>{money(detail.serviceAllocation)}</span>
             </div>
           )}
@@ -415,22 +421,22 @@ function PersonBreakdown({
           {/* Extra fees allocation (delivery, platform, etc.) */}
           {detail.feesAllocation > 0 && (
             <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">+ Other fees share</span>
+              <span className="text-muted-foreground">{t.feesShare}</span>
               <span>{money(detail.feesAllocation)}</span>
             </div>
           )}
 
           {/* Discount credit */}
           {detail.discount > 0 && (
-            <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400">
-              <span>− Discount</span>
+            <div className="flex justify-between text-xs text-success">
+              <span>− {t.discount}</span>
               <span>− {money(detail.discount)}</span>
             </div>
           )}
 
           {/* Final total */}
           <div className="flex justify-between text-sm pt-1 border-t font-medium">
-            <span>Total</span>
+            <span>{t.total}</span>
             <span className="text-primary">{money(detail.total)}</span>
           </div>
         </div>
@@ -468,6 +474,7 @@ export function ReceiptBreakdown({
   // Travel Spend: toggle every non-payer's share at once (whole-receipt shortcut).
   onToggleAllPaid?: () => void;
 }) {
+  const t = useDictionary().app.summary;
   const [expanded, setExpanded] = useState(false);
   const paidBy = paidParticipantIds ?? EMPTY_PAID;
 
@@ -515,7 +522,7 @@ export function ReceiptBreakdown({
   const settled = allPaid;
 
   return (
-    <div className={cn("rounded-md border overflow-hidden", settled && "bg-emerald-500/[0.04] border-emerald-500/30")}>
+    <div className={cn("rounded-md border overflow-hidden", settled && "bg-emerald-500/[0.04] border-success/30")}>
       <div className="flex items-center">
         <button
           onClick={() => setExpanded(!expanded)}
@@ -529,7 +536,7 @@ export function ReceiptBreakdown({
               {receipt.title}
             </span>
             {settled && (
-              <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
+              <span className="flex items-center gap-1 rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success shrink-0">
                 <Check className="h-3 w-3" />
                 Paid
               </span>
@@ -554,18 +561,25 @@ export function ReceiptBreakdown({
           </div>
         </button>
         {(onEdit || onDelete || onToggleAllPaid) && (
-          <div className="flex items-center gap-0.5 pr-1 shrink-0">
+          <div className="flex items-center gap-1 pr-1 shrink-0">
+            {/* Hidden below sm:. Three 44px actions plus the title and the
+                amount do not fit on a 375px row — the title truncated to about
+                five characters. And on a phone this button is redundant: the
+                "Tap to mark paid" chip row directly below does the same job per
+                person, and wraps. It used to be h-8 (32px) at gap-0.5 (2px)
+                from Delete, which is a bulk ledger write two pixels from an
+                irreversible one. */}
             {onToggleAllPaid && (
               <button
                 type="button"
                 onClick={onToggleAllPaid}
                 aria-pressed={allPaid}
-                aria-label={allPaid ? `Mark ${receipt.title} as unpaid` : `Mark everyone's share of ${receipt.title} as paid`}
-                title={allPaid ? "Everyone has paid — click to undo" : "Mark everyone's share as paid"}
+                aria-label={allPaid ? fill(t.unmarkAllPaidAria, { title: receipt.title }) : fill(t.markAllPaidAria, { title: receipt.title })}
+                title={allPaid ? t.everyonePaidTitle : t.markEveryoneTitle}
                 className={cn(
-                  "h-8 w-8 flex items-center justify-center rounded-md transition-colors",
+                  "touch-manipulation hidden h-11 w-11 items-center justify-center rounded-md transition-colors sm:flex",
                   allPaid
-                    ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    ? "text-success hover:bg-success/10"
                     : "text-muted-foreground hover:bg-muted hover:text-emerald-600"
                 )}
               >
@@ -576,18 +590,20 @@ export function ReceiptBreakdown({
               <button
                 type="button"
                 onClick={onEdit}
-                aria-label={`Edit ${receipt.title}`}
+                aria-label={fill(t.edit, {}) + " " + receipt.title}
                 className="touch-manipulation h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <Edit2 className="h-4 w-4" />
               </button>
             )}
+            {/* ml-2 so the one action that cannot be undone keeps a real gap
+                from the one next to it. */}
             {onDelete && (
               <button
                 type="button"
                 onClick={onDelete}
                 aria-label={`Delete ${receipt.title}`}
-                className="touch-manipulation ml-1 h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
+                className="touch-manipulation ml-2 h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -599,10 +615,14 @@ export function ReceiptBreakdown({
       {/* Inline paid tracker — tap a person to mark their share paid, right from
           the receipt row (no need to expand). Green = paid back the payer. */}
       {onTogglePaidShare && owing.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 px-3 pb-2 -mt-0.5">
+        <div className="flex flex-wrap items-center gap-2 px-3 pb-2 -mt-0.5">
           {paidBy.size === 0 && (
-            <span className="text-[10px] text-muted-foreground mr-0.5">Tap to mark paid:</span>
+            <span className="text-[10px] text-muted-foreground mr-0.5">{t.tapToMarkPaid}</span>
           )}
+          {/* Each of these records or removes a payment in the trip ledger and
+              syncs it to every member. They were ~20px tall at gap-1.5 (6px),
+              five to eight of them wrapped together — the smallest targets in
+              the app, on the control that moves money. 44px, gap-2. */}
           {owing.map((p) => {
             const isPaid = paidBy.has(p.id);
             return (
@@ -611,9 +631,9 @@ export function ReceiptBreakdown({
                 type="button"
                 onClick={() => onTogglePaidShare(p.id)}
                 aria-pressed={isPaid}
-                aria-label={isPaid ? `${p.name} has paid — tap to undo` : `Mark ${p.name}'s share as paid`}
+                aria-label={isPaid ? fill(t.undoPaidPersonAria, { name: p.name }) : fill(t.markPaidPersonAria, { name: p.name })}
                 className={cn(
-                  "flex items-center gap-1 rounded-full border py-0.5 pl-1.5 pr-2 text-[11px] font-medium transition-colors",
+                  "touch-manipulation flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 text-[11px] font-medium transition-colors",
                   isPaid
                     ? "border-emerald-500 bg-emerald-500 text-white"
                     : "border-dashed border-muted-foreground/40 text-muted-foreground hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400"
@@ -637,8 +657,8 @@ export function ReceiptBreakdown({
           </p>
           {onTogglePaidShare && (
             <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Check className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              Tap <span className="font-medium text-foreground">Mark paid</span> when someone has settled their share.
+              <Check className="h-3 w-3 shrink-0 text-success" />
+              {t.tapMarkPaidHint}
             </p>
           )}
           {isForeign && (
@@ -649,7 +669,7 @@ export function ReceiptBreakdown({
             </p>
           )}
           {summary.totalDiscount > 0 && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+            <p className="text-xs text-success">
               Includes − {money(summary.totalDiscount)} discount
               (bill {money(summary.grandTotal)})
             </p>
@@ -676,6 +696,7 @@ export function ReceiptBreakdown({
 }
 
 export function SummaryPanel({ receipt, participants, title, savedSplitId, readOnly = false, onUpdatePaymentInfo, preview = false }: SummaryPanelProps) {
+  const t = useDictionary().app.summary;
   // The read-only shared view shows settlements but not interactively; the
   // editor preview hides them entirely (see `preview`).
   const settleStatic = readOnly;
@@ -929,7 +950,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
       <Card className="border-dashed">
         <CardContent className="py-8 text-center text-muted-foreground">
           <Calculator className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>Add participants and select payer to see summary</p>
+          <p>{t.needPayer}</p>
         </CardContent>
       </Card>
     );
@@ -940,57 +961,60 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
     // block, so pinning it parks a tall card over the rest of the page.
     <Card className={cn("border-2 border-primary/20 shadow-premium-lg", !readOnly && "lg:sticky lg:top-24")}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        {/* Stacks below sm:. At 375px the title and the action cluster measured
+            exactly 0px apart — the row was at 100% capacity, so there was
+            nothing for justify-between to distribute. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Wallet className="h-4 w-4 text-primary" />
             </div>
-            <span className="gradient-text font-bold">Summary</span>
+            <span className="gradient-text font-bold">{t.title}</span>
           </CardTitle>
           {!readOnly && !preview && (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareLink}
                 disabled={creatingLink}
-                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3"
-                aria-label="Create and share a read-only link"
+                className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-3"
+                aria-label={t.shareAria}
               >
                 {creatingLink ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Share2 className="h-4 w-4" />
                 )}
-                <span className="hidden md:inline ml-1.5">Share</span>
+                <span className="ml-1.5">{t.share}</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareWhatsApp}
                 disabled={creatingLink}
-                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3 text-green-600 dark:text-green-500 hover:text-green-600"
-                aria-label="Share the split to WhatsApp"
+                className="touch-manipulation flex-1 px-2 text-green-600 dark:text-green-500 hover:text-green-600 sm:flex-none sm:px-3"
+                aria-label={t.whatsappAria}
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="hidden md:inline ml-1.5">WhatsApp</span>
+                <span className="ml-1.5">{t.whatsapp}</span>
               </Button>
               <Button
                 variant="accent"
                 size="sm"
                 onClick={handleCopy}
                 disabled={creatingLink}
-                className="touch-manipulation h-11"
+                className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-4"
               >
                 {copied ? (
                   <>
                     <Check className="mr-1 h-3 w-3" />
-                    Copied!
+                    {t.copied}
                   </>
                 ) : (
                   <>
                     <Copy className="mr-1 h-3 w-3" />
-                    Copy
+                    {t.copy}
                   </>
                 )}
               </Button>
@@ -999,36 +1023,40 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
         </div>
       </CardHeader>
       <CardContent className="space-y-4 tabular-nums">
+
+
         {/* Totals */}
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="text-muted-foreground">Subtotal</div>
+          <div className="text-muted-foreground">{t.subtotal}</div>
           <div className="text-right font-medium">
             {money(summary.receiptSubtotal)}
           </div>
-          <div className="text-muted-foreground">Tax</div>
+          <div className="text-muted-foreground">{t.tax}</div>
           <div className="text-right">{money(receipt.tax)}</div>
-          <div className="text-muted-foreground">Service</div>
+          <div className="text-muted-foreground">{t.service}</div>
           <div className="text-right">{money(receipt.service)}</div>
+          {/* Fragment, not <>: the keys were on the children while the wrapper
+              inside .map() had none, which warns on every render with a fee. */}
           {(receipt.fees ?? []).map((fee) => (
-            <>
-              <div key={`${fee.id}-label`} className="text-muted-foreground truncate">{fee.label}</div>
-              <div key={`${fee.id}-amount`} className="text-right">{money(fee.amount)}</div>
-            </>
+            <Fragment key={fee.id}>
+              <div className="text-muted-foreground truncate">{fee.label}</div>
+              <div className="text-right">{money(fee.amount)}</div>
+            </Fragment>
           ))}
           <div className="text-muted-foreground font-medium pt-2 border-t">
-            Grand Total
+            {t.grandTotal}
           </div>
           <div className={cn("text-right pt-2 border-t", summary.totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
             {money(summary.grandTotal)}
           </div>
           {summary.totalDiscount > 0 && (
             <>
-              <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
-              <div className="text-right text-emerald-600 dark:text-emerald-400">
+              <div className="text-success">{t.discount}</div>
+              <div className="text-right text-success">
                 − {money(summary.totalDiscount)}
               </div>
               <div className="text-muted-foreground font-medium pt-2 border-t">
-                Amount to Pay
+                {t.amountToPay}
               </div>
               <div className="text-right font-bold pt-2 border-t text-primary">
                 {money(summary.amountPaid)}
@@ -1036,7 +1064,6 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             </>
           )}
         </div>
-
         {/* Foreign-currency note — the amounts above are native; settlement
             happens in Rp at the trip level using the locked rate. */}
         {receipt.currency && receipt.currency !== "IDR" && (
@@ -1052,24 +1079,23 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                 {receipt.fxRate!.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
               </>
             ) : (
-              <span className="text-amber-600 dark:text-amber-400">· set an exchange rate to convert</span>
+              <span className="text-warning">· set an exchange rate to convert</span>
             )}
           </div>
         )}
 
         <div className="text-xs text-muted-foreground">
-          Paid by:{" "}
+          {t.paidBy}{" "}
           <Badge variant="secondary" className="ml-1">
             {getParticipantName(receipt.payerId)}
           </Badge>
         </div>
-
         {/* Applied discounts */}
         {receipt.discounts && receipt.discounts.length > 0 && (
           <div className="space-y-1.5">
             <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Tag className="h-4 w-4" />
-              Discounts
+              {t.discountsHeading}
             </h4>
             <div className="space-y-1">
               {receipt.discounts.map((d) => (
@@ -1077,10 +1103,10 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                   <span className="truncate text-muted-foreground">
                     {d.label || describeDiscountTarget(d, receipt.items, participants)}
                     <span className="ml-1 text-muted-foreground/60">
-                      · {d.scope === "receipt" ? "bill" : d.scope === "item" ? "item" : "person"}
+                      · {d.scope === "receipt" ? t.scopeBill : d.scope === "item" ? t.scopeItem : t.scopePerson}
                     </span>
                   </span>
-                  <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">
+                  <span className="shrink-0 font-medium text-success">
                     − {formatDiscountValue(d, receipt.currency)}
                   </span>
                 </div>
@@ -1092,8 +1118,8 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
         {/* Per Person Breakdown with Expandable Audit */}
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-            Per Person
-            <span className="text-xs font-normal">(tap to expand)</span>
+            {t.perPerson}
+            <span className="text-xs font-normal">{t.tapToExpand}</span>
           </h4>
           <div className="space-y-2">
             {shareDetails.map((detail) => (
@@ -1108,17 +1134,23 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
           </div>
         </div>
 
-        {/* Settlement + payment destinations — hidden in the editor preview
-            (settle-up is a trip-level action, not part of editing a receipt). */}
+        {/* Reverted to the owner's preferred order (2026-08-26). The bill
+            arithmetic reads as one continuous statement — Subtotal, Tax,
+            Service, fees, Grand Total, Discount, Amount to Pay — and hiding it
+            behind a disclosure to lift the settlement above the fold traded
+            something people scrutinise for something they scroll to anyway.
+            The settlement amounts keep the larger type; that part was
+            orthogonal to the ordering. */}
         {!preview && (
           <>
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">
-            Settlements
+            {t.settlements}
           </h4>
           {settlements.length === 0 ? (
-            <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
-              ✓ All settled!
+            <div className="flex items-center justify-center gap-1.5 rounded-md bg-success/10 py-2 text-sm text-success">
+              <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {t.allSettled}
             </div>
           ) : settleStatic ? (
             // Static rows — no cosmetic per-receipt toggle (settle-up is
@@ -1134,7 +1166,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="min-w-0 flex-1 font-medium truncate">{getParticipantName(s.to)}</span>
                   </div>
-                  <span className="font-bold text-primary sm:ml-auto">Rp {formatCurrency(s.amount)}</span>
+                  <span className="text-xl font-bold text-primary sm:ml-auto">Rp {formatCurrency(s.amount)}</span>
                 </div>
               ))}
             </div>
@@ -1153,7 +1185,7 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                     className={cn(
                       "touch-manipulation group w-full flex min-h-[44px] flex-col justify-center sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
                       paid
-                        ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                        ? "bg-success/10 hover:bg-success/15"
                         : "bg-muted/50 hover:bg-muted"
                     )}
                   >
@@ -1177,7 +1209,10 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
                         {getParticipantName(s.to)}
                       </span>
                     </div>
-                    <span className={cn("font-bold sm:ml-auto", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                    {/* The number the whole screen exists to produce. On a
+                        phone the row wraps and this gets its own line, so it
+                        can afford text-2xl; from sm: up it shares the row. */}
+                    <span className={cn("text-2xl font-bold sm:ml-auto sm:text-xl", paid ? "text-success" : "text-primary")}>
                       Rp {formatCurrency(s.amount)}
                     </span>
                   </button>
@@ -1186,7 +1221,6 @@ export function SummaryPanel({ receipt, participants, title, savedSplitId, readO
             </div>
           )}
         </div>
-
         {/* Payment destinations — one row per unique recipient (deduped). */}
         <PaymentDestinationsSection
           recipientIds={recipientIds}
@@ -1262,6 +1296,7 @@ export function MultipleReceiptSummaryPanel({
   onRecordPayment,
   onDeletePayment,
 }: MultipleReceiptSummaryPanelProps) {
+  const t = useDictionary().app.summary;
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session
   // so repeated clicks reuse the same link instead of minting a new row.
@@ -1371,7 +1406,7 @@ export function MultipleReceiptSummaryPanel({
                         group actually has a rate — otherwise the figure would be
                         the native amount relabelled, which is worse than blank. */}
                     {g.unconverted > 0 ? (
-                      <span className="text-amber-600 dark:text-amber-400">rate needed</span>
+                      <span className="text-warning">rate needed</span>
                     ) : (
                       <span className="text-muted-foreground">≈ Rp {formatCurrency(g.base)}</span>
                     )}
@@ -1382,7 +1417,7 @@ export function MultipleReceiptSummaryPanel({
           ))}
       </div>
       {unconvertedReceipts.length > 0 && (
-        <p className="flex items-start gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+        <p className="flex items-start gap-1.5 rounded-md bg-warning/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
           <span aria-hidden="true">⚠️</span>
           <span>
             {unconvertedReceipts.length === 1
@@ -1718,12 +1753,30 @@ export function MultipleReceiptSummaryPanel({
     }
   };
 
+  // The single-receipt panel has had a WhatsApp button for a while, and the
+  // comment beside it calls WhatsApp "the dominant sharing channel for the SEA
+  // audience". This panel is what /multiple and /travel render — the modes with
+  // the most to share — and it offered only Copy, so finishing an eight-receipt
+  // trip meant copy, leave the app, find the group, paste.
+  const handleShareWhatsApp = async () => {
+    const url = await ensureShareUrl();
+    let text = generateExportText();
+    if (url) text += `\n🔗 View full breakdown:\n${url}\n`;
+    text += splitzyCopyFooter(window.location.origin);
+    capture(EVENTS.shareWhatsapp);
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   if (receipts.length === 0) {
     return (
       <Card className="border-dashed">
         <CardContent className="py-8 text-center text-muted-foreground">
           <Calculator className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>Add receipts to see the summary</p>
+          <p>{t.needReceipts}</p>
         </CardContent>
       </Card>
     );
@@ -1740,12 +1793,12 @@ export function MultipleReceiptSummaryPanel({
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            Summary
+            {t.title}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 tabular-nums">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Total spent</span>
+            <span className="text-sm text-muted-foreground">{t.totalSpent}</span>
             <span className="text-lg font-bold text-primary">Rp {formatCurrency(totalGrandTotal)}</span>
           </div>
 
@@ -1756,7 +1809,7 @@ export function MultipleReceiptSummaryPanel({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1.5">
                   <Target className="h-4 w-4" />
-                  Budget
+                  {t.budget}
                 </span>
                 <span className="font-medium">Rp {formatCurrency(budget)}</span>
               </div>
@@ -1766,14 +1819,14 @@ export function MultipleReceiptSummaryPanel({
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <p className={cn("text-xs text-right", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
-                {over ? `Over by Rp ${formatCurrency(totalPaid - budget)}` : `Rp ${formatCurrency(budget - totalPaid)} left`}
+              <p className={cn("text-xs text-right", over ? "text-destructive font-medium" : "text-muted-foreground")}>
+                {over ? fill(t.overBudget, { amount: formatCurrency(totalPaid - budget) }) : fill(t.leftOfBudget, { amount: formatCurrency(budget - totalPaid) })}
               </p>
             </div>
           )}
 
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">Balances</h4>
+            <h4 className="text-sm font-medium text-muted-foreground">{t.balances}</h4>
             <div className="space-y-1">
               {Array.from(aggregateBalances.entries()).map(([id, net]) => (
                 <div key={id} className="flex items-center justify-between text-sm">
@@ -1782,9 +1835,9 @@ export function MultipleReceiptSummaryPanel({
                     className={cn(
                       "font-semibold shrink-0",
                       net > 0.01
-                        ? "text-emerald-600 dark:text-emerald-400"
+                        ? "text-success"
                         : net < -0.01
-                        ? "text-red-500"
+                        ? "text-destructive"
                         : "text-muted-foreground"
                     )}
                   >
@@ -1801,21 +1854,24 @@ export function MultipleReceiptSummaryPanel({
 
   return (
     // Same as SummaryPanel: only pin from lg:, where this is an actual sidebar.
-    <Card className={cn(!readOnly && "lg:sticky lg:top-4")}>
+    <Card className={cn(!readOnly && "lg:sticky lg:top-24")}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        {/* Stacks below sm:. At 375px the title and the action cluster measured
+            exactly 0px apart — the row was at 100% capacity, so there was
+            nothing for justify-between to distribute. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            Summary
+            {t.title}
           </CardTitle>
           {!readOnly && (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleShareLink}
                 disabled={creatingLink}
-                className="touch-manipulation h-11 min-w-[44px] px-2 sm:px-3"
+                className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-3"
                 aria-label="Create and share a read-only link"
               >
                 {creatingLink ? (
@@ -1823,24 +1879,37 @@ export function MultipleReceiptSummaryPanel({
                 ) : (
                   <Share2 className="h-4 w-4" />
                 )}
-                <span className="hidden sm:inline ml-1.5">Share</span>
+                {/* md:, matching the single-receipt panel — the same button was
+                    showing its label at a different breakpoint in each. */}
+                <span className="ml-1.5">{t.share}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShareWhatsApp}
+                disabled={creatingLink}
+                className="touch-manipulation flex-1 px-2 text-green-600 dark:text-green-500 hover:text-green-600 sm:flex-none sm:px-3"
+                aria-label="Share the split to WhatsApp"
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span className="ml-1.5">{t.whatsapp}</span>
               </Button>
               <Button
                 variant="accent"
                 size="sm"
                 onClick={handleCopy}
                 disabled={creatingLink}
-                className="touch-manipulation h-11"
+                className="touch-manipulation flex-1 px-2 sm:flex-none sm:px-4"
               >
                 {copied ? (
                   <>
                     <Check className="mr-1 h-3 w-3" />
-                    Copied!
+                    {t.copied}
                   </>
                 ) : (
                   <>
                     <Copy className="mr-1 h-3 w-3" />
-                    Copy
+                    {t.copy}
                   </>
                 )}
               </Button>
@@ -1851,22 +1920,22 @@ export function MultipleReceiptSummaryPanel({
       <CardContent className="space-y-4 tabular-nums">
         {/* Split Stats */}
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="text-muted-foreground">Receipts</div>
+          <div className="text-muted-foreground">{t.receiptsCount}</div>
           <div className="text-right font-medium">{receipts.length}</div>
           <div className="text-muted-foreground font-medium pt-2 border-t">
-            Total
+            {t.total}
           </div>
           <div className={cn("text-right pt-2 border-t", totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
             Rp {formatCurrency(totalGrandTotal)}
           </div>
           {totalDiscount > 0 && (
             <>
-              <div className="text-emerald-600 dark:text-emerald-400">Discount</div>
-              <div className="text-right text-emerald-600 dark:text-emerald-400">
+              <div className="text-success">{t.discount}</div>
+              <div className="text-right text-success">
                 − Rp {formatCurrency(totalDiscount)}
               </div>
               <div className="text-muted-foreground font-medium pt-2 border-t">
-                Amount Paid
+                {t.amountPaid}
               </div>
               <div className="text-right font-bold pt-2 border-t text-primary">
                 Rp {formatCurrency(totalPaid)}
@@ -1887,7 +1956,7 @@ export function MultipleReceiptSummaryPanel({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1.5">
                   <Target className="h-4 w-4" />
-                  Budget
+                  {t.budget}
                 </span>
                 <span className="font-medium">Rp {formatCurrency(budget)}</span>
               </div>
@@ -1897,11 +1966,11 @@ export function MultipleReceiptSummaryPanel({
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <p className={cn("text-xs text-right", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
+              <p className={cn("text-xs text-right", over ? "text-destructive font-medium" : "text-muted-foreground")}>
                 {over
-                  ? `Over budget by Rp ${formatCurrency(spent - budget)}`
-                  : `Rp ${formatCurrency(budget - spent)} left`}
-                {" · "}spent Rp {formatCurrency(spent)}
+                  ? fill(t.overBudget, { amount: formatCurrency(spent - budget) })
+                  : fill(t.leftOfBudget, { amount: formatCurrency(budget - spent) })}
+                {" · "}{fill(t.spent, { amount: formatCurrency(spent) })}
               </p>
             </div>
           );
@@ -1912,7 +1981,7 @@ export function MultipleReceiptSummaryPanel({
             (Travel Spend) surfaces these in its own Receipts list. */}
         {showReceiptDetails && (
           <CollapsibleSection
-            title="Receipt details"
+            title={t.receiptDetails}
             badge={
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
                 {receipts.length}
@@ -1943,7 +2012,7 @@ export function MultipleReceiptSummaryPanel({
           title={
             <span className="flex items-center gap-1.5">
               <Wallet className="h-4 w-4" />
-              Spending breakdown
+              {t.spendingBreakdown}
             </span>
           }
         >
@@ -1974,9 +2043,9 @@ export function MultipleReceiptSummaryPanel({
                         <span
                           className={`text-sm font-semibold ${
                             net > 0
-                              ? "text-emerald-600 dark:text-emerald-400"
+                              ? "text-success"
                               : net < 0
-                              ? "text-red-500"
+                              ? "text-destructive"
                               : "text-muted-foreground"
                           }`}
                         >
@@ -1988,9 +2057,9 @@ export function MultipleReceiptSummaryPanel({
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="flex flex-wrap justify-between gap-x-2 p-1.5 rounded bg-emerald-500/10">
-                        <span className="text-emerald-700 dark:text-emerald-300">Paid</span>
-                        <span className="font-medium text-emerald-700 dark:text-emerald-300 whitespace-nowrap">Rp {formatCurrency(paid)}</span>
+                      <div className="flex flex-wrap justify-between gap-x-2 p-1.5 rounded bg-success/10">
+                        <span className="text-success">Paid</span>
+                        <span className="font-medium text-success whitespace-nowrap">Rp {formatCurrency(paid)}</span>
                       </div>
                       <div className="flex flex-wrap justify-between gap-x-2 p-1.5 rounded bg-orange-500/10">
                         <span className="text-orange-700 dark:text-orange-300">Consumed</span>
@@ -2008,7 +2077,7 @@ export function MultipleReceiptSummaryPanel({
                           {breakdown.paid.map((entry, i) => (
                             <div key={i} className="flex justify-between py-0.5 border-b border-border/30 last:border-0">
                               <span className="truncate pr-2 text-muted-foreground">{entry.receiptTitle}</span>
-                              <span className="shrink-0 font-medium text-emerald-600 dark:text-emerald-400">Rp {formatCurrency(entry.amount)}</span>
+                              <span className="shrink-0 font-medium text-success">Rp {formatCurrency(entry.amount)}</span>
                             </div>
                           ))}
                         </div>
@@ -2057,7 +2126,7 @@ export function MultipleReceiptSummaryPanel({
                   <div key={p.id} className="rounded-lg border bg-card px-3 py-2 space-y-1.5">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium truncate">{getParticipantName(p.id)}</span>
-                      <span className={cn("text-xs font-medium whitespace-nowrap", over ? "text-red-500" : "text-muted-foreground")}>
+                      <span className={cn("text-xs font-medium whitespace-nowrap", over ? "text-destructive" : "text-muted-foreground")}>
                         Rp {formatCurrency(spent)} / Rp {formatCurrency(budget)}
                       </span>
                     </div>
@@ -2067,8 +2136,8 @@ export function MultipleReceiptSummaryPanel({
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <p className={cn("text-[11px]", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
-                      {over ? `Over by Rp ${formatCurrency(spent - budget)}` : `Rp ${formatCurrency(budget - spent)} left`}
+                    <p className={cn("text-[11px]", over ? "text-destructive font-medium" : "text-muted-foreground")}>
+                      {over ? fill(t.overBudget, { amount: formatCurrency(spent - budget) }) : fill(t.leftOfBudget, { amount: formatCurrency(budget - spent) })}
                     </p>
                   </div>
                 );
@@ -2081,7 +2150,7 @@ export function MultipleReceiptSummaryPanel({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Final Settlements
+              {t.finalSettlements}
             </h4>
             {settlements.length > 0 && (
               <button
@@ -2091,7 +2160,7 @@ export function MultipleReceiptSummaryPanel({
                 aria-pressed={showTrace}
               >
                 <Info className="h-3.5 w-3.5" />
-                {showTrace ? "Hide explanation" : "How is this calculated?"}
+                {showTrace ? t.hideExplanation : t.howCalculated}
               </button>
             )}
           </div>
@@ -2100,16 +2169,16 @@ export function MultipleReceiptSummaryPanel({
               collapsed by default so a long list of marked-paid receipts doesn't
               dominate the summary (settle-up section shows manual entries only). */}
           {alreadyPaid.length > 0 && (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-xs">
+            <div className="rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-xs">
               <CollapsibleSection
                 title={
-                  <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300">
+                  <span className="flex items-center gap-1.5 font-medium text-success">
                     <Check className="h-3.5 w-3.5 shrink-0" />
-                    Already paid — not included in settlement
+                    {t.alreadyPaid}
                   </span>
                 }
                 badge={
-                  <span className="rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                  <span className="rounded-full bg-success/20 px-1.5 py-0.5 text-[10px] font-semibold text-success">
                     {alreadyPaid.length}
                   </span>
                 }
@@ -2120,19 +2189,19 @@ export function MultipleReceiptSummaryPanel({
                     <span className="min-w-0 truncate text-foreground/90">
                       {p.receiptTitle ? (
                         <>
-                          <span className="font-semibold">{getParticipantName(p.from)}</span> paid their share of{" "}
+                          <span className="font-semibold">{getParticipantName(p.from)}</span> {t.paidTheirShare}{" "}
                           <span className="font-medium">{p.receiptTitle}</span>
                         </>
                       ) : (
                         <>
-                          <span className="font-semibold">{getParticipantName(p.from)}</span> paid{" "}
+                          <span className="font-semibold">{getParticipantName(p.from)}</span> {t.paidPerson}{" "}
                           <span className="font-semibold">{getParticipantName(p.to)}</span>
                           {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
                         </>
                       )}
                     </span>
                     <span className="flex items-center gap-1.5 shrink-0">
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                      <span className="font-semibold text-success">
                         Rp {formatCurrency(p.amount)}
                         {p.nativeLabel && (
                           <span className="ml-1 font-normal text-[11px] text-muted-foreground">
@@ -2140,13 +2209,16 @@ export function MultipleReceiptSummaryPanel({
                           </span>
                         )}
                       </span>
+                      {/* Deletes a synced ledger payment. It was a 20px target
+                          with no confirmation — under the 24px WCAG pointer
+                          minimum, let alone this app's 44px. */}
                       {onDeletePayment && (
                         <button
                           type="button"
                           onClick={() => onDeletePayment(p.id)}
-                          aria-label="Undo this payment"
-                          title="Undo — move back to settlement"
-                          className="h-5 w-5 flex items-center justify-center rounded text-emerald-700/70 hover:text-destructive hover:bg-background/60 transition-colors"
+                          aria-label={t.undoPayment}
+                          title={t.undoPaymentTitle}
+                          className="touch-manipulation -my-2 h-11 w-11 flex items-center justify-center rounded text-emerald-700/70 hover:text-destructive hover:bg-background/60 transition-colors"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -2168,7 +2240,7 @@ export function MultipleReceiptSummaryPanel({
 
               {/* Starting net balances */}
               <div className="space-y-1">
-                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">Net balances before settlement</p>
+                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">{t.netBalances}</p>
                 {Array.from(aggregateBalances.entries())
                   .sort((a, b) => b[1] - a[1])
                   .map(([id, balance]) => (
@@ -2176,8 +2248,8 @@ export function MultipleReceiptSummaryPanel({
                       <span className="font-medium">{getParticipantName(id)}</span>
                       <span className={cn(
                         "font-mono text-right",
-                        balance > 0.01 ? "text-emerald-600 dark:text-emerald-400" :
-                        balance < -0.01 ? "text-red-500" :
+                        balance > 0.01 ? "text-success" :
+                        balance < -0.01 ? "text-destructive" :
                         "text-muted-foreground"
                       )}>
                         {balance > 0.01
@@ -2192,23 +2264,23 @@ export function MultipleReceiptSummaryPanel({
 
               {/* Step-by-step transfer trace */}
               <div className="space-y-2">
-                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">Step-by-step</p>
+                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">{t.stepByStep}</p>
                 {settlementTrace.map((step, i) => {
                   const fromAfter = step.balancesAfter.get(step.transfer.from) ?? 0;
                   const toAfter = step.balancesAfter.get(step.transfer.to) ?? 0;
                   return (
                     <div key={i} className="rounded border border-border/50 bg-background/60 px-2.5 py-2 space-y-1">
                       <div className="flex items-center gap-1.5 font-medium">
-                        <span className="text-red-500">{getParticipantName(step.transfer.from)}</span>
+                        <span className="text-destructive">{getParticipantName(step.transfer.from)}</span>
                         <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <span className="text-emerald-600 dark:text-emerald-400">{getParticipantName(step.transfer.to)}</span>
+                        <span className="text-success">{getParticipantName(step.transfer.to)}</span>
                         <span className="ml-auto text-foreground">Rp {formatCurrency(step.transfer.amount)}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground pl-0.5">
                         <span>
                           {getParticipantName(step.transfer.from)}:{" "}
                           {Math.abs(fromAfter) < 0.01
-                            ? <span className="text-emerald-600 dark:text-emerald-400">settled ✓</span>
+                            ? <span className="text-success">settled ✓</span>
                             : <span>{fromAfter < -0.01 ? `-Rp ${formatCurrency(Math.abs(fromAfter))} still owes` : `+Rp ${formatCurrency(fromAfter)} remaining`}</span>
                           }
                         </span>
@@ -2216,7 +2288,7 @@ export function MultipleReceiptSummaryPanel({
                         <span>
                           {getParticipantName(step.transfer.to)}:{" "}
                           {Math.abs(toAfter) < 0.01
-                            ? <span className="text-emerald-600 dark:text-emerald-400">settled ✓</span>
+                            ? <span className="text-success">settled ✓</span>
                             : <span>{toAfter > 0.01 ? `+Rp ${formatCurrency(toAfter)} still owed` : `-Rp ${formatCurrency(Math.abs(toAfter))} remaining`}</span>
                           }
                         </span>
@@ -2229,8 +2301,9 @@ export function MultipleReceiptSummaryPanel({
           )}
 
           {settlements.length === 0 ? (
-            <div className="text-sm text-center py-2 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-md">
-              ✓ Everyone is settled!
+            <div className="text-sm text-center py-2 text-success bg-success/10 rounded-md">
+              <Check className="mr-1 inline h-4 w-4 shrink-0" aria-hidden="true" />
+              {t.everyoneSettled}
             </div>
           ) : onRecordPayment ? (
             // Ledger mode (Travel): marking a transfer paid records a real,
@@ -2238,7 +2311,7 @@ export function MultipleReceiptSummaryPanel({
             // and the remaining list updates — nothing is silently hidden.
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Tap <span className="font-medium text-foreground">Mark paid</span> once a transfer is done — it&apos;s recorded and synced.
+                {t.tapMarkPaidHint}
               </p>
               {settlements.map((s, i) => (
                 <div
@@ -2250,15 +2323,15 @@ export function MultipleReceiptSummaryPanel({
                     <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="min-w-0 flex-1 font-medium truncate">{getParticipantName(s.to)}</span>
                   </div>
-                  <span className="font-bold text-primary shrink-0">Rp {formatCurrency(s.amount)}</span>
+                  <span className="text-xl font-bold text-primary shrink-0">Rp {formatCurrency(s.amount)}</span>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="touch-manipulation ml-auto h-9 gap-1 text-xs shrink-0"
+                    className="touch-manipulation ml-auto gap-1 text-xs shrink-0"
                     onClick={() => onRecordPayment(s.from, s.to, s.amount)}
                   >
                     <Check className="h-3.5 w-3.5" />
-                    Mark paid
+                    {t.markPaid}
                   </Button>
                 </div>
               ))}
@@ -2278,7 +2351,7 @@ export function MultipleReceiptSummaryPanel({
                     className={cn(
                       "touch-manipulation group w-full flex min-h-[44px] flex-col justify-center sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm py-2 px-3 rounded-md text-left transition-colors",
                       paid
-                        ? "bg-emerald-500/10 hover:bg-emerald-500/15"
+                        ? "bg-success/10 hover:bg-success/15"
                         : "bg-muted/50 hover:bg-muted"
                     )}
                   >
@@ -2302,7 +2375,10 @@ export function MultipleReceiptSummaryPanel({
                         {getParticipantName(s.to)}
                       </span>
                     </div>
-                    <span className={cn("font-bold sm:ml-auto", paid ? "text-emerald-600 dark:text-emerald-400" : "text-primary")}>
+                    {/* The number the whole screen exists to produce. On a
+                        phone the row wraps and this gets its own line, so it
+                        can afford text-2xl; from sm: up it shares the row. */}
+                    <span className={cn("text-2xl font-bold sm:ml-auto sm:text-xl", paid ? "text-success" : "text-primary")}>
                       Rp {formatCurrency(s.amount)}
                     </span>
                   </button>

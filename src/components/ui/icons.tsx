@@ -39,6 +39,7 @@ import {
   House            as _Home,
   Image            as _ImageIcon,
   Info             as _Info,
+  Lightbulb        as _Lightbulb,
   Bank             as _Landmark,
   Stack            as _Layers,
   SquaresFour      as _LayoutDashboard,
@@ -136,6 +137,7 @@ export const CheckCircle2     = w(_CheckCircle2,    "fill");
 export const Circle           = w(_Circle,          "regular");
 export const Clock            = w(_Clock);
 export const Info             = w(_Info,            "fill");
+export const Lightbulb        = w(_Lightbulb,       "fill");
 export const Loader2          = w(_Loader2,         "regular");
 
 // ── Feature / brand ────────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSaveSplit } from "@/hooks/useSaveSplit";
 import { supabaseDataService } from "@/lib/data/supabase-data-service";
 import type { ReceiptDetail } from "@/lib/data/types";
+import { receiptsFromDetail } from "@/lib/receipt-detail";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
@@ -48,13 +49,18 @@ import {
   Receipt as ReceiptIcon,
   PartyPopper,
   Sparkles,
+  AlertTriangle,
+  Lightbulb,
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
+import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
+import { localePath } from "@/lib/i18n/config";
 
 const STEPS: Step[] = [
-  { id: "participants", title: "Participants" },
-  { id: "bill", title: "Bill Details" },
-  { id: "summary", title: "Summary" },
+  { id: "participants", labelKey: "participants" },
+  { id: "bill", labelKey: "billDetails" },
+  { id: "summary", labelKey: "summary" },
 ];
 
 interface SingleState {
@@ -91,11 +97,18 @@ export function SingleSplitView() {
   // Guards rapid double-clicks on Next/Stepper. Without it, two clicks within
   // the same render frame could fire `incrementCount()` twice and skip a step.
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const { isLimitReached, incrementCount, splitsRemaining } = useGuestLimit();
+  const { isLimitReached, incrementCount, splitsRemaining, maxSplits } =
+    useGuestLimit();
   const [showLimitDialog, setShowLimitDialog] = useState(false);
+  // Timestamp of the last successful scan — bumping it scrolls ItemsTable to
+  // the first item that still needs assigning.
+  const [scanLandedAt, setScanLandedAt] = useState(0);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, signIn } = useAuth();
+  const locale = useLocale();
+  const dict = useDictionary();
+  const t = dict.app;
   const { saving, save, adopt, forget, id: savedId, expiresAt } = useSaveSplit();
 
   // Mirrors `state` so the resume effect can read the latest value without
@@ -132,9 +145,45 @@ export function SingleSplitView() {
   const resumeId = searchParams.get("resume");
   const [pendingResume, setPendingResume] = useState<ReceiptDetail | null>(null);
 
+  // ── The wizard's position lives in the URL ─────────────────────────────────
+  //
+  // It did not, which meant the system back gesture — swipe from the left edge
+  // on iOS, the back button on Android — left /single entirely from step 2
+  // instead of returning to step 1. That is the same defect the trip and
+  // receipt views were fixed for; the wizard was simply missed.
+  //
+  // It also decides the shape of the visible controls. With the position in
+  // history, one back control at the top-left is enough: it reads as "back"
+  // because of where it sits, and the ergonomic path — the thumb-zone gesture —
+  // is handled by the OS. Two arrows, one of them unlabelled at the bottom of
+  // the screen, was solving a problem the platform already solves.
+  const stepParam = searchParams.get("step");
+  const stepFromUrl = useMemo(() => {
+    const i = STEPS.findIndex((step) => step.id === stepParam);
+    return i >= 0 ? i : 0;
+  }, [stepParam]);
+
+  const stepUrl = useCallback((index: number) => {
+    const id = STEPS[index]?.id;
+    return index <= 0 || !id ? "/single" : `/single?step=${id}`;
+  }, []);
+
+  // How many forward entries in the history stack are ours. A backward move
+  // pops one when we have it; after a reload straight onto ?step=bill we own
+  // nothing, so it navigates explicitly rather than leaving the site.
+  const ownedHistoryRef = useRef(0);
+
+  // URL → state. Only ever writes state; the handlers only ever write the URL.
+  useEffect(() => {
+    setCurrentStep((prev) => (prev === stepFromUrl ? prev : stepFromUrl));
+  }, [stepFromUrl]);
+
   const applyResume = useCallback(
     (detail: ReceiptDetail) => {
-      const receipt = detail.receipts?.[0];
+      // Via the shared reader: `detail.receipts?.[0]` was undefined for rows
+      // saved before `receipts` existed, and this callback then returned
+      // silently — Continue looked broken and said nothing.
+      const receipt = receiptsFromDetail(detail)[0];
       if (!receipt) return;
       setState({
         participants: detail.participants ?? [],
@@ -168,7 +217,7 @@ export function SingleSplitView() {
         if (cancelled) return;
         // Drop the query param either way so a refresh doesn't re-trigger the
         // load (and re-prompt) after the user has answered.
-        router.replace("/single");
+        router.replace(stepUrl(1));
         // Overwriting unsaved local work without asking is exactly the kind of
         // silent loss this feature is meant to prevent.
         if (stateRef.current.items.length > 0 && stateRef.current.title !== detail.title) {
@@ -180,8 +229,8 @@ export function SingleSplitView() {
         if (!cancelled) {
           router.replace("/single");
           toast({
-            title: "Couldn't open that split",
-            description: "It may have expired or been deleted.",
+            title: t.cards.resumeFailed,
+            description: t.cards.resumeFailedBody,
             variant: "error",
           });
         }
@@ -191,7 +240,7 @@ export function SingleSplitView() {
     return () => {
       cancelled = true;
     };
-  }, [resumeId, applyResume, router, toast]);
+  }, [resumeId, applyResume, router, toast, stepUrl, t.cards.resumeFailed, t.cards.resumeFailedBody]);
 
   const receipt: Receipt = useMemo(
     () => ({
@@ -239,34 +288,46 @@ export function SingleSplitView() {
 
   const blockingMessage = useMemo(() => {
     if (currentStep !== 1) return null;
-    if (state.items.length === 0) return "Add at least one item to continue.";
+    if (state.items.length === 0) return t.editor.needItem;
     const unassigned = state.items.filter((i) => i.assignedToIds.length === 0).length;
     if (unassigned > 0) {
-      return `Assign ${unassigned} item${unassigned > 1 ? "s" : ""} to at least one person.`;
+      return fill(t.editor.needAssign, { count: unassigned });
     }
     const zeroTotal = state.items.filter((i) => i.total <= 0).length;
     if (zeroTotal > 0) {
-      return `${zeroTotal} item${zeroTotal > 1 ? "s have" : " has"} no price.`;
+      return t.editor.needPrice;
     }
-    if (!state.payerId) return "Select who paid the bill.";
+    if (!state.payerId) return t.editor.needPayer;
     return null;
-  }, [currentStep, state]);
+  }, [currentStep, state, t.editor]);
+
+  // Whether THIS split has already been counted against the guest allowance.
+  // It used to increment on every 1 → 2 transition, so a guest who opened the
+  // summary, went Back to fix one price, and opened it again had burned two of
+  // their three free splits on a single bill — three taps to lock themselves
+  // out of work they had already done. Counted once per split; cleared by
+  // Reset, which is what actually starts a new one.
+  const countedRef = useRef(false);
 
   const handleNext = () => {
     if (isTransitioning || currentStep >= STEPS.length - 1) return;
     setIsTransitioning(true);
     try {
       // Check guest limit when moving to summary (step 2)
-      if (currentStep === 1) {
+      if (currentStep === 1 && !countedRef.current) {
         if (isLimitReached) {
           setShowLimitDialog(true);
           return;
         }
+        countedRef.current = true;
         incrementCount();
         // Reaching the summary is the "completed a split" moment for this feature.
         logFeatureUsage("single");
       }
-      setCurrentStep((s) => s + 1);
+      const next = currentStep + 1;
+      ownedHistoryRef.current += 1;
+      setCurrentStep(next);
+      router.push(stepUrl(next));
     } finally {
       // Release on next tick so rapid clicks during the same paint are dropped.
       setTimeout(() => setIsTransitioning(false), 0);
@@ -284,19 +345,38 @@ export function SingleSplitView() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [currentStep, state.items.length]);
 
+  // The single back control, wired to be indistinguishable from the system
+  // back gesture: it pops one step, and popping the first step leaves the split.
+  // That is how a nav-bar back behaves in a pushed-view stack, and it is why one
+  // control can cover both jobs without either of them being mislabelled.
   const handleBack = () => {
-    if (isTransitioning || currentStep === 0) return;
+    if (isTransitioning) return;
+    if (currentStep === 0) {
+      router.push(localePath(locale, "/"));
+      return;
+    }
     setIsTransitioning(true);
-    setCurrentStep((s) => s - 1);
+    const target = currentStep - 1;
+    setCurrentStep(target);
+    if (ownedHistoryRef.current > 0) {
+      ownedHistoryRef.current -= 1;
+      router.back();
+    } else {
+      // Arrived here directly (a reload on ?step=bill) — nothing of ours to pop.
+      router.replace(stepUrl(target));
+    }
     setTimeout(() => setIsTransitioning(false), 0);
   };
 
   const handleStepClick = (target: number) => {
-    if (isTransitioning) return;
-    // Stepper only allows clicking completed/current steps, so this is always
-    // a backward jump or a no-op.
+    if (isTransitioning || target === currentStep) return;
+    // The Stepper only allows completed/current steps, so this is always a
+    // backward jump — possibly of more than one step, which is why it replaces
+    // rather than popping. Our forward entries are no longer reachable after it.
     setIsTransitioning(true);
     setCurrentStep(target);
+    ownedHistoryRef.current = 0;
+    router.replace(stepUrl(target));
     setTimeout(() => setIsTransitioning(false), 0);
   };
 
@@ -307,14 +387,18 @@ export function SingleSplitView() {
   const confirmReset = () => {
     resetState();
     setCurrentStep(0);
+    ownedHistoryRef.current = 0;
+    router.replace("/single");
     setShowResetDialog(false);
+    // A reset is what actually begins a new split, so the next summary counts.
+    countedRef.current = false;
     // Detach from the saved copy: the next Save should create a new split
     // rather than overwrite the one this editor used to hold. The saved split
     // itself is untouched and still resumable from Saved splits.
     forget();
     toast({
-      title: "Split reset",
-      description: "All participants and items were cleared.",
+      title: t.cards.resetDone,
+      description: t.cards.resetDoneBody,
       variant: "success",
     });
   };
@@ -358,8 +442,8 @@ export function SingleSplitView() {
       fees: [],
     });
     toast({
-      title: "Sample data loaded",
-      description: "Click Next to walk through the rest of the flow.",
+      title: t.cards.sampleLoaded,
+      description: t.cards.sampleLoadedBody,
       variant: "success",
     });
   };
@@ -369,23 +453,32 @@ export function SingleSplitView() {
       {/* Header */}
       <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link
-            href="/"
-            aria-label="Back to home"
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
+          {/* One back control, and it is here because top-left is where the
+              meaning lives: an arrow in this corner reads as "back" with no
+              label at all, which the same arrow at the bottom of a button bar
+              does not. It pops a step, and popping the first step leaves the
+              split — see handleBack. */}
+          <button
+            type="button"
+            onClick={handleBack}
+            disabled={isTransitioning}
+            aria-label={currentStep === 0 ? t.common.exit : t.common.back}
+            className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors group"
           >
-            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+            <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
               <ArrowLeft className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium hidden sm:inline">Back</span>
-          </Link>
+            <span className="text-sm font-medium hidden sm:inline">
+              {currentStep === 0 ? t.common.exit : t.common.back}
+            </span>
+          </button>
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md shadow-primary/25">
               <Calculator className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-sm sm:text-base">Single Receipt</span>
-              <span className="text-[10px] text-muted-foreground hidden sm:block">Split one bill</span>
+              <span className="font-bold text-sm sm:text-base">{t.modes.single.title}</span>
+              <span className="text-[10px] text-muted-foreground hidden sm:block">{t.modes.single.subtitle}</span>
             </div>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
@@ -397,31 +490,21 @@ export function SingleSplitView() {
                 asChild
                 variant="ghost"
                 size="sm"
-                className="px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation"
+                className="px-2 sm:px-3 min-w-[44px] sm:min-w-0 touch-manipulation"
               >
-                <Link href="/history" aria-label="Saved splits">
+                <Link href="/history" aria-label={t.common.savedSplitsAria}>
                   <History className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Saved</span>
+                  <span className="hidden sm:inline">{t.common.saved}</span>
                 </Link>
               </Button>
             )}
             <ThemeToggle />
             <AuthButton />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleReset}
-              aria-label="Reset"
-              className="text-muted-foreground hover:text-destructive px-2 sm:px-3 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
-            >
-              <RotateCcw className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Reset</span>
-            </Button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
+      <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex-grow">
         {/* Stepper */}
         <div className="mb-10">
           <Stepper
@@ -430,6 +513,34 @@ export function SingleSplitView() {
             onStepClick={handleStepClick}
           />
         </div>
+
+        {/* The guest allowance, on screen from the first split.
+            `splitsRemaining` was computed and then never rendered, so the limit
+            was invisible right up to the moment it blocked someone — after
+            they had added the people, scanned the receipt and assigned every
+            item. A wall you can see coming is a different thing entirely. */}
+        {!isAuthenticated && Number.isFinite(splitsRemaining) && (
+          <div
+            className={`mb-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-xs ${
+              splitsRemaining <= 1
+                ? "border-warning/30 bg-warning/10 text-warning"
+                : "border-border bg-muted/40 text-muted-foreground"
+            }`}
+          >
+            <span>
+              {splitsRemaining === 0
+                ? fill(t.cards.freeSplitsNone, { max: maxSplits })
+                : fill(t.cards.freeSplitsLeft, { left: splitsRemaining, max: maxSplits })}
+            </span>
+            <button
+              type="button"
+              onClick={() => signIn(window.location.pathname)}
+              className="touch-manipulation font-semibold text-primary underline underline-offset-2"
+            >
+              {t.cards.signInUnlimited}
+            </button>
+          </div>
+        )}
 
         <div className={`grid gap-8 ${currentStep === 2 ? 'lg:grid-cols-1 max-w-4xl mx-auto' : 'lg:grid-cols-3'}`}>
           {/* Main Content */}
@@ -443,8 +554,8 @@ export function SingleSplitView() {
                       <Sparkles className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <CardTitle>Who&rsquo;s splitting the bill?</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-0.5">Add at least 2 people to continue</p>
+                      <CardTitle>{t.cards.whoSplitting}</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-0.5">{t.cards.whoSplittingHint}</p>
                     </div>
                   </div>
                 </CardHeader>
@@ -462,7 +573,7 @@ export function SingleSplitView() {
                       className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
                     >
                       <Sparkles className="h-4 w-4" />
-                      Try with sample data (3 friends, dinner for Rp 240k)
+                      {t.cards.sampleData}
                     </button>
                   )}
                 </CardContent>
@@ -477,26 +588,26 @@ export function SingleSplitView() {
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-xl bg-accent/15 flex items-center justify-center">
-                        <ReceiptIcon className="h-5 w-5 text-accent" />
+                        <ReceiptIcon className="h-5 w-5 text-accent-strong" />
                       </div>
                       <div>
-                        <CardTitle>Receipt Details</CardTitle>
-                        <p className="text-sm text-muted-foreground mt-0.5">Scan or add items manually</p>
+                        <CardTitle>{t.cards.receiptTitle}</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t.cards.receiptSubtitle}</p>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">Receipt Title</Label>
+                        <Label className="text-sm font-medium">{t.cards.receiptTitleLabel}</Label>
                         <Input
                           value={state.title}
                           onChange={(e) => updateState({ title: e.target.value })}
-                          placeholder="e.g., Dinner at Restaurant"
+                          placeholder={t.cards.receiptTitlePlaceholder}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">Date</Label>
+                        <Label className="text-sm font-medium">{t.cards.date}</Label>
                         <Input
                           type="date"
                           value={state.date ? state.date.slice(0, 10) : ""}
@@ -506,7 +617,7 @@ export function SingleSplitView() {
                       </div>
                     </div>
                     <ReceiptInput
-                      onParsed={(result) =>
+                      onParsed={(result) => {
                         updateState({
                           items: [...state.items, ...result.items],
                           tax: result.tax || state.tax,
@@ -517,8 +628,11 @@ export function SingleSplitView() {
                           ...(result.fees?.length
                             ? { fees: [...(state.fees ?? []), ...result.fees] }
                             : {}),
-                        })
-                      }
+                        });
+                        // Scanned items land in the card below, out of sight.
+                        // Take the user there — assigning them is the next task.
+                        setScanLandedAt(Date.now());
+                      }}
                     />
                   </CardContent>
                 </Card>
@@ -532,8 +646,8 @@ export function SingleSplitView() {
                           <Calculator className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <CardTitle>Items & Assignments</CardTitle>
-                          <p className="text-sm text-muted-foreground mt-0.5">{state.items.length} items added</p>
+                          <CardTitle>{t.cards.itemsTitle}</CardTitle>
+                          <p className="text-sm text-muted-foreground mt-0.5">{fill(t.cards.itemsSubtitle, { count: state.items.length })}</p>
                         </div>
                       </div>
                     </div>
@@ -543,6 +657,7 @@ export function SingleSplitView() {
                       items={state.items}
                       participants={state.participants}
                       onChange={(items) => updateState({ items })}
+                      scrollToUnassignedKey={scanLandedAt}
                     />
                   </CardContent>
                 </Card>
@@ -551,12 +666,12 @@ export function SingleSplitView() {
                 <Card>
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-                        <ReceiptIcon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                      <div className="h-10 w-10 rounded-xl bg-success/15 flex items-center justify-center">
+                        <ReceiptIcon className="h-5 w-5 text-success" />
                       </div>
                       <div>
-                        <CardTitle>Fees & Payer</CardTitle>
-                        <p className="text-sm text-muted-foreground mt-0.5">Add tax, service, and select who paid</p>
+                        <CardTitle>{t.cards.feesTitle}</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-0.5">{t.cards.feesSubtitle}</p>
                       </div>
                     </div>
                   </CardHeader>
@@ -588,34 +703,42 @@ export function SingleSplitView() {
             {/* Step 2: Summary */}
             {currentStep === 2 && (
               <div className="animate-fade-in space-y-6">
-                {/* Celebration Header */}
-                <div className="text-center space-y-4 py-6">
-                  <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-accent/30 to-accent/10 flex items-center justify-center mx-auto animate-float shadow-lg shadow-accent/20">
-                    <PartyPopper className="h-10 w-10 text-accent" />
+                {/* Celebration header, reined in. This sat above the settlement
+                    at 80px with an infinite float animation and text-3xl — a
+                    moving object directly on top of the information the user
+                    opened the screen for. */}
+                <div className="text-center space-y-2 py-3">
+                  <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-accent/30 to-accent/10 flex items-center justify-center mx-auto">
+                    <PartyPopper className="h-7 w-7 text-accent-strong" />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-bold gradient-text">🎉 Split Complete!</h2>
-                    <p className="text-muted-foreground mt-2">
-                      Here&rsquo;s the complete breakdown for <span className="font-semibold text-foreground">{state.title}</span>
+                    <h2 className="text-xl font-bold">{t.cards.splitComplete}</h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      <span className="font-semibold text-foreground">{state.title}</span>
                     </p>
                   </div>
                 </div>
 
-                {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-                  <Card className="text-center p-3 sm:p-4 bg-primary/5 border-primary/20">
-                    <p className="text-2xl font-bold text-primary">{state.participants.length}</p>
-                    <p className="text-xs text-muted-foreground">Participants</p>
-                  </Card>
-                  <Card className="text-center p-3 sm:p-4 bg-accent/5 border-accent/20">
-                    <p className="text-2xl font-bold text-accent-strong">{state.items.length}</p>
-                    <p className="text-xs text-muted-foreground">Items</p>
-                  </Card>
-                  <Card className="col-span-2 sm:col-span-1 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
-                    <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 break-all sm:break-normal">
+                {/* Quick stats. Back above the panel at the owner's request.
+                    Note the measured consequence, accepted: with these here the
+                    settlement heading sits below a 667px fold. Participants and
+                    Items keep the smaller type — they were the two biggest
+                    numbers on the screen at text-2xl, a count nobody needs
+                    rendered larger than the amounts people owe. */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+                  <Card className="col-span-2 text-center p-3 sm:p-4 bg-emerald-500/5 border-emerald-500/20">
+                    <p className="text-2xl font-bold text-success break-all sm:break-normal">
                       Rp {formatCurrency(summary.grandTotal)}
                     </p>
-                    <p className="text-xs text-muted-foreground">Total Bill</p>
+                    <p className="text-xs text-muted-foreground">{t.cards.totalBill}</p>
+                  </Card>
+                  <Card className="text-center p-3 sm:p-4 bg-primary/5 border-primary/20">
+                    <p className="text-base font-semibold text-primary">{state.participants.length}</p>
+                    <p className="text-xs text-muted-foreground">{t.cards.participants}</p>
+                  </Card>
+                  <Card className="text-center p-3 sm:p-4 bg-accent/5 border-accent/20">
+                    <p className="text-base font-semibold text-accent-strong">{state.items.length}</p>
+                    <p className="text-xs text-muted-foreground">{t.cards.items}</p>
                   </Card>
                 </div>
 
@@ -630,11 +753,12 @@ export function SingleSplitView() {
                   />
                 </ErrorBoundary>
 
+
                 {/* Export Tip */}
                 <Card className="border-dashed border-muted-foreground/30 bg-muted/30">
                   <CardContent className="py-4 text-center">
                     <p className="text-sm text-muted-foreground">
-                      💡 <span className="font-medium">Tip:</span> Use the <span className="font-semibold text-primary">Export</span> button above to copy & share via WhatsApp or other apps
+                      <Lightbulb className="mr-1 inline h-4 w-4 align-[-3px] text-accent-strong" aria-hidden="true" />{t.cards.exportTip}
                     </p>
                   </CardContent>
                 </Card>
@@ -649,44 +773,22 @@ export function SingleSplitView() {
                 "save my work" one tap away from "erase everything", on a
                 cramped bar. Static from `sm:` up, where a fixed bar would just
                 eat vertical space on a mouse-driven screen. */}
-            <div
-              className="
-                sticky bottom-0 z-10 -mx-3 mt-6 space-y-2 border-t
-                bg-background/95 px-3 pt-3 backdrop-blur
-                pb-[max(0.75rem,env(safe-area-inset-bottom))]
-                sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0
-                sm:pb-0 sm:backdrop-blur-none
-              "
-            >
+            <StickyActionBar>
               {blockingMessage && (
                 <p
                   role="status"
-                  className="text-xs font-medium text-amber-600 dark:text-amber-400 sm:text-right"
+                  className="text-xs font-medium text-warning sm:text-right"
                 >
-                  ⚠️ {blockingMessage}
+                  <AlertTriangle className="mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]" aria-hidden="true" />{blockingMessage}
                 </p>
               )}
+              {/* Forward motion only. Back used to live here too, as a bare
+                  unlabelled arrow on mobile — the control most in need of being
+                  recognised was the one with no label. It moved to the header,
+                  where its position carries the meaning, and the ~80px that
+                  freed is spent on showing the Save label instead. Net: two
+                  controls got clearer, not one. */}
               <div className="flex items-center gap-2">
-                {/* Step 0 already has the header "Back" (to home); a second,
-                    disabled Back here just adds a dead control — so on the first
-                    step we render a spacer instead to keep Next right-aligned. */}
-                {currentStep > 0 ? (
-                  <Button
-                    variant="outline"
-                    onClick={handleBack}
-                    disabled={isTransitioning}
-                    size="lg"
-                    className="min-h-[44px] touch-manipulation"
-                  >
-                    <ArrowLeft className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Back</span>
-                  </Button>
-                ) : (
-                  <span aria-hidden="true" />
-                )}
-
-                {/* Pushes the step action to the right on every step, with or
-                    without a Back button present. */}
                 <span className="flex-1" aria-hidden="true" />
 
                 {isAuthenticated && (
@@ -697,10 +799,8 @@ export function SingleSplitView() {
                     size="lg"
                     className="min-h-[44px] touch-manipulation"
                   >
-                    <Cloud className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">
-                      {saving ? "Saving…" : "Save"}
-                    </span>
+                    <Cloud className="h-4 w-4 mr-2" />
+                    {saving ? t.common.saving : t.common.save}
                   </Button>
                 )}
 
@@ -712,11 +812,26 @@ export function SingleSplitView() {
                     variant={currentStep === 1 ? "accent" : "default"}
                     className="min-h-[44px] touch-manipulation"
                   >
-                    {currentStep === 1 ? "View Summary" : "Next"}
+                    {currentStep === 1 ? t.cards.viewSummary : t.cards.next}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 )}
               </div>
+            </StickyActionBar>
+
+            {/* Reset lives here, not in the header: the header is navigation,
+                and this is the most destructive control on the screen. Same
+                placement TravelSpendView already uses for "Delete trip". */}
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                className="touch-manipulation text-muted-foreground hover:text-destructive"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                {t.common.reset}
+              </Button>
             </div>
           </div>
 
@@ -746,18 +861,18 @@ export function SingleSplitView() {
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset everything?</DialogTitle>
+            <DialogTitle>{t.cards.resetTitle}</DialogTitle>
             <DialogDescription>
-              This will clear all participants, items, fees, and the payer for this split. This action cannot be undone.
+              {t.cards.resetBody}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowResetDialog(false)}>
-              Cancel
+              {t.summary.cancel}
             </Button>
             <Button variant="destructive" onClick={confirmReset}>
               <RotateCcw className="h-4 w-4 mr-2" />
-              Yes, reset
+              {t.cards.resetConfirm}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -771,17 +886,17 @@ export function SingleSplitView() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Replace what&rsquo;s in the editor?</DialogTitle>
+            <DialogTitle>{t.multiple.replaceTitle}</DialogTitle>
             <DialogDescription>
-              You have a split in progress here ({state.items.length}{" "}
-              item{state.items.length === 1 ? "" : "s"}). Opening
-              &ldquo;{pendingResume?.title}&rdquo; will replace it, and anything
-              you haven&rsquo;t saved will be lost.
+              {fill(t.multiple.replaceBody, {
+                count: state.items.length,
+                title: pendingResume?.title ?? "",
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setPendingResume(null)}>
-              Keep what I have
+              {t.multiple.keepMine}
             </Button>
             <Button
               onClick={() => {
@@ -789,7 +904,7 @@ export function SingleSplitView() {
                 setPendingResume(null);
               }}
             >
-              Open the saved split
+              {t.multiple.openSaved}
             </Button>
           </DialogFooter>
         </DialogContent>

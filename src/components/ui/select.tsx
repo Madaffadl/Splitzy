@@ -19,7 +19,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      "flex h-11 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-base sm:h-9 sm:text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
       className
     )}
     {...props}
@@ -158,3 +158,20 @@ export {
   SelectScrollUpButton,
   SelectScrollDownButton,
 }
+
+/**
+ * Class string for a native `<select>`.
+ *
+ * Some selects here are deliberately NOT this Radix component: a currency list
+ * is long, and on a phone the OS picker — the iOS wheel, Android's dialog — is
+ * better at it than any popover we can build, and it is what the user already
+ * knows. Radix stays for short lists (payer, discount scope) where the styled
+ * dropdown is worth it.
+ *
+ * They were drifting apart on border, padding and focus ring, so the shared
+ * part lives here, beside the component it deliberately differs from. Sizing
+ * matches SelectTrigger and Button `sm`: 44px under a thumb, compact from sm:.
+ */
+export const nativeSelectClass =
+    "touch-manipulation flex h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-9 sm:text-sm";
+

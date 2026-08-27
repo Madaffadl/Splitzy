@@ -19,6 +19,7 @@ import {
   Sparkles,
   ShieldCheck,
 } from "@/components/ui/icons";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 interface ReceiptInputProps {
   onParsed: (result: ParseResult) => void;
@@ -86,6 +87,7 @@ async function resizeImage(dataUrl: string, maxDimension = 1920, quality = 0.85)
 }
 
 export function ReceiptInput({ onParsed }: ReceiptInputProps) {
+  const t = useDictionary().app.scan;
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [parsedResult, setParsedResult] = useState<ParseResult | null>(null);
@@ -122,6 +124,19 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
   }, []);
 
   const processImage = useCallback(async (imageData: string) => {
+    // Restaurant Wi-Fi is the likeliest failure in this whole flow, and it used
+    // to surface as "Failed to process image. Please try again." — which reads
+    // as "your photo is bad". People re-shoot a perfectly good receipt, twice,
+    // then give up and open the calculator. Say what actually happened, and
+    // point at the one thing that still works offline.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setErrorMessage(
+        t.offline
+      );
+      setStatus("error");
+      return;
+    }
+
     setStatus("processing");
     setErrorMessage("");
     setQuotaHit(false);
@@ -137,7 +152,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       }
 
       if (geminiResult.items.length === 0) {
-        setErrorMessage("No items found. Try a clearer photo.");
+        setErrorMessage(t.noItems);
         setStatus("error");
         return;
       }
@@ -216,13 +231,18 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       } else if (msg === "__TIMEOUT__") {
         // Nothing was wrong with the photo — say so, or the user will waste
         // time re-shooting a receipt that would have scanned fine.
-        setErrorMessage("Scanning took too long. Please try again.");
+        setErrorMessage(t.timedOut);
+      } else if (typeof navigator !== "undefined" && !navigator.onLine) {
+        // The connection dropped mid-request.
+        setErrorMessage(
+          t.dropped
+        );
       } else {
-        setErrorMessage("Failed to process image. Please try again.");
+        setErrorMessage(t.failedGeneric);
       }
       setStatus("error");
     }
-  }, [processWithGemini, onParsed]);
+  }, [processWithGemini, onParsed, t]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -260,32 +280,17 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       {/* Upload Area */}
       {status === "idle" && (
         <div className="space-y-4">
-          {/* Main Upload Button */}
-          <div 
-            className="relative border-2 border-dashed border-muted-foreground/25 rounded-xl p-8 text-center hover:border-primary/50 hover:bg-muted/30 transition-all cursor-pointer group"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileSelect}
-              className="absolute inset-0 opacity-0 cursor-pointer"
-            />
-            <div className="space-y-3">
-              <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <ImageIcon className="h-7 w-7 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium text-lg">Upload Receipt Photo</p>
-                <p className="text-sm text-muted-foreground">
-                  Click or drag receipt photo here
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Camera Button for Mobile */}
+          {/* Hidden file inputs. Both are driven by the buttons below rather
+              than by an invisible overlay, so a tap can only ever open one
+              picker — the old dropzone stacked an inset-0 file input under an
+              onClick that also called .click() on it. */}
+          <Input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
           <Input
             ref={cameraInputRef}
             type="file"
@@ -294,39 +299,72 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             onChange={handleFileSelect}
             className="hidden"
           />
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Choose File
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12"
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              Take Photo
-            </Button>
-          </div>
 
-          <p className="text-xs text-center text-muted-foreground">
-            ✨ AI will read the receipt and extract all items automatically
-          </p>
+          {/* This app is used standing up in a restaurant with the receipt in
+              the other hand, and the biggest, most obvious target on the screen
+              opened the photo gallery — which for this receipt is empty. Taking
+              the photo is the primary action on a phone; picking a file is the
+              primary action on a desktop, which has no rear camera. So they
+              swap at sm:. */}
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="touch-manipulation group w-full rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-8 text-center transition-colors hover:border-primary/60 hover:bg-primary/10 sm:hidden"
+          >
+            <div className="space-y-3">
+              <div className="mx-auto w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center group-hover:bg-primary/25 transition-colors">
+                <Camera className="h-7 w-7 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-lg">{t.takePhoto}</p>
+                <p className="text-sm text-muted-foreground">{t.takePhotoHint}</p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="touch-manipulation group hidden w-full rounded-xl border-2 border-dashed border-muted-foreground/25 p-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/30 sm:block"
+          >
+            <div className="space-y-3">
+              <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <ImageIcon className="h-7 w-7 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold text-lg">{t.uploadPhoto}</p>
+                <p className="text-sm text-muted-foreground">{t.takePhotoHint}</p>
+              </div>
+            </div>
+          </button>
+
+          {/* The secondary route, deliberately subordinate — one primary action
+              per screen. These used to be two identically-weighted outline
+              buttons, which is how "Take Photo" ended up looking optional. */}
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full text-muted-foreground sm:hidden"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {t.chooseExisting}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="hidden w-full text-muted-foreground sm:inline-flex"
+            onClick={() => cameraInputRef.current?.click()}
+          >
+            <Camera className="h-4 w-4 mr-2" />
+            {t.useCamera}
+          </Button>
 
           {/* Privacy disclosure — be transparent that the image is sent to a third party.
               Important for trust on a finance-related app. */}
           <div className="flex items-start gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-            <p>
-              Your photo is sent to Google Gemini for parsing and is not stored by Splitzy.
-              Avoid uploading receipts with sensitive personal data.
-            </p>
+            <p>{t.privacy}</p>
           </div>
         </div>
       )}
@@ -351,10 +389,10 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
                 </div>
                 <div className="text-center space-y-1">
                   <p className="font-semibold text-lg">
-                    {status === "uploading" ? "Uploading..." : "AI Reading Receipt..."}
+                    {status === "uploading" ? t.uploading : t.reading}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Gemini is analyzing the image
+                    {t.analysing}
                   </p>
                 </div>
               </div>
@@ -366,21 +404,21 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
       {/* Success State */}
       {status === "success" && parsedResult && (
         <div className="space-y-4 animate-fade-in">
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-            <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-success/10 border border-success/30">
+            <CheckCircle2 className="h-6 w-6 text-success shrink-0" />
             <div className="flex-1">
-              <p className="font-semibold text-emerald-600 dark:text-emerald-400">
-                Success! {parsedResult.items.length} item{parsedResult.items.length !== 1 ? 's' : ''} found
+              <p className="font-semibold text-success">
+                {fill(t.successTitle, { count: parsedResult.items.length })}
               </p>
               <p className="text-sm text-muted-foreground">
-                Items have been added to the list
+                {t.successBody}
               </p>
             </div>
           </div>
 
           {/* Preview of parsed items */}
           <div className="rounded-xl border bg-card p-4 space-y-3">
-            <Label className="text-sm text-muted-foreground">Items found:</Label>
+            <Label className="text-sm text-muted-foreground">{t.itemsFound}</Label>
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
               {parsedResult.items.map((item, i) => (
                 <div 
@@ -405,26 +443,26 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             {/* Receipt Summary */}
             <div className="pt-3 border-t space-y-1.5 mt-4">
               <div className="flex justify-between text-sm font-medium text-foreground">
-                <span>Subtotal Items</span>
+                <span>{t.subtotalItems}</span>
                 <span>Rp {formatCurrency(parsedResult.items.reduce((sum, item) => sum + (item.total || 0), 0))}</span>
               </div>
               
               {parsedResult.service > 0 && (
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Service</span>
+                  <span>{t.service}</span>
                   <span>Rp {formatCurrency(parsedResult.service)}</span>
                 </div>
               )}
               
               {parsedResult.tax > 0 && (
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Tax/PB1</span>
+                  <span>{t.tax}</span>
                   <span>Rp {formatCurrency(parsedResult.tax)}</span>
                 </div>
               )}
               
               <div className="flex justify-between text-base font-bold text-foreground pt-3 mt-2 border-t border-dashed">
-                <span>Total Detected</span>
+                <span>{t.totalDetected}</span>
                 <span>Rp {formatCurrency(
                   parsedResult.items.reduce((sum, item) => sum + (item.total || 0), 0) + 
                   (parsedResult.tax || 0) + 
@@ -440,7 +478,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
             onClick={resetUpload}
             className="touch-manipulation h-11 w-full"
           >
-            Upload Another Receipt
+            {t.uploadAnother}
           </Button>
         </div>
       )}
@@ -463,14 +501,14 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
           {quotaHit ? (
             <ScanQuotaPaywall />
           ) : (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-              <AlertTriangle className="h-6 w-6 text-amber-500 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-warning/10 border border-warning/30">
+              <AlertTriangle className="h-6 w-6 text-warning shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-amber-600 dark:text-amber-400">
-                  Failed to read receipt
+                <p className="font-semibold text-warning">
+                  {t.failedTitle}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {errorMessage || "Make sure the photo is clear and try again."}
+                  {errorMessage || t.failedBody}
                 </p>
               </div>
             </div>
@@ -483,7 +521,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
               onClick={resetUpload}
               className="touch-manipulation h-11"
             >
-              Upload New
+              {t.uploadNew}
             </Button>
             {!quotaHit && (
               <Button
@@ -491,7 +529,7 @@ export function ReceiptInput({ onParsed }: ReceiptInputProps) {
                 onClick={retryProcessing}
                 className="touch-manipulation h-11"
               >
-                Try Again
+                {t.retry}
               </Button>
             )}
           </div>

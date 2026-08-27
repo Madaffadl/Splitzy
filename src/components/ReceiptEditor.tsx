@@ -6,13 +6,16 @@ import { ReceiptInput } from "@/components/ReceiptInput";
 import { ItemsTable } from "@/components/ItemsTable";
 import { FeesInput } from "@/components/FeesInput";
 import { DiscountsInput } from "@/components/DiscountsInput";
+import { nativeSelectClass } from "@/components/ui/select";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, X, Loader2, RefreshCw, CheckCircle2, AlertCircle, Globe } from "@/components/ui/icons";
+import { Check, X, Loader2, RefreshCw, CheckCircle2, AlertCircle, Globe, AlertTriangle,} from "@/components/ui/icons";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 import { TRAVEL_CURRENCIES, getCurrencyMeta } from "@/lib/currencies";
 
 interface ScanDetection {
@@ -58,6 +61,7 @@ export function ReceiptEditor({
   onUpdatePaymentInfo,
   isTravelMode = false,
 }: ReceiptEditorProps) {
+  const t = useDictionary().app;
   const [fetchingRate, setFetchingRate] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
   const [scanDetection, setScanDetection] = useState<ScanDetection | null>(null);
@@ -76,14 +80,14 @@ export function ReceiptEditor({
     (!isTravelMode || !isForeignCurrency || hasRate);
 
   let blockMsg: string | null = null;
-  if (receipt.items.length === 0) blockMsg = "Add at least one item.";
+  if (receipt.items.length === 0) blockMsg = t.editor.needItem;
   else if (!receipt.items.every((item) => item.total > 0 && item.assignedToIds.length > 0)) {
     const unassigned = receipt.items.filter((i) => i.assignedToIds.length === 0).length;
     blockMsg =
       unassigned > 0
-        ? `Assign ${unassigned} item${unassigned > 1 ? "s" : ""} to at least one person.`
-        : "Every item needs a price.";
-  } else if (!receipt.payerId) blockMsg = "Select who paid the bill.";
+        ? fill(t.editor.needAssign, { count: unassigned })
+        : t.editor.needPrice;
+  } else if (!receipt.payerId) blockMsg = t.editor.needPayer;
   else if (isTravelMode && isForeignCurrency && !hasRate)
     blockMsg = `Enter the exchange rate for ${receipt.currency}.`;
 
@@ -97,20 +101,20 @@ export function ReceiptEditor({
         const res = await fetch(`/api/fx-rate?from=${encodeURIComponent(currency)}`);
         const data = (await res.json()) as { rate?: number; updatedAt?: string; error?: string };
         if (!res.ok || !data.rate) {
-          setRateError(data.error ?? "Could not fetch rate. Enter manually.");
+          setRateError(data.error ?? t.editor.rateFetchFailed);
           return false;
         }
         onChange({ fxRate: data.rate });
         setRateMeta({ updatedAt: data.updatedAt ?? new Date().toISOString() });
         return true;
       } catch {
-        setRateError("Network error. Enter the rate manually.");
+        setRateError(t.editor.rateNetworkError);
         return false;
       } finally {
         setFetchingRate(false);
       }
     },
-    [onChange]
+    [onChange, t.editor.rateFetchFailed, t.editor.rateNetworkError]
   );
 
   const handleCurrencyChange = useCallback(
@@ -151,12 +155,12 @@ export function ReceiptEditor({
       <div className="lg:col-span-2 space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>{isNew ? "New Receipt" : "Edit Receipt"}</CardTitle>
+            <CardTitle>{isNew ? t.editor.newReceipt : t.editor.editReceipt}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
               <div className="space-y-2">
-                <Label>Receipt Title</Label>
+                <Label>{t.editor.receiptTitle}</Label>
                 <Input
                   value={receipt.title}
                   onChange={(e) => onChange({ title: e.target.value })}
@@ -179,7 +183,7 @@ export function ReceiptEditor({
               <div className="space-y-3 pt-2 border-t">
                 <div className="flex items-center gap-2">
                   <Globe className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="font-medium text-sm">Currency</h3>
+                  <h3 className="font-medium text-sm">{t.editor.currency}</h3>
                 </div>
 
                 {/* Scan detection banner */}
@@ -197,14 +201,14 @@ export function ReceiptEditor({
                       <>
                         <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                         <span>
-                          {getCurrencyMeta(scanDetection.currency).name} detected — fetching exchange rate…
+                          {fill(t.editor.detectedFetching, { name: getCurrencyMeta(scanDetection.currency).name })}
                         </span>
                       </>
                     ) : scanDetection.status === "fetched" ? (
                       <>
                         <CheckCircle2 className="h-4 w-4 shrink-0" />
                         <span>
-                          ✨ {getCurrencyMeta(scanDetection.currency).name} detected — rate locked:{" "}
+                          {fill(t.editor.detectedLocked, { name: getCurrencyMeta(scanDetection.currency).name })}{" "}
                           <strong>
                             1 {getCurrencyMeta(scanDetection.currency).symbol} = Rp{" "}
                             {receipt.fxRate?.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
@@ -215,7 +219,7 @@ export function ReceiptEditor({
                       <>
                         <AlertCircle className="h-4 w-4 shrink-0" />
                         <span>
-                          {getCurrencyMeta(scanDetection.currency).name} detected — enter rate manually
+                          {fill(t.editor.detectedManual, { name: getCurrencyMeta(scanDetection.currency).name })}
                         </span>
                       </>
                     )}
@@ -226,7 +230,7 @@ export function ReceiptEditor({
                   <select
                     value={receipt.currency ?? "IDR"}
                     onChange={(e) => handleCurrencyChange(e.target.value)}
-                    className="touch-manipulation flex h-11 w-full rounded-md border border-input bg-background px-3 py-1 text-base sm:h-9 sm:text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className={nativeSelectClass}
                   >
                     {TRAVEL_CURRENCIES.map((c) => (
                       <option key={c.code} value={c.code}>
@@ -262,26 +266,26 @@ export function ReceiptEditor({
                         size="sm"
                         onClick={() => void fetchRate(receipt.currency!)}
                         disabled={fetchingRate}
-                        title="Auto-fetch latest rate"
-                        className="touch-manipulation h-11 sm:h-9"
+                        title={t.editor.autoFetchTitle}
+                        className="touch-manipulation"
                       >
                         {fetchingRate ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <RefreshCw className="h-3.5 w-3.5" />
                         )}
-                        <span className="ml-1.5">Auto-fetch</span>
+                        <span className="ml-1.5">{t.editor.autoFetch}</span>
                       </Button>
                     </div>
 
                     {hasRate && !scanDetection && (
                       <p className="text-xs text-muted-foreground">
-                        Rate locked:{" "}
+                        {t.editor.rateLocked}{" "}
                         <span className="font-medium text-foreground">
                           1 {currencyMeta.symbol} = Rp{" "}
                           {receipt.fxRate!.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
                         </span>{" "}
-                        · Saved with this receipt.
+                        · {t.editor.savedWithReceipt}
                       </p>
                     )}
 
@@ -289,7 +293,7 @@ export function ReceiptEditor({
                         hasn't been manually overridden (rateMeta cleared on edit). */}
                     {rateMeta && hasRate && (
                       <p className="text-[11px] text-muted-foreground/80">
-                        Source: open.er-api.com · Updated {relativeTime(rateMeta.updatedAt)}
+                        {t.editor.source}: open.er-api.com · {t.editor.updated} {relativeTime(rateMeta.updatedAt)}
                       </p>
                     )}
 
@@ -300,7 +304,7 @@ export function ReceiptEditor({
             )}
 
             <div className="pt-4 border-t">
-              <h3 className="font-medium mb-4">Add Items</h3>
+              <h3 className="font-medium mb-4">{t.editor.addItems}</h3>
               <ReceiptInput
                 onParsed={(result) => {
                   const updates: Partial<Receipt> = {
@@ -327,7 +331,7 @@ export function ReceiptEditor({
             </div>
 
             <div className="pt-4 border-t">
-              <h3 className="font-medium mb-4">Items & Assignments</h3>
+              <h3 className="font-medium mb-4">{t.editor.itemsAssignments}</h3>
               <ItemsTable
                 items={receipt.items}
                 participants={participants}
@@ -336,7 +340,7 @@ export function ReceiptEditor({
             </div>
 
             <div className="pt-4 border-t">
-              <h3 className="font-medium mb-4">Fees & Payer</h3>
+              <h3 className="font-medium mb-4">{t.editor.feesPayer}</h3>
               <FeesInput
                 tax={receipt.tax}
                 service={receipt.service}
@@ -363,11 +367,15 @@ export function ReceiptEditor({
           </CardContent>
         </Card>
 
-        {/* Save/Cancel */}
-        <div className="sticky bottom-[max(1rem,env(safe-area-inset-bottom))] mx-2 md:mx-0 p-4 bg-background/80 backdrop-blur-xl border rounded-2xl shadow-premium-lg z-20">
+        {/* Save/Cancel — the shared bar, so the editor stops speaking a
+            different visual language from the split it sits inside. It was a
+            floating rounded card with its own blur that kept floating on
+            desktop; the previous "Add receipt" tap and this "Save receipt" tap
+            happen seconds apart and now look like the same control surface. */}
+        <StickyActionBar>
           {blockMsg && (
-            <p role="status" className="mb-2 text-right text-xs font-medium text-amber-600 dark:text-amber-400">
-              ⚠️ {blockMsg}
+            <p role="status" className="mb-2 text-right text-xs font-medium text-warning">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" />{blockMsg}
             </p>
           )}
           {/* Column-reverse on mobile puts Save above Cancel, so the discard
@@ -379,7 +387,7 @@ export function ReceiptEditor({
               className="touch-manipulation h-11 w-full sm:w-auto bg-background/50 hover:bg-muted"
             >
               <X className="h-4 w-4 mr-2" />
-              Cancel
+              {t.editor.cancel}
             </Button>
             <Button
               onClick={onSave}
@@ -387,10 +395,10 @@ export function ReceiptEditor({
               className="touch-manipulation h-11 w-full sm:w-auto shadow-md shadow-primary/20"
             >
               <Check className="h-4 w-4 mr-2" />
-              Save Receipt
+              {t.editor.saveReceipt}
             </Button>
           </div>
-        </div>
+        </StickyActionBar>
       </div>
 
       {/* Live preview */}

@@ -4,8 +4,13 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// `active:scale-[0.97]` is the only press feedback this app has. Every state
+// below it was hover-only, and a touch screen has no hover — so tapping any
+// button produced no visual response at all until the next render landed.
+// Scale is a transform, so it gives that response without moving a single
+// neighbour or triggering layout.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-semibold ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm font-semibold ring-offset-background transition-all duration-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -21,12 +26,18 @@ const buttonVariants = cva(
         accent: "bg-accent text-accent-foreground shadow-md shadow-accent/25 hover:bg-accent/90 hover:shadow-lg hover:shadow-accent/30 hover:-translate-y-0.5 active:translate-y-0",
         "accent-outline": "border-2 border-accent-strong bg-transparent text-accent-strong hover:bg-accent/10",
       },
+      // Mobile-first heights. `sm` used to be a flat h-9 (36px), which is under
+      // the 44px touch minimum — and it is the size 47 call sites reach for, so
+      // each one bolted on its own patch (`min-h-[44px] sm:min-h-0`, `h-11`,
+      // `h-11 sm:h-9`). Four dialects for one rule. The rule lives here now:
+      // 44px under a thumb, compact from `sm:` up where the input is a mouse.
+      // This is the pattern SettleUpCard already uses throughout.
       size: {
         default: "h-11 px-5 py-2.5 rounded-xl",
-        sm: "h-9 rounded-lg px-4 text-xs",
+        sm: "h-11 sm:h-9 rounded-lg px-4 text-xs",
         lg: "h-12 rounded-xl px-8 text-base",
         icon: "h-11 w-11 rounded-xl",
-        pill: "h-10 px-6 rounded-full",
+        pill: "h-11 sm:h-10 px-6 rounded-full",
       },
     },
     defaultVariants: {

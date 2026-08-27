@@ -82,7 +82,7 @@ export function ReceiptHistoryCard({
                 className={
                   "mt-1.5 flex items-center gap-1 text-[11px] " +
                   (expiringSoon
-                    ? "text-amber-600 dark:text-amber-400"
+                    ? "text-warning"
                     : "text-muted-foreground")
                 }
               >

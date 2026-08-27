@@ -4,7 +4,11 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { TravelTrip, Receipt, Participant, PaymentInfo, TripMember, TripPayment } from "@/types";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTravelData } from "@/hooks/useTravelData";
+import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
+import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
+import { localePath } from "@/lib/i18n/config";
 import { useAuth } from "@/hooks/useAuth";
 import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
 import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
@@ -24,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { nativeSelectClass } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +53,7 @@ import {
   Upload,
   Link2,
   Copy,
+  MessageCircle,
   X,
   Crown,
   UserPlus,
@@ -149,6 +155,7 @@ function TravelSyncDialog({
   onDismiss: () => void;
   onKeepLocal: () => void;
 }) {
+  const t = useDictionary().app.travel;
   const [status, setStatus] = useState<"idle" | "syncing" | "done">("idle");
   const [count, setCount] = useState(0);
 
@@ -170,12 +177,12 @@ function TravelSyncDialog({
         <DialogHeader>
           {status === "done" ? (
             <>
-              <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+              <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
+                <CheckCircle2 className="h-6 w-6 text-success" />
               </div>
-              <DialogTitle className="text-center">Sync complete</DialogTitle>
+              <DialogTitle className="text-center">{t.syncDone}</DialogTitle>
               <DialogDescription className="text-center">
-                {count} trip{count !== 1 ? "s" : ""} synced to your account.
+                {fill(t.syncedCount, { count })}
               </DialogDescription>
             </>
           ) : (
@@ -183,24 +190,24 @@ function TravelSyncDialog({
               <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Upload className="h-6 w-6 text-primary" />
               </div>
-              <DialogTitle className="text-center">Sync trips to cloud?</DialogTitle>
+              <DialogTitle className="text-center">{t.syncTitle}</DialogTitle>
               <DialogDescription className="text-center">
-                You have trips saved on this device. Sync them to your account so they&apos;re accessible anywhere.
+                {fill(t.syncBody, { count })}
               </DialogDescription>
             </>
           )}
         </DialogHeader>
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">
           {status === "done" ? (
-            <Button onClick={handleClose} className="w-full">Done</Button>
+            <Button onClick={handleClose} className="w-full">{t.done}</Button>
           ) : (
             <>
               <Button onClick={handleSync} disabled={status === "syncing"} className="w-full gap-2">
                 {status === "syncing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}
-                {status === "syncing" ? "Syncing…" : "Sync to my account"}
+                {status === "syncing" ? t.syncing : t.syncNow}
               </Button>
               <Button variant="ghost" onClick={() => { handleClose(); onKeepLocal(); }} disabled={status === "syncing"} className="w-full">
-                Keep local only
+                {t.keepLocalOnly}
               </Button>
             </>
           )}
@@ -223,6 +230,7 @@ function IndividualBudgets({
   spent: Map<string, number>;
   onSetBudget: (participantId: string, budget: number | undefined) => void;
 }) {
+  const t = useDictionary().app.travel;
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const commit = (id: string) => {
@@ -240,14 +248,14 @@ function IndividualBudgets({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-          Individual budgets
+          <Target className="h-5 w-5 text-success" />
+          {t.individualBudgets}
         </CardTitle>
-        <CardDescription>Optional — a personal spending target per traveler.</CardDescription>
+        <CardDescription>{t.individualBudgetsHint}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {participants.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Add travelers first to set individual budgets.</p>
+          <p className="text-sm text-muted-foreground">{t.addTravelersForBudgets}</p>
         ) : (
           participants.map((p) => {
             const budget = p.budget;
@@ -270,7 +278,7 @@ function IndividualBudgets({
                       inputMode="numeric"
                       className="pl-8 h-11 text-base sm:h-9 sm:text-sm"
                       placeholder="0"
-                      aria-label={`${p.name} budget`}
+                      aria-label={fill(t.budgetAria, { name: p.name })}
                       value={draft !== undefined ? draft : hasBudget ? formatCurrency(budget) : ""}
                       onFocus={() => setDrafts((prev) => ({ ...prev, [p.id]: hasBudget ? String(budget) : "" }))}
                       onChange={(e) => setDrafts((prev) => ({ ...prev, [p.id]: e.target.value }))}
@@ -287,11 +295,11 @@ function IndividualBudgets({
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <p className={cn("text-[11px]", over ? "text-red-500 font-medium" : "text-muted-foreground")}>
-                      Rp {formatCurrency(s)} of Rp {formatCurrency(budget)}
+                    <p className={cn("text-[11px]", over ? "text-destructive font-medium" : "text-muted-foreground")}>
+                      {fill(t.spentOf, { spent: formatCurrency(s), budget: formatCurrency(budget) })}
                       {over
-                        ? ` · over by Rp ${formatCurrency(s - budget)}`
-                        : ` · Rp ${formatCurrency(budget - s)} left`}
+                        ? fill(t.overBy, { amount: formatCurrency(s - budget) })
+                        : fill(t.leftOver, { amount: formatCurrency(budget - s) })}
                     </p>
                   </div>
                 )}
@@ -320,6 +328,7 @@ function SettleUpCard({
   onAdd: (input: { from: string; to: string; amount: number; currency?: string; fxRate?: number; note?: string }) => void;
   onDelete: (paymentId: string) => void;
 }) {
+  const t = useDictionary().app.travel;
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
@@ -341,12 +350,12 @@ function SettleUpCard({
       const res = await fetch(`/api/fx-rate?from=${encodeURIComponent(cur)}`);
       const data = (await res.json()) as { rate?: number; error?: string };
       if (!res.ok || !data.rate) {
-        setRateError(data.error ?? "Could not fetch rate. Enter manually.");
+        setRateError(data.error ?? t.rateFetchFailed);
       } else {
         setFxRate(String(data.rate));
       }
     } catch {
-      setRateError("Network error. Enter the rate manually.");
+      setRateError(t.rateNetworkError);
     } finally {
       setFetchingRate(false);
     }
@@ -397,10 +406,10 @@ function SettleUpCard({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-          Settle-up payments
+          <Wallet className="h-5 w-5 text-success" />
+          {t.settleUp}
         </CardTitle>
-        <CardDescription>Record money paid directly between travelers (partial is fine).</CardDescription>
+        <CardDescription>{t.settleUpHint}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Existing payments */}
@@ -417,13 +426,13 @@ function SettleUpCard({
                   <span className="font-medium">{nameOf(p.to)}</span>
                   {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
                 </span>
-                <span className="shrink-0 font-semibold text-emerald-700 dark:text-emerald-300">
+                <span className="shrink-0 font-semibold text-success">
                   {displayAmount(p)}
                 </span>
                 <button
                   type="button"
                   onClick={() => onDelete(p.id)}
-                  aria-label="Delete payment"
+                  aria-label={t.deletePaymentAria}
                   className="touch-manipulation shrink-0 h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
                 >
                   <X className="h-4 w-4" />
@@ -439,24 +448,24 @@ function SettleUpCard({
             {/* From / To */}
             <div className="flex items-center gap-2">
               <select
-                aria-label="Payer"
+                aria-label={t.payerAria}
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
-                className="touch-manipulation min-w-0 flex-1 h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm"
+                className={`${nativeSelectClass} min-w-0 flex-1 px-2`}
               >
-                <option value="">From…</option>
+                <option value="">{t.from}</option>
                 {participants.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
               <ArrowRightLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
               <select
-                aria-label="Recipient"
+                aria-label={t.recipientAria}
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                className="touch-manipulation min-w-0 flex-1 h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm"
+                className={`${nativeSelectClass} min-w-0 flex-1 px-2`}
               >
-                <option value="">To…</option>
+                <option value="">{t.to}</option>
                 {participants.map((p) => (
                   <option key={p.id} value={p.id} disabled={p.id === from}>{p.name}</option>
                 ))}
@@ -467,10 +476,10 @@ function SettleUpCard({
                 three fields on one line leaves ~70px of typing space at 375px. */}
             <div className="flex flex-wrap items-center gap-2">
               <select
-                aria-label="Currency"
+                aria-label={t.currencyAria}
                 value={currency}
                 onChange={(e) => handleCurrencyChange(e.target.value)}
-                className="touch-manipulation h-11 sm:h-9 rounded-md border bg-background px-2 text-base sm:text-sm w-24 shrink-0"
+                className={`${nativeSelectClass} w-24 shrink-0 px-2`}
               >
                 <option value="IDR">IDR</option>
                 {TRAVEL_CURRENCIES.filter((c) => c.code !== "IDR").map((c) => (
@@ -485,7 +494,7 @@ function SettleUpCard({
                   type="text"
                   inputMode="numeric"
                   className="pl-8 h-11 text-base sm:h-9 sm:text-sm"
-                  placeholder="Amount"
+                  placeholder={t.amountPlaceholder}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && submit()}
@@ -493,7 +502,7 @@ function SettleUpCard({
               </div>
               <Input
                 className="basis-full sm:basis-0 flex-1 h-11 text-base sm:h-9 sm:text-sm"
-                placeholder="Note (optional)"
+                placeholder={t.notePlaceholder}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submit()}
@@ -511,7 +520,7 @@ function SettleUpCard({
                     type="text"
                     inputMode="decimal"
                     className="pl-14 h-11 text-base sm:h-9 sm:text-sm"
-                    placeholder="rate in Rp"
+                    placeholder={t.ratePlaceholder}
                     value={fxRate}
                     onChange={(e) => { setFxRate(e.target.value); setRateError(null); }}
                     onKeyDown={(e) => e.key === "Enter" && submit()}
@@ -521,16 +530,16 @@ function SettleUpCard({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="touch-manipulation h-11 sm:h-9 shrink-0 gap-1.5"
+                  className="touch-manipulation shrink-0 gap-1.5"
                   onClick={() => void fetchRate(currency)}
                   disabled={fetchingRate}
                 >
                   {fetchingRate ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  Auto
+                  {t.auto}
                 </Button>
               </div>
             )}
-            {rateError && <p className="text-xs text-amber-600 dark:text-amber-400">{rateError}</p>}
+            {rateError && <p className="text-xs text-warning">{rateError}</p>}
             {isForeign && parseFloat(fxRate) > 0 && parseAmount(amount) > 0 && (
               <p className="text-xs text-muted-foreground">
                 ≈ Rp {formatCurrency(Math.round(parseAmount(amount) * parseFloat(fxRate)))}
@@ -539,11 +548,11 @@ function SettleUpCard({
 
             <Button size="sm" className="touch-manipulation h-11 w-full gap-2" onClick={submit} disabled={!canSubmit}>
               <Plus className="h-4 w-4" />
-              Record payment
+              {t.recordPayment}
             </Button>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">Add at least 2 travelers to record payments.</p>
+          <p className="text-sm text-muted-foreground">{t.needTwoForPayments}</p>
         )}
       </CardContent>
     </Card>
@@ -565,10 +574,14 @@ function MembersCard({
   const { toast } = useToast();
   const isOwner = members.some((m) => m.userId === currentUserId && m.role === "owner");
 
+  const t = useDictionary().app.travel;
   const [invites, setInvites] = useState<InviteInfo[]>([]);
   const [loadingInvites, setLoadingInvites] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState(false);
 
   const fetchInvites = useCallback(async () => {
     if (!isOwner) return;
@@ -578,38 +591,94 @@ function MembersCard({
       if (res.ok) {
         const { invites: list } = (await res.json()) as { invites: InviteInfo[] };
         setInvites(list);
+      } else {
+        setInviteError(t.inviteLoadFailed);
       }
+    } catch {
+      setInviteError(t.inviteLoadOffline);
     } finally {
       setLoadingInvites(false);
     }
-  }, [tripId, isOwner]);
+  }, [tripId, isOwner, t]);
 
   useEffect(() => { void fetchInvites(); }, [fetchInvites]);
 
   const generateInvite = async () => {
     setGenerating(true);
+    setInviteError(null);
     try {
       const res = await fetch(`/api/travel/${tripId}/invites`, { method: "POST" });
       if (res.ok) {
         const inv = (await res.json()) as InviteInfo;
         setInvites((prev) => [inv, ...prev]);
+      } else {
+        // Silence here meant the spinner stopped and nothing appeared.
+        setInviteError(t.inviteCreateFailed);
       }
+    } catch {
+      setInviteError(t.inviteCreateOffline);
     } finally {
       setGenerating(false);
     }
   };
 
+  // Revoking is how an owner takes back access after sending the link to the
+  // wrong chat. It used to fire and forget: the row was filtered out of state
+  // unconditionally, so a failed DELETE — offline, 403, 500 — left the owner
+  // certain they had revoked a link that was still live. Confirm first, then
+  // only drop it if the server agreed.
   const revokeInvite = async (token: string) => {
-    await fetch(`/api/travel/${tripId}/invites/${token}`, { method: "DELETE" });
-    setInvites((prev) => prev.filter((i) => i.token !== token));
+    setRevoking(true);
+    setInviteError(null);
+    try {
+      const res = await fetch(`/api/travel/${tripId}/invites/${token}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setInviteError(t.revokeFailed);
+        return;
+      }
+      setInvites((prev) => prev.filter((i) => i.token !== token));
+      setConfirmRevoke(null);
+      toast({ title: t.linkRevoked, variant: "success" });
+    } catch {
+      setInviteError(t.revokeFailed);
+    } finally {
+      setRevoking(false);
+    }
   };
 
+  const inviteUrl = (token: string) =>
+    `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${token}`;
+
+  // Unguarded `writeText` throws on a non-secure context or a denied
+  // permission, and the success toast simply never fired — no error either.
+  // SummaryPanel has caught this for its own copy for a while; this is the
+  // path a collaborator's whole onboarding runs through.
   const copyLink = async (token: string) => {
-    const url = `${window.location.origin}/invite/${token}`;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast({ title: "Link copied!", variant: "success" });
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(inviteUrl(token));
+      setCopied(true);
+      toast({ title: t.linkCopied, variant: "success" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({
+        title: t.copyFailed,
+        description: t.copyManually,
+        variant: "error",
+      });
+    }
+  };
+
+  // The invite link is destined for a group chat — that is the whole point of
+  // it — and every other share surface in this app already offers WhatsApp.
+  const shareLinkToWhatsApp = (token: string) => {
+    const text = `Join our trip on Splitzy: ${inviteUrl(token)}`;
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   const activeInvite = invites[0] ?? null;
@@ -619,9 +688,9 @@ function MembersCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Users className="h-4 w-4" />
-          Members
+          {t.members}
         </CardTitle>
-        <CardDescription>{members.length} member{members.length !== 1 ? "s" : ""}</CardDescription>
+        <CardDescription>{fill(t.membersCount, { count: members.length })}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Member list */}
@@ -639,12 +708,12 @@ function MembersCard({
                 <p className="text-sm font-medium leading-none truncate">
                   {m.name ?? m.email}
                   {m.userId === currentUserId && (
-                    <span className="ml-1 text-xs text-muted-foreground">(you)</span>
+                    <span className="ml-1 text-xs text-muted-foreground">{t.you}</span>
                   )}
                 </p>
               </div>
               {m.role === "owner" ? (
-                <Crown className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-label="Owner" />
+                <Crown className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={t.owner} />
               ) : null}
             </li>
           ))}
@@ -655,47 +724,93 @@ function MembersCard({
           <div className="pt-3 border-t space-y-2">
             <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <UserPlus className="h-3.5 w-3.5" />
-              Invite link
+              {t.inviteLink}
             </p>
             {loadingInvites ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading…
+                {t.loadingInvite}
               </div>
             ) : activeInvite ? (
               <div className="rounded-lg border bg-muted/40 px-3 py-2 space-y-2">
                 <p className="text-xs text-muted-foreground break-all font-mono select-all">
-                  {`${typeof window !== "undefined" ? window.location.origin : ""}/invite/${activeInvite.token}`}
+                  {inviteUrl(activeInvite.token)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Expires {new Date(activeInvite.expiresAt).toLocaleDateString()}
+                  Expires{" "}
+                  {new Date(activeInvite.expiresAt).toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
                 </p>
+                {/* Copy and Revoke used to be two 28px buttons 8px apart: the
+                    action you take every time, flush against the one that
+                    cannot be undone. Revoke moves to its own row, behind a
+                    confirm, and the two sharing actions get the top row. */}
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="secondary"
-                    className="flex-1 gap-1.5 text-xs h-7"
+                    className="touch-manipulation flex-1 gap-1.5 text-xs"
                     onClick={() => void copyLink(activeInvite.token)}
                   >
                     {copied ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied ? "Copied!" : "Copy"}
+                    {copied ? t.copied : t.copy}
                   </Button>
                   <Button
                     size="sm"
-                    variant="ghost"
-                    className="gap-1.5 text-xs h-7 text-destructive hover:text-destructive"
-                    onClick={() => void revokeInvite(activeInvite.token)}
+                    variant="secondary"
+                    className="touch-manipulation flex-1 gap-1.5 text-xs text-green-700 dark:text-green-500"
+                    onClick={() => shareLinkToWhatsApp(activeInvite.token)}
                   >
-                    <X className="h-3.5 w-3.5" />
-                    Revoke
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    {t.whatsapp}
                   </Button>
                 </div>
+                {confirmRevoke === activeInvite.token ? (
+                  <div className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-2">
+                    <p className="text-xs text-foreground/90">
+                      {t.revokeConfirm}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="touch-manipulation flex-1 text-xs"
+                        disabled={revoking}
+                        onClick={() => void revokeInvite(activeInvite.token)}
+                      >
+                        {revoking ? t.revoking : t.revokeYes}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="touch-manipulation flex-1 text-xs"
+                        disabled={revoking}
+                        onClick={() => setConfirmRevoke(null)}
+                      >
+                        {t.keepLink}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="touch-manipulation w-full gap-1.5 text-xs text-destructive hover:text-destructive"
+                    onClick={() => setConfirmRevoke(activeInvite.token)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    {t.revokeLink}
+                  </Button>
+                )}
               </div>
             ) : (
               <Button
                 size="sm"
                 variant="outline"
-                className="w-full gap-2 text-xs h-8"
+                className="touch-manipulation w-full gap-2 text-xs"
                 onClick={() => void generateInvite()}
                 disabled={generating}
               >
@@ -704,8 +819,13 @@ function MembersCard({
                 ) : (
                   <Link2 className="h-3.5 w-3.5" />
                 )}
-                Generate invite link
+                {t.generateInvite}
               </Button>
+            )}
+            {inviteError && (
+              <p role="alert" className="text-xs font-medium text-destructive">
+                {inviteError}
+              </p>
             )}
           </div>
         )}
@@ -717,7 +837,19 @@ function MembersCard({
 // ── Main page ────────────────────────────────────────────────────────────────
 export function TravelSpendView() {
   const travel = useTravelData();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Warns when the browser has stopped accepting writes — full quota, or
+  // storage blocked outright. Without this, a trip could gain receipts all day
+  // and lose them on the next reload without a word.
+  usePersistErrorToast(travel.persistError);
   const { dbUser, signOut } = useAuth();
+  const t = useDictionary().app;
+  const tt = t.travel;
+  // Home in the language being read, not always the English root.
+  const locale = useLocale();
+  const homeHref = localePath(locale, "/");
+  const tr = t.review;
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
   const [editingReceipt, setEditingReceipt] = useState<EditingReceipt | null>(null);
   const [newTripName, setNewTripName] = useState("");
@@ -739,6 +871,12 @@ export function TravelSpendView() {
     () => (travel.trips ?? []).filter((t) => !archivedIds.has(t.id)),
     [travel.trips, archivedIds]
   );
+  // Change requests waiting on this user, per trip — surfaced on the list so an
+  // owner does not have to open each trip to discover someone is blocked.
+  const pendingFor = useCallback(
+    (tripId: string) => (travel.changeRequests[tripId] ?? []).length,
+    [travel.changeRequests]
+  );
   const activeTrip = useMemo<TravelTrip | null>(() => {
     const raw = trips.find((t) => t.id === travel.activeId) ?? null;
     return raw
@@ -754,8 +892,8 @@ export function TravelSpendView() {
   // While a member's proposal is submitted, editing is paused until the owner reviews it.
   const editingLocked = isMemberOfActive && activeProposal?.status === "submitted";
   const participantNameOf = useCallback(
-    (id: string) => activeTrip?.participants.find((p) => p.id === id)?.name ?? "Someone",
-    [activeTrip]
+    (id: string) => activeTrip?.participants.find((p) => p.id === id)?.name ?? tr.someone,
+    [activeTrip, tr]
   );
 
   const handleSubmitProposal = useCallback(
@@ -764,19 +902,19 @@ export function TravelSpendView() {
       const ok = await travel.submitChangeRequest(activeTrip.id, note);
       toast(
         ok
-          ? { title: "Submitted for review", description: "The owner will approve or decline your changes.", variant: "success" }
-          : { title: "Couldn't submit", description: "Please try again.", variant: "error" }
+          ? { title: tr.submitted, description: tr.submittedBody, variant: "success" }
+          : { title: tr.submitFailed, description: t.summary.tryAgain, variant: "error" }
       );
       return ok;
     },
-    [activeTrip, travel, toast]
+    [activeTrip, travel, toast, t, tr]
   );
 
   const handleDiscardProposal = useCallback(() => {
     if (!activeTrip) return;
     travel.discardProposal(activeTrip.id);
-    toast({ title: "Draft discarded" });
-  }, [activeTrip, travel, toast]);
+    toast({ title: tr.draftDiscarded });
+  }, [activeTrip, travel, toast, tr]);
 
   const handleApprove = useCallback(
     async (crId: string) => {
@@ -784,22 +922,22 @@ export function TravelSpendView() {
       const ok = await travel.approveChangeRequest(activeTrip.id, crId);
       toast(
         ok
-          ? { title: "Change approved", variant: "success" }
-          : { title: "Couldn't approve", description: "The trip may have changed since — reload and retry.", variant: "error" }
+          ? { title: tr.approved, variant: "success" }
+          : { title: tr.approveFailed, description: tr.approveFailedBody, variant: "error" }
       );
       return ok;
     },
-    [activeTrip, travel, toast]
+    [activeTrip, travel, toast, tr]
   );
 
   const handleDecline = useCallback(
     async (crId: string, note?: string) => {
       if (!activeTrip) return false;
       const ok = await travel.declineChangeRequest(activeTrip.id, crId, note);
-      toast(ok ? { title: "Change declined" } : { title: "Couldn't decline", variant: "error" });
+      toast(ok ? { title: tr.declined } : { title: tr.declineFailed, variant: "error" });
       return ok;
     },
-    [activeTrip, travel, toast]
+    [activeTrip, travel, toast, tr]
   );
 
   useEffect(() => {
@@ -834,6 +972,77 @@ export function TravelSpendView() {
     }
   }, [editingReceipt, viewMode, activeTrip]);
 
+  // ── Navigation lives in the URL ────────────────────────────────────────────
+  //
+  // /travel had three levels of navigation — trip list, trip workspace, receipt
+  // editor / trip summary — and not one of them had a URL. So the browser had no
+  // history entry to go back to: pressing the Android back button or using
+  // swipe-back from inside the receipt editor left /travel entirely, and coming
+  // back landed on the trip list rather than the receipt being worked on. A trip
+  // could not be bookmarked, linked, or reopened in a second tab either, which
+  // is also why joining an invite could only ever drop the new member on the
+  // list and leave them to find the trip themselves.
+  //
+  // The URL is authoritative for *where you are*; state still owns everything
+  // else. The effect below only ever writes state, and the handlers only ever
+  // write the URL, so the two cannot chase each other.
+  const travelUrl = useCallback(
+    (tripId: string | null, view?: "receipt" | "summary") => {
+      if (!tripId) return "/travel";
+      const q = new URLSearchParams({ trip: tripId });
+      if (view) q.set("view", view);
+      return `/travel?${q.toString()}`;
+    },
+    []
+  );
+
+  const tripParam = searchParams.get("trip");
+  const viewParam = searchParams.get("view");
+
+  // A pre-existing session (or a restored draft) can have a trip open with
+  // nothing in the URL. Rewrite it once, without adding a history entry, so
+  // Back from here has somewhere to go.
+  const canonicalisedRef = useRef(false);
+  useEffect(() => {
+    if (canonicalisedRef.current) return;
+    if (!travel.isLoading && !tripParam && travel.activeId) {
+      canonicalisedRef.current = true;
+      router.replace(
+        travelUrl(travel.activeId, viewMode === "edit-receipt" ? "receipt" : undefined),
+        { scroll: false }
+      );
+    }
+  }, [travel.isLoading, tripParam, travel.activeId, viewMode, router, travelUrl]);
+
+  useEffect(() => {
+    if (tripParam) {
+      if (tripParam !== travel.activeId) travel.setActiveId(tripParam);
+    } else if (travel.activeId && canonicalisedRef.current) {
+      // The trip param went away — Back out of a trip closes it.
+      travel.setActiveId(null);
+    }
+
+    const next: ViewMode =
+      viewParam === "summary"
+        ? "summary"
+        : viewParam === "receipt"
+          ? "edit-receipt"
+          : "overview";
+    setViewMode((prev) => (prev === next ? prev : next));
+    // travel.setActiveId is stable; listing `travel` whole would re-run this on
+    // every trip mutation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripParam, viewParam]);
+
+  // ?view=receipt with no draft to edit (a stale link, or a draft that was
+  // saved in another tab) would render nothing at all. Send them to the trip.
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    if (viewParam === "receipt" && !editingReceipt && travel.activeId) {
+      router.replace(travelUrl(travel.activeId), { scroll: false });
+    }
+  }, [viewParam, editingReceipt, travel.activeId, router, travelUrl]);
+
   // ── Trip CRUD ─────────────────────────────────────────────────────────────
   const createTrip = async () => {
     const name = newTripName.trim() || "My Trip";
@@ -846,19 +1055,25 @@ export function TravelSpendView() {
     setDeleteTripId(null);
     void travel.deleteTrip(id);
     toast({
-      title: "Trip deleted",
+      title: tt.tripDeleted,
       description: removed?.name,
       variant: "success",
       duration: 6000,
-      action: removed ? { label: "Undo", onClick: () => void travel.restoreTrip(removed) } : undefined,
+      action: removed ? { label: tt.undo, onClick: () => void travel.restoreTrip(removed) } : undefined,
     });
   };
 
+  // Optimistic state plus a history entry: the state keeps the tap feeling
+  // instant, the URL is what makes Back work.
   const openTrip = (id: string) => {
     setViewMode("overview");
     travel.setActiveId(id);
+    router.push(travelUrl(id));
   };
-  const closeTrip = () => travel.setActiveId(null);
+  const closeTrip = () => {
+    travel.setActiveId(null);
+    router.push("/travel");
+  };
 
   // ── Participants ──────────────────────────────────────────────────────────
   const handleParticipantsChange = async (participants: Participant[]) => {
@@ -892,8 +1107,8 @@ export function TravelSpendView() {
     await travel.updateParticipants(activeTrip.id, participants, receipts);
     for (const rid of droppedIds) void travel.deleteReceipt(activeTrip.id, rid);
     toast({
-      title: `${droppedIds.length} receipt${droppedIds.length > 1 ? "s" : ""} removed`,
-      description: "They referenced the traveler you removed.",
+      title: fill(tt.receiptsRemoved, { count: droppedIds.length }),
+      description: fill(tt.removeTravelerBody, { count: droppedIds.length }),
       variant: "success",
     });
   };
@@ -951,13 +1166,15 @@ export function TravelSpendView() {
     };
     setEditingReceipt({ receipt, isNew: true });
     setViewMode("edit-receipt");
+    router.push(travelUrl(activeTrip.id, "receipt"));
   };
 
   const editReceipt = (id: string) => {
     const receipt = activeTrip?.receipts.find((r) => r.id === id);
-    if (receipt) {
+    if (receipt && activeTrip) {
       setEditingReceipt({ receipt: { ...receipt }, isNew: false });
       setViewMode("edit-receipt");
+      router.push(travelUrl(activeTrip.id, "receipt"));
     }
   };
 
@@ -975,15 +1192,15 @@ export function TravelSpendView() {
         ? await travel.addReceipt(tripId, receipt)
         : await travel.updateReceipt(tripId, receipt);
       if (ok) {
-        toast({ title: isNew ? "Receipt added" : "Receipt updated", description: receipt.title, variant: "success" });
+        toast({ title: isNew ? tt.receiptAdded : tt.receiptUpdated, description: receipt.title, variant: "success" });
         logFeatureUsage("travel", "receipt.added");
       } else {
         toast({
-          title: "Couldn't save receipt",
-          description: `${receipt.title} wasn't saved. Check your connection and retry.`,
+          title: tt.receiptSaveFailed,
+          description: fill(tt.receiptSaveFailedBody, { title: receipt.title }),
           variant: "error",
           duration: 8000,
-          action: { label: "Retry", onClick: () => submitReceipt(tripId, receipt, isNew) },
+          action: { label: tt.retry, onClick: () => submitReceipt(tripId, receipt, isNew) },
         });
       }
     })();
@@ -997,6 +1214,7 @@ export function TravelSpendView() {
     // toast inside submitReceipt once the background save resolves.
     setEditingReceipt(null);
     setViewMode("overview");
+    router.replace(travelUrl(tripId), { scroll: false });
     submitReceipt(tripId, receipt, isNew);
   };
 
@@ -1007,11 +1225,11 @@ export function TravelSpendView() {
     setDeleteReceiptId(null);
     void travel.deleteReceipt(tripId, id);
     toast({
-      title: "Receipt deleted",
+      title: tt.receiptDeleted,
       description: removed?.title,
       variant: "success",
       duration: 6000,
-      action: removed ? { label: "Undo", onClick: () => void travel.addReceipt(tripId, removed) } : undefined,
+      action: removed ? { label: tt.undo, onClick: () => void travel.addReceipt(tripId, removed) } : undefined,
     });
   };
 
@@ -1044,8 +1262,11 @@ export function TravelSpendView() {
       if (remaining <= 0) {
         const nameOf = (id: string) => activeTrip.participants.find((p) => p.id === id)?.name ?? "?";
         toast({
-          title: "Already settled",
-          description: `${nameOf(participantId)} has already settled up with ${nameOf(receipt.payerId)} — no extra payment recorded.`,
+          title: tt.alreadySettled,
+          description: fill(tt.alreadySettledBody, {
+            from: nameOf(participantId),
+            to: nameOf(receipt.payerId),
+          }),
         });
         return;
       }
@@ -1106,7 +1327,7 @@ export function TravelSpendView() {
       ? `${TRAVEL_CURRENCIES.find((c) => c.code === input.currency)?.symbol ?? input.currency} ${formatCurrency(input.amount)}`
       : `Rp ${formatCurrency(input.amount)}`;
     toast({
-      title: "Payment recorded",
+      title: tt.paymentRecorded,
       description: `${nameOf(input.from)} → ${nameOf(input.to)}: ${displayAmt}`,
       variant: "success",
     });
@@ -1170,7 +1391,7 @@ export function TravelSpendView() {
     setArchivedIds(next);
     setTripPref(id, { archivedAt: new Date().toISOString() });
     travel.setActiveId(null);
-    toast({ title: "Trip archived", description: "Find it again via 'Show archived'.", variant: "success" });
+    toast({ title: tt.tripArchived, description: tt.tripArchivedBody, variant: "success" });
   };
 
   const unarchiveTrip = (id: string) => {
@@ -1184,43 +1405,50 @@ export function TravelSpendView() {
   return (
     <main className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          {activeTrip && viewMode !== "overview" ? (
+          {/* `=== "summary"`, not `!== "overview"`. The receipt editor's back
+              duplicated its own Cancel, so it goes; the trip summary has no
+              other way out, so removing its back would strand the user there. */}
+          {activeTrip && viewMode === "summary" ? (
             <button
-              onClick={() => { setEditingReceipt(null); setViewMode("overview"); }}
-              aria-label="Back to trip"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => {
+                setEditingReceipt(null);
+                setViewMode("overview");
+                if (activeTrip) router.push(travelUrl(activeTrip.id));
+              }}
+              aria-label={t.modes.travel.backToTrip}
+              className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Back to trip</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.modes.travel.backToTrip}</span>
             </button>
           ) : activeTrip ? (
             <button
               onClick={closeTrip}
-              aria-label="Back to all trips"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={t.modes.travel.allTrips}
+              className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">All trips</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.modes.travel.allTrips}</span>
             </button>
           ) : (
-            <Link href="/" aria-label="Back to home" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+            <Link href={homeHref} aria-label={t.common.back} className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+              <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
                 <ArrowLeft className="h-4 w-4" />
               </div>
-              <span className="hidden sm:inline text-sm font-medium">Back</span>
+              <span className="hidden sm:inline text-sm font-medium">{t.common.back}</span>
             </Link>
           )}
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center">
               <Plane className="h-4 w-4 text-white" />
             </div>
-            <span className="font-semibold text-sm sm:text-base">Travel Spend</span>
+            <span className="font-semibold text-sm sm:text-base">{t.modes.travel.title}</span>
           </div>
           <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
@@ -1234,25 +1462,24 @@ export function TravelSpendView() {
         {travel.isLoading ? (
           <div className="mb-4 flex items-center gap-3 rounded-xl border border-muted p-3 text-sm">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <p className="text-muted-foreground">Loading your trips…</p>
+            <p className="text-muted-foreground">{tt.loading}</p>
           </div>
         ) : travel.cloudMode && travel.syncStatus === "conflict" ? (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
             <p className="flex-1 text-foreground/90">
-              <span className="font-semibold text-red-700 dark:text-red-300">This trip is out of sync.</span>{" "}
-              It may have changed on another device or tab, or a save didn&apos;t go through. Reload to get the
-              latest — unsaved local changes will be discarded.
+              <span className="font-semibold text-destructive">{tt.outOfSync}</span>{" "}
+              {tt.outOfSyncBody}
             </p>
             <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
-              <RefreshCw className="h-3.5 w-3.5" /> Reload
+              <RefreshCw className="h-3.5 w-3.5" /> {tt.reload}
             </Button>
           </div>
         ) : travel.cloudMode && travel.syncStatus === "error" ? (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-            <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+            <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <p className="flex-1 text-foreground/90">
-              <span className="font-semibold text-amber-700 dark:text-amber-300">Changes may not be saved.</span>{" "}
+              <span className="font-semibold text-warning">{tt.maybeUnsaved}</span>{" "}
               {travel.syncError}
             </p>
             <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => void travel.reloadCloud()}>
@@ -1265,32 +1492,38 @@ export function TravelSpendView() {
           <div className="mb-4 flex items-start gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-sm">
             <CloudOff className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
             <p className="text-foreground/90">
-              <span className="font-semibold text-sky-700 dark:text-sky-300">Saved on this device.</span>{" "}
-              You&apos;re offline — changes will sync to your account when you reconnect.
+              <span className="font-semibold text-sky-700 dark:text-sky-300">{tt.savedOnDevice}</span>{" "}
+              {tt.savedOnDeviceOffline}
             </p>
           </div>
         ) : travel.cloudMode ? (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
-            {travel.syncStatus === "saving" || travel.pendingSync ? (
-              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <Cloud className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            )}
-            <p className="text-foreground/90">
-              <span className="font-semibold text-emerald-700 dark:text-emerald-300">
-                {travel.syncStatus === "saving" || travel.pendingSync ? "Saving…" : "Saved to your account."}
-              </span>{" "}
-              {travel.syncStatus === "saving" || travel.pendingSync
-                ? "Syncing your changes."
-                : "Trips sync across devices automatically."}
-            </p>
+          // Everything is fine, which does not need a banner. This one was
+          // permanent and undismissable: on a 375x667 phone the header plus this
+          // paragraph spent about 19% of the viewport telling the user that
+          // nothing was wrong, on every single visit. The states that need
+          // attention — conflict, error, offline — still get the full banner
+          // above; "saved" is now a chip you can glance at and ignore.
+          <div className="mb-4 flex justify-end">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-xs font-medium text-success">
+              {travel.syncStatus === "saving" || travel.pendingSync ? (
+                <>
+                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                  {tt.saving}
+                </>
+              ) : (
+                <>
+                  <Cloud className="h-3 w-3 shrink-0" />
+                  {tt.savedToAccount}
+                </>
+              )}
+            </span>
           </div>
         ) : (
-          <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="mb-4 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <p className="text-foreground/90">
-              <span className="font-semibold text-amber-700 dark:text-amber-300">Saved on this device only.</span>{" "}
-              Sign in to sync trips across devices.
+              <span className="font-semibold text-warning">{tt.localOnly}</span>{" "}
+              {tt.localOnlyBody}
             </p>
           </div>
         )}
@@ -1306,28 +1539,27 @@ export function TravelSpendView() {
                 <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
                   <Plane className="h-7 w-7 text-white" />
                 </div>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Plan a group trip</h1>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{tt.heroTitle}</h1>
                 <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-                  Track shared expenses across countries, split every bill fairly,
-                  and settle up in one tap at the end of the trip.
+                  {tt.heroBody}
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
-                    <Cloud className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                    Cloud sync
+                    <Cloud className="h-3.5 w-3.5 text-success" />
+                    {tt.cloudSync}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
                     <Camera className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                    AI receipt scan
+                    {tt.aiScan}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full border bg-background/70 px-3 py-1.5 text-xs font-medium">
                     <Globe className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-                    Multi-currency
+                    {tt.multiCurrency}
                   </span>
                 </div>
                 <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                  Name your trip below to get started
+                  <Sparkles className="h-3.5 w-3.5 text-warning" />
+                  {tt.nameItBelow}
                 </p>
               </div>
             )}
@@ -1335,10 +1567,10 @@ export function TravelSpendView() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Plane className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  New trip
+                  <Plane className="h-5 w-5 text-success" />
+                  {tt.newTrip}
                 </CardTitle>
-                <CardDescription>Start tracking receipts for a trip or event.</CardDescription>
+                <CardDescription>{tt.newTripHint}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2">
@@ -1346,11 +1578,11 @@ export function TravelSpendView() {
                     value={newTripName}
                     onChange={(e) => setNewTripName(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && void createTrip()}
-                    placeholder="e.g., Bali 2026"
+                    placeholder={tt.tripNamePlaceholder}
                   />
                   <Button onClick={() => void createTrip()}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Create
+                    {tt.create}
                   </Button>
                 </div>
               </CardContent>
@@ -1387,37 +1619,50 @@ export function TravelSpendView() {
                     (r) => r.currency && r.currency !== "IDR"
                   );
                   return (
+                    // A role="button" container with a <Button> inside it is a
+                    // nested control: ambiguous for a screen reader, and the
+                    // stopPropagation only ever patched the mouse side. The row
+                    // is a plain container now; the name is the link, Delete is
+                    // its own button, and they no longer share a hit area.
                     <div
                       key={t.id}
-                      role="button"
-                      tabIndex={0}
-                      className="flex items-center justify-between gap-3 p-4 rounded-xl border hover:bg-muted/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => openTrip(t.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTrip(t.id); } }}
+                      className="flex items-center justify-between gap-3 rounded-xl border transition-colors hover:bg-muted/40"
                     >
-                      <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => openTrip(t.id)}
+                        className="touch-manipulation min-w-0 flex-1 rounded-xl p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
                         <div className="flex items-center gap-2">
                           <p className="font-semibold truncate">{t.name}</p>
+                          {pendingFor(t.id) > 0 && (
+                            <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                              {fill(tt.toReview, { count: pendingFor(t.id) })}
+                            </span>
+                          )}
                           {hasForeignCurrency && (
                             <span className="shrink-0 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
                               <Globe className="h-2.5 w-2.5" />
-                              multi-currency
+                              {tt.multiCurrencyBadge}
                             </span>
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {t.participants.length} people · {(t.receipts ?? []).length} receipt(s)
-                          {t.budget ? ` · budget Rp ${formatCurrency(t.budget)}` : ""}
+                          {fill(tt.peopleReceipts, { people: t.participants.length, receipts: (t.receipts ?? []).length })}
+                          {t.budget ? fill(tt.budgetSuffix, { amount: formatCurrency(t.budget) }) : ""}
                         </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-semibold text-sm">Rp {formatCurrency(total)}</span>
+                        <p className="mt-1 text-sm font-semibold">Rp {formatCurrency(total)}</p>
+                      </button>
+                      {/* ml-2/pr-2 keeps a real gap between "open this trip" and
+                          "delete this trip", which used to be 8px apart with the
+                          amount wedged between them. */}
+                      <div className="flex shrink-0 items-center pr-2">
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`Delete ${t.name}`}
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={(e) => { e.stopPropagation(); setDeleteTripId(t.id); }}
+                          aria-label={fill(tt.deleteTripAria, { name: t.name })}
+                          className="touch-manipulation ml-2 text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteTripId(t.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1432,7 +1677,7 @@ export function TravelSpendView() {
                 <div className="flex items-center justify-between rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
                   <span>
                     <Archive className="inline h-3.5 w-3.5 mr-1.5 opacity-70" />
-                    {archivedIds.size} archived trip{archivedIds.size > 1 ? "s" : ""}
+                    {fill(tt.archivedCount, { count: archivedIds.size })}
                   </span>
                   <button
                     className="text-xs underline underline-offset-2 hover:text-foreground transition-colors"
@@ -1441,7 +1686,7 @@ export function TravelSpendView() {
                       ids.forEach((id) => unarchiveTrip(id));
                     }}
                   >
-                    Show all
+                    {tt.showAll}
                   </button>
                 </div>
               )}
@@ -1477,12 +1722,12 @@ export function TravelSpendView() {
               {/* Trip details + budget */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Trip details</CardTitle>
+                  <CardTitle>{tt.tripDetails}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Trip name</Label>
+                    <Label>{tt.tripName}</Label>
                     <Input
                       value={nameDraft !== null ? nameDraft : activeTrip.name}
                       onFocus={() => setNameDraft(activeTrip.name)}
@@ -1495,7 +1740,7 @@ export function TravelSpendView() {
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5">
                       <Target className="h-4 w-4" />
-                      Budget (optional)
+                      {tt.budgetOptional}
                     </Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">Rp</span>
@@ -1523,13 +1768,13 @@ export function TravelSpendView() {
                   <div className="border-t pt-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Globe className="h-4 w-4 text-muted-foreground" />
-                      <Label className="text-sm font-medium">Default receipt currency</Label>
+                      <Label className="text-sm font-medium">{tt.defaultCurrency}</Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <select
                         value={activeTrip.defaultCurrency ?? "IDR"}
                         onChange={(e) => void setDefaultCurrency(e.target.value)}
-                        className="flex h-9 w-full max-w-xs rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className={`${nativeSelectClass} max-w-xs`}
                       >
                         {TRAVEL_CURRENCIES.map((c) => (
                           <option key={c.code} value={c.code}>
@@ -1539,7 +1784,7 @@ export function TravelSpendView() {
                       </select>
                       {activeTrip.defaultCurrency && activeTrip.defaultCurrency !== "IDR" && (
                         <p className="text-xs text-muted-foreground">
-                          New receipts will default to {activeTrip.defaultCurrency}
+                          {fill(tt.newReceiptsDefault, { code: activeTrip.defaultCurrency })}
                         </p>
                       )}
                     </div>
@@ -1550,8 +1795,8 @@ export function TravelSpendView() {
               {/* Travelers */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Travelers</CardTitle>
-                  <CardDescription>Everyone sharing expenses on this trip</CardDescription>
+                  <CardTitle>{tt.travelers}</CardTitle>
+                  <CardDescription>{tt.travelersHint}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ParticipantManager
@@ -1572,16 +1817,16 @@ export function TravelSpendView() {
 
               {/* Receipts */}
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div>
-                    <CardTitle>Receipts</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                  <div className="min-w-0">
+                    <CardTitle>{tt.receipts}</CardTitle>
                     <CardDescription>
-                      {activeTrip.receipts.length} receipt{activeTrip.receipts.length !== 1 ? "s" : ""}
+                      {fill(tt.receiptsCount, { count: activeTrip.receipts.length })}
                     </CardDescription>
                   </div>
                   <Button onClick={startNewReceipt} disabled={!canAddReceipt}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Receipt
+                    {tt.addReceipt}
                   </Button>
                 </CardHeader>
                 <CardContent>
@@ -1590,24 +1835,24 @@ export function TravelSpendView() {
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                         <Users className="h-6 w-6 text-primary opacity-80" />
                       </div>
-                      <p className="font-semibold text-foreground mb-1">Add travelers first</p>
-                      <p className="text-sm text-muted-foreground max-w-xs">Add at least 2 travelers to start adding receipts.</p>
+                      <p className="font-semibold text-foreground mb-1">{tt.addTravelersFirst}</p>
+                      <p className="text-sm text-muted-foreground max-w-xs">{tt.addTravelersFirstBody}</p>
                     </div>
                   ) : activeTrip.receipts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
                       <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
-                        <ReceiptIcon className="h-6 w-6 text-accent opacity-80" />
+                        <ReceiptIcon className="h-6 w-6 text-accent-strong" />
                       </div>
-                      <p className="font-semibold text-foreground mb-1">No receipts yet</p>
-                      <p className="text-sm text-muted-foreground mb-4">Scan or add a receipt to start tracking.</p>
+                      <p className="font-semibold text-foreground mb-1">{tt.noReceiptsTitle}</p>
+                      <p className="text-sm text-muted-foreground mb-4">{tt.noReceiptsBody}</p>
                       <Button size="sm" variant="secondary" onClick={startNewReceipt}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Add Receipt
+                        {tt.addReceipt}
                       </Button>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Tap a receipt to see its breakdown.</p>
+                      <p className="text-xs text-muted-foreground">{tt.tapReceiptHint}</p>
                       {activeTrip.receipts.map((r, i) => (
                         <ReceiptBreakdown
                           key={r.id}
@@ -1640,33 +1885,33 @@ export function TravelSpendView() {
                 <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 p-6 text-center space-y-4">
                   <div className="flex justify-center">
                     <div className="h-14 w-14 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-                      <PartyPopper className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+                      <PartyPopper className="h-7 w-7 text-success" />
                     </div>
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-emerald-900 dark:text-emerald-100">
-                      All settled up! 🎉
+                      {tt.allSettledTitle}
                     </h3>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                    <p className="text-sm text-success mt-1">
                       {activeTrip.name} · {activeTrip.receipts.length} receipt{activeTrip.receipts.length !== 1 ? "s" : ""} ·{" "}
                       Rp {formatCurrency(tripTotals!.totalGrandTotal)} total
                     </p>
                   </div>
                   <div className="flex gap-3 justify-center flex-wrap">
-                    <Button variant="outline" className="border-emerald-300 dark:border-emerald-700" onClick={() => setViewMode("summary")}>
+                    <Button variant="outline" className="border-emerald-300 dark:border-emerald-700" onClick={() => router.push(travelUrl(activeTrip.id, "summary"))}>
                       <ArrowRight className="h-4 w-4 mr-2" />
-                      View summary
+                      {tt.viewSummary}
                     </Button>
                     <Button
                       className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
                       onClick={() => archiveTrip(activeTrip.id)}
                     >
                       <Archive className="h-4 w-4 mr-2" />
-                      Archive trip
+                      {tt.archiveTrip}
                     </Button>
                   </div>
                   <p className="text-xs text-emerald-600/70 dark:text-emerald-400/60 border-t border-emerald-200 dark:border-emerald-800 pt-3">
-                    💼 <span className="font-medium">Pro:</span> Export PDF · Unlimited trip history · Budget analytics
+                    {tt.proTeaser}
                   </p>
                 </div>
               )}
@@ -1679,13 +1924,13 @@ export function TravelSpendView() {
                   onClick={() => setDeleteTripId(activeTrip.id)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete trip
+                  {tt.deleteTrip}
                 </Button>
               </div>
             </div>
 
             {/* Summary sidebar — compact */}
-            <div className="space-y-3 lg:sticky lg:top-20 lg:self-start">
+            <div className="space-y-3 lg:sticky lg:top-24 lg:self-start">
               <ErrorBoundary label="the trip summary">
                 <MultipleReceiptSummaryPanel
                   receipts={activeTrip.receipts}
@@ -1699,8 +1944,8 @@ export function TravelSpendView() {
                 />
               </ErrorBoundary>
               {activeTrip.receipts.length > 0 && (
-                <Button variant="outline" className="w-full" onClick={() => setViewMode("summary")}>
-                  View summary
+                <Button variant="outline" className="w-full" onClick={() => router.push(travelUrl(activeTrip.id, "summary"))}>
+                  {tt.viewSummary}
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               )}
@@ -1722,7 +1967,7 @@ export function TravelSpendView() {
           <div className="max-w-3xl mx-auto space-y-4">
             <div>
               <h1 className="text-xl font-bold">{activeTrip.name}</h1>
-              <p className="text-sm text-muted-foreground">Full trip summary</p>
+              <p className="text-sm text-muted-foreground">{tt.fullTripSummary}</p>
             </div>
             <ErrorBoundary label="the trip summary">
               <MultipleReceiptSummaryPanel
@@ -1750,7 +1995,11 @@ export function TravelSpendView() {
             isNew={editingReceipt.isNew}
             onChange={updateEditingReceipt}
             onSave={saveReceipt}
-            onCancel={() => { setEditingReceipt(null); setViewMode("overview"); }}
+            onCancel={() => {
+              setEditingReceipt(null);
+              setViewMode("overview");
+              router.push(travelUrl(activeTrip.id));
+            }}
             onUpdatePaymentInfo={(id, info) => void updateParticipantPaymentInfo(id, info)}
             isTravelMode
           />
@@ -1761,7 +2010,7 @@ export function TravelSpendView() {
       <Dialog open={pendingRemoval !== null} onOpenChange={(o) => !o && setPendingRemoval(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove traveler?</DialogTitle>
+            <DialogTitle>{tt.removeTravelerTitle}</DialogTitle>
             <DialogDescription>
               Removing this traveler will also delete the following receipt{pendingRemoval?.droppedTitles.length !== 1 ? "s" : ""} that reference them:
             </DialogDescription>
@@ -1777,7 +2026,7 @@ export function TravelSpendView() {
             </ul>
           )}
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setPendingRemoval(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setPendingRemoval(null)}>{tr.cancel}</Button>
             <Button variant="destructive" onClick={() => void confirmRemoval()}>
               <Trash2 className="h-4 w-4 mr-2" />
               Remove & delete receipts
@@ -1790,13 +2039,13 @@ export function TravelSpendView() {
       <Dialog open={deleteTripId !== null} onOpenChange={() => setDeleteTripId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this trip?</DialogTitle>
+            <DialogTitle>{tt.deleteTripTitle}</DialogTitle>
             <DialogDescription>
               The trip and all its receipts will be removed. You can undo this using the notification that appears.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDeleteTripId(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeleteTripId(null)}>{tr.cancel}</Button>
             <Button variant="destructive" onClick={() => deleteTripId && deleteTrip(deleteTripId)}>
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
@@ -1809,13 +2058,13 @@ export function TravelSpendView() {
       <Dialog open={deleteReceiptId !== null} onOpenChange={() => setDeleteReceiptId(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Receipt?</DialogTitle>
+            <DialogTitle>{t.multiple.deleteTitle}</DialogTitle>
             <DialogDescription>
               The receipt will be removed. You can undo this using the notification that appears.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDeleteReceiptId(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDeleteReceiptId(null)}>{tr.cancel}</Button>
             <Button variant="destructive" onClick={() => deleteReceiptId && void deleteReceipt(deleteReceiptId)}>
               Delete
             </Button>

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { TravelSpendView } from "@/components/pages/TravelSpendView";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -30,7 +31,15 @@ export default function TravelPage() {
           homeLabel: dict.nav.home,
         })}
       />
-      <TravelSpendView />
+      {/* The view reads ?trip / ?view via useSearchParams, which opts a route
+          out of static prerendering unless it sits behind a Suspense boundary —
+          exactly as /single and /multiple already do for ?resume. Without this,
+          /travel drops from ○ static to ƒ dynamic. The fallback is null because
+          the view paints instantly from the local mirror; a skeleton would only
+          flash. */}
+      <Suspense fallback={null}>
+        <TravelSpendView />
+      </Suspense>
     </>
   );
 }

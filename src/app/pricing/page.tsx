@@ -64,7 +64,7 @@ export default async function PricingPage({
 
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="px-4 sm:px-6 py-4 glass sticky top-0 z-50 border-b">
+      <header className="px-4 sm:px-6 py-4 glass sticky top-0 z-20">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             <Logo size="md" />
@@ -89,7 +89,7 @@ export default async function PricingPage({
             unlimited AI receipt scans.
           </p>
           {/* The differentiator vs typical apps: no annual lock-in, no auto-renew */}
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-success">
             <ShieldCheck className="h-4 w-4 shrink-0" />
             No subscription · No auto-renew · Pay only when you need it
           </div>

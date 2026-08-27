@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -37,6 +35,27 @@
     /* Destructive */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
+
+    /* Status — the three semantic colours the app was missing.
+       Without them, every "green" was written by hand as
+       `text-emerald-600 dark:text-emerald-400`: ~400 raw palette classes
+       against 21 tokens, each one carrying its own dark-mode pair, each one a
+       chance to get the pair wrong. Values match the emerald/amber/blue steps
+       already in use, so this is a rename rather than a restyle.
+       Light values are the -700 steps, not the -600 ones the old classes used,
+       because the dominant use is TEXT on a light surface and -600 does not
+       clear 4.5:1 there. Measured against white:
+         emerald-600 3.5:1  →  emerald-700 5.5:1
+         amber-600   3.2:1  →  amber-700   5.0:1   (this one was already failing)
+         blue-600    5.2:1                          (kept)
+       On the /10 tinted backgrounds these pair with, emerald-700 still measures
+       ~4.7:1. */
+    --success: 163 94% 24%;
+    --success-foreground: 0 0% 100%;
+    --warning: 26 90% 37%;
+    --warning-foreground: 0 0% 100%;
+    --info: 221 83% 45%;
+    --info-foreground: 0 0% 100%;
 
     /* Borders & Input */
     --border: 45 20% 88%;
@@ -78,6 +97,15 @@
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 100%;
 
+    /* Status — the lighter -400/-300 steps, matching what the hand-written
+       `dark:` halves of those pairs already used on a charcoal surface. */
+    --success: 158 64% 52%;
+    --success-foreground: 158 90% 10%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 32 90% 10%;
+    --info: 213 94% 68%;
+    --info-foreground: 221 90% 12%;
+
     /* Borders */
     --border: 75 6% 22%;
     --input: 75 6% 22%;
@@ -104,6 +132,16 @@
   }
 }
 
+/* ── z-index scale ──────────────────────────────────────────────────────────
+   10  sticky page chrome (headers, bottom action bars)
+   20  in-page overlays anchored to content (dropdowns, suggestion lists)
+   40  scrims
+   50  dialogs and drawers (Radix portals)
+  100  toasts and the first-run modal — must clear a dialog
+   200 skip link
+   Anything outside this list is a mistake; the header shipped with four
+   different values before this comment existed. */
+
 /* Respect user's reduced-motion preference (WCAG 2.3.3) */
 @media (prefers-reduced-motion: reduce) {
 
@@ -123,18 +161,6 @@
   from {
     opacity: 0;
     transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
   }
 
   to {
@@ -171,10 +197,6 @@
   animation: fadeIn 0.4s ease-out forwards;
 }
 
-.animate-slide-up {
-  animation: slideUp 0.5s ease-out forwards;
-}
-
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
@@ -188,19 +210,8 @@
   background: linear-gradient(135deg, hsl(var(--primary) / 0.08), hsl(var(--accent) / 0.05));
 }
 
-.gradient-bg-accent {
-  background: linear-gradient(135deg, hsl(var(--accent) / 0.15), hsl(var(--accent) / 0.05));
-}
-
 .gradient-text {
   background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.gradient-text-accent {
-  background: linear-gradient(135deg, hsl(var(--accent)), hsl(45 80% 55%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -234,119 +245,6 @@
     0 16px 32px hsl(var(--foreground) / 0.06);
 }
 
-.shadow-glow-accent {
-  box-shadow: 0 4px 20px hsl(var(--accent) / 0.25);
-}
-
-/* Decorative Elements */
-.accent-dot {
-  width: 8px;
-  height: 8px;
-  background: hsl(var(--accent));
-  border-radius: 50%;
-}
-
-.accent-line {
-  height: 3px;
-  background: hsl(var(--accent));
-  border-radius: 2px;
-}
-
-/* Button Enhancements */
-.btn-premium {
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.btn-premium::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, hsl(0 0% 100% / 0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.btn-premium:hover::before {
-  left: 100%;
-}
-
-/* Label styling */
-.label-accent {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.25rem 0.75rem;
-  background: hsl(var(--accent) / 0.15);
-  border: 1px solid hsl(var(--accent) / 0.3);
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: hsl(var(--accent-foreground));
-}
-
-/* Icon containers */
-.icon-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: hsl(var(--primary) / 0.1);
-  color: hsl(var(--primary));
-  transition: all 0.3s ease;
-}
-
-.icon-box:hover {
-  background: hsl(var(--primary) / 0.15);
-  transform: scale(1.05);
-}
-
-.icon-box-accent {
-  background: hsl(var(--accent) / 0.15);
-  color: hsl(var(--accent-foreground));
-}
-
-/* Section dividers */
-.section-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, hsl(var(--border)), transparent);
-}
-
-/* ============================================
-   PARALLAX & ADVANCED ANIMATIONS
-   ============================================ */
-
-/* Parallax Container */
-.parallax-container {
-  perspective: 1000px;
-  overflow: hidden;
-  transform-style: preserve-3d;
-}
-
-/* Parallax Layers - Different depths */
-.parallax-layer {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-}
-
-.parallax-layer-back {
-  transform: translateZ(-100px) scale(1.1);
-}
-
-.parallax-layer-mid {
-  transform: translateZ(-50px) scale(1.05);
-}
-
-.parallax-layer-front {
-  transform: translateZ(0);
-}
-
 /* Scroll Reveal Animations */
 @keyframes fadeInUp {
   from {
@@ -357,42 +255,6 @@
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes fadeInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-40px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes fadeInRight {
-  from {
-    opacity: 0;
-    transform: translateX(40px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes fadeInScale {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
   }
 }
 
@@ -410,18 +272,6 @@
 
 .animate-fade-in-up {
   animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-fade-in-left {
-  animation: fadeInLeft 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-fade-in-right {
-  animation: fadeInRight 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-fade-in-scale {
-  animation: fadeInScale 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-scale-in {
@@ -457,34 +307,6 @@
   }
 }
 
-@keyframes floatFast {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-@keyframes floatRotate {
-
-  0%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-  }
-
-  25% {
-    transform: translateY(-8px) rotate(5deg);
-  }
-
-  75% {
-    transform: translateY(-4px) rotate(-5deg);
-  }
-}
-
 .animate-float-slow {
   animation: floatSlow 6s ease-in-out infinite;
 }
@@ -493,71 +315,8 @@
   animation: floatMedium 4s ease-in-out infinite;
 }
 
-.animate-float-fast {
-  animation: floatFast 2s ease-in-out infinite;
-}
-
-.animate-float-rotate {
-  animation: floatRotate 5s ease-in-out infinite;
-}
-
 /* Shimmer Effect */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.animate-shimmer {
-  background: linear-gradient(90deg,
-      transparent,
-      hsl(var(--accent) / 0.3),
-      transparent);
-  background-size: 200% 100%;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
 /* Glow Pulse Variations */
-@keyframes glowPulse {
-
-  0%,
-  100% {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.2),
-      0 0 40px hsl(var(--primary) / 0.1);
-  }
-
-  50% {
-    box-shadow: 0 0 40px hsl(var(--primary) / 0.4),
-      0 0 80px hsl(var(--primary) / 0.2);
-  }
-}
-
-@keyframes glowPulseAccent {
-
-  0%,
-  100% {
-    box-shadow: 0 0 20px hsl(var(--accent) / 0.2),
-      0 0 40px hsl(var(--accent) / 0.1);
-  }
-
-  50% {
-    box-shadow: 0 0 40px hsl(var(--accent) / 0.4),
-      0 0 80px hsl(var(--accent) / 0.2);
-  }
-}
-
-.animate-glow-pulse {
-  animation: glowPulse 3s ease-in-out infinite;
-}
-
-.animate-glow-pulse-accent {
-  animation: glowPulseAccent 3s ease-in-out infinite;
-}
-
 /* Stagger Animation Delays */
 .stagger-1 {
   animation-delay: 0.1s;
@@ -567,80 +326,8 @@
   animation-delay: 0.2s;
 }
 
-.stagger-3 {
-  animation-delay: 0.3s;
-}
-
-.stagger-4 {
-  animation-delay: 0.4s;
-}
-
-.stagger-5 {
-  animation-delay: 0.5s;
-}
-
-.stagger-6 {
-  animation-delay: 0.6s;
-}
-
-/* Initially hidden for scroll animations */
-.scroll-animate {
-  opacity: 0;
-}
-
-.scroll-animate.in-view {
-  opacity: 1;
-}
-
 /* Rotating Animation */
-@keyframes rotateSlowCW {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes rotateSlowCCW {
-  from {
-    transform: rotate(360deg);
-  }
-
-  to {
-    transform: rotate(0deg);
-  }
-}
-
-.animate-rotate-slow {
-  animation: rotateSlowCW 20s linear infinite;
-}
-
-.animate-rotate-slow-reverse {
-  animation: rotateSlowCCW 25s linear infinite;
-}
-
 /* Gradient Animation */
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.animate-gradient {
-  background-size: 200% 200%;
-  animation: gradientShift 8s ease infinite;
-}
-
 /* Hero Orbs */
 .hero-orb {
   position: absolute;
@@ -659,24 +346,6 @@
 }
 
 /* Sparkle Animation */
-@keyframes sparkle {
-
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0);
-  }
-
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-sparkle {
-  animation: sparkle 2s ease-in-out infinite;
-}
-
 /* Bounce Animation */
 @keyframes bounceIn {
   0% {
@@ -703,70 +372,8 @@
 }
 
 /* Wave Animation for Decorative Lines */
-@keyframes wave {
-
-  0%,
-  100% {
-    transform: scaleX(1);
-  }
-
-  50% {
-    transform: scaleX(1.2);
-  }
-}
-
-.animate-wave {
-  animation: wave 2s ease-in-out infinite;
-  transform-origin: center;
-}
-
 /* Morphing Shape */
-@keyframes morph {
-
-  0%,
-  100% {
-    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-  }
-
-  50% {
-    border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
-  }
-}
-
-.animate-morph {
-  animation: morph 8s ease-in-out infinite;
-}
-
 /* Particle Float */
-@keyframes particleFloat {
-  0% {
-    transform: translateY(0) translateX(0);
-    opacity: 0;
-  }
-
-  10% {
-    opacity: 1;
-  }
-
-  90% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateY(-100vh) translateX(20px);
-    opacity: 0;
-  }
-}
-
-.particle {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  background: hsl(var(--accent));
-  border-radius: 50%;
-  animation: particleFloat 10s ease-in-out infinite;
-}
-
 /* Decorative Grid Pattern */
 .grid-pattern {
   background-image:
@@ -776,87 +383,4 @@
 }
 
 /* Text Reveal Animation */
-@keyframes textReveal {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
-.animate-text-reveal {
-  animation: textReveal 1s cubic-bezier(0.65, 0, 0.35, 1) forwards;
-}
-
 /* Gradient Border Animation */
-@keyframes borderGradient {
-  0% {
-    border-image-source: linear-gradient(0deg, hsl(var(--primary)), hsl(var(--accent)));
-  }
-
-  50% {
-    border-image-source: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)));
-  }
-
-  100% {
-    border-image-source: linear-gradient(360deg, hsl(var(--primary)), hsl(var(--accent)));
-  }
-}
-
-/* Hover Lift Effect */
-.hover-lift {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.hover-lift:hover {
-  transform: translateY(-3px);
-  box-shadow:
-    0 2px 4px hsl(var(--foreground) / 0.04),
-    0 8px 16px hsl(var(--foreground) / 0.06),
-    0 16px 32px hsl(var(--foreground) / 0.06);
-}
-
-/* Custom Text Animations for the Final CTA */
-.animate-strike-draw {
-  position: relative;
-  display: inline-block;
-}
-.animate-strike-draw::after {
-  content: '';
-  position: absolute;
-  top: 55%;
-  left: -5%;
-  width: 110%;
-  height: max(3px, 0.1em);
-  background-color: hsl(var(--primary));
-  opacity: 0.8;
-  border-radius: 999px;
-  transform-origin: left center;
-  transform: scaleX(0);
-}
-.animate-strike-draw.is-visible::after {
-  animation: strikeDraw 0.6s cubic-bezier(0.65, 0, 0.35, 1) forwards;
-  animation-delay: 0.2s;
-}
-
-@keyframes strikeDraw {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-.animate-fade-in-late {
-  opacity: 0;
-  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  animation-delay: 1.8s;
-}
-.animate-fade-in-later {
-  opacity: 0;
-  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  animation-delay: 2.1s;
-}

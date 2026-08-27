@@ -27,15 +27,21 @@ export function ContentPageShell({
 }) {
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="px-4 sm:px-6 py-4 glass sticky top-0 z-50 border-b">
+      <header className="px-4 sm:px-6 py-4 glass sticky top-0 z-20">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <Link href={homeHref} className="flex items-center gap-2 group">
             <Logo size="md" />
             <span className="font-bold text-lg tracking-tight">{BRAND.name}</span>
           </Link>
+          {/* 44px. This was a bare text+icon link about 20px tall — the same
+              miss the mode headers had. The logo beside it also goes home, and
+              that duplication is fine here in a way it was not in the receipt
+              editor: both are unambiguous navigation to the same safe place,
+              whereas "Back to split" next to "Cancel" left it unclear whether
+              your edits survived. */}
           <Link
             href={homeHref}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="touch-manipulation -mr-2 flex min-h-[44px] items-center gap-1.5 px-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>{backLabel}</span>

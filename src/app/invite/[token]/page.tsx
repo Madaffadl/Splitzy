@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AuthButton } from "@/components/AuthButton";
 import { Loader2, CheckCircle2, AlertCircle, UserPlus } from "@/components/ui/icons";
 import { Logo } from "@/components/ui/Logo";
 import { BRAND } from "@/lib/brand";
@@ -57,7 +58,14 @@ export default function InvitePage() {
       const res = await fetch(`/api/invite/${token}/join`, { method: "POST" });
       if (res.ok) {
         setPageState("joined");
-        setTimeout(() => router.push("/travel"), 1800);
+        // Straight to the trip they just joined, not the trip list. info.tripId
+        // was already here and unused, so a new member landed on a list of
+        // every trip they belong to and had to work out which one was new — on
+        // their very first interaction with the feature.
+        setTimeout(
+          () => router.push(`/travel?trip=${encodeURIComponent(info?.tripId ?? "")}`),
+          1400
+        );
       } else {
         const body = await res.json().catch(() => ({}));
         setErrorMsg((body as { message?: string }).message ?? "Something went wrong.");
@@ -73,17 +81,29 @@ export default function InvitePage() {
 
   return (
     <main className="min-h-screen flex flex-col">
-      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <Logo size="md" />
             <span className="font-semibold text-sm sm:text-base">{BRAND.name}</span>
           </Link>
-          <ThemeToggle />
+          {/* Joining binds whichever Google account is active to this trip,
+              permanently. This is the one screen in the app where that matters
+              most, and it was the one screen with no way to see — let alone
+              change — who you are signed in as. */}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <AuthButton />
+          </div>
         </div>
       </header>
 
-      <div className="flex-grow flex items-center justify-center px-4 py-12">
+      {/* The whole card swaps content as pageState moves through loading →
+          ready → joining → joined, and a screen reader was told none of it. */}
+      <div
+        className="flex-grow flex items-center justify-center px-4 py-12"
+        aria-live="polite"
+      >
         <Card className="w-full max-w-md">
           {loading && (
             <>
@@ -118,8 +138,8 @@ export default function InvitePage() {
           {!loading && (pageState === "ready" || pageState === "joining") && info && (
             <>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                  <UserPlus className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
+                  <UserPlus className="h-6 w-6 text-success" />
                 </div>
                 <CardTitle>You&apos;ve been invited!</CardTitle>
                 <CardDescription>
@@ -131,7 +151,12 @@ export default function InvitePage() {
                 <div className="rounded-xl border bg-muted/40 px-4 py-3">
                   <p className="text-lg font-bold">{info.tripName}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Expires {new Date(info.expiresAt).toLocaleDateString()}
+                    Expires{" "}
+                    {new Date(info.expiresAt).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
                   </p>
                 </div>
                 {!isAuthenticated && (
@@ -163,8 +188,8 @@ export default function InvitePage() {
           {!loading && pageState === "joined" && info && (
             <>
               <CardHeader className="text-center">
-                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-6 w-6 text-success" />
                 </div>
                 <CardTitle>You&apos;re in!</CardTitle>
                 <CardDescription>

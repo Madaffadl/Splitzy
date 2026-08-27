@@ -27,6 +27,21 @@ export default {
                     DEFAULT: "hsl(var(--destructive))",
                     foreground: "hsl(var(--destructive-foreground))",
                 },
+                // Status tokens. `text-success` replaces the hand-written
+                // `text-emerald-600 dark:text-emerald-400` pair that appeared
+                // ~100 times; the theme switch is handled once, in globals.css.
+                success: {
+                    DEFAULT: "hsl(var(--success))",
+                    foreground: "hsl(var(--success-foreground))",
+                },
+                warning: {
+                    DEFAULT: "hsl(var(--warning))",
+                    foreground: "hsl(var(--warning-foreground))",
+                },
+                info: {
+                    DEFAULT: "hsl(var(--info))",
+                    foreground: "hsl(var(--info-foreground))",
+                },
                 muted: {
                     DEFAULT: "hsl(var(--muted))",
                     foreground: "hsl(var(--muted-foreground))",

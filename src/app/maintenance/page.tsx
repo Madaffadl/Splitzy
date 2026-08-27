@@ -46,7 +46,7 @@ export default function MaintenancePage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
               </div>
-              <span className="font-medium text-amber-500">System Upgrading</span>
+              <span className="font-medium text-warning">System Upgrading</span>
             </div>
             
             <p className="text-sm text-muted-foreground">
@@ -60,7 +60,7 @@ export default function MaintenancePage() {
           </div>
 
           <p className="text-xs text-muted-foreground pt-8 flex items-center justify-center gap-1">
-            Made with <HandHeart className="w-3 h-3 text-red-500" /> by the Splitzy team
+            Made with <HandHeart className="w-3 h-3 text-destructive" /> by the Splitzy team
           </p>
         </div>
       </div>

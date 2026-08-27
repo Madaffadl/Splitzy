@@ -38,14 +38,14 @@ export default function SharePage() {
 
   return (
     <main className="min-h-screen bg-background flex flex-col">
-      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-10">
+      <header className="px-3 sm:px-6 py-3 sm:py-4 glass sticky top-0 z-20">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <Link
             href="/"
             aria-label="Splitzy home"
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            className="touch-manipulation -ml-1 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+            <div className="h-11 w-11 rounded-lg bg-muted flex items-center justify-center">
               <ArrowLeft className="h-4 w-4" />
             </div>
             <span className="text-sm font-medium hidden sm:inline">Splitzy home</span>
@@ -97,6 +97,23 @@ export default function SharePage() {
               title={payload.title || payload.receipt.title}
               readOnly
             />
+
+            {/* The success path had no way into the product at all. This page is the
+                most-viewed screen in the app by people who are not users yet — a
+                friend opens the WhatsApp link, sees a working split, finds what they
+                owe — and the only route onward was a 32px back arrow whose label is
+                hidden on mobile. The error path has had a CTA all along. */}
+            <div className="rounded-xl border border-dashed bg-muted/30 p-4 text-center">
+              <p className="text-sm font-medium text-foreground">
+                Splitting a bill yourself?
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Scan the receipt, tap who had what, send the result. No account needed.
+              </p>
+              <Link href="/single" className="mt-3 inline-block">
+                <Button size="sm">Split a bill</Button>
+              </Link>
+            </div>
           </div>
         ) : null}
       </div>

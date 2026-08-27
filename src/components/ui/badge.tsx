@@ -19,10 +19,14 @@ const badgeVariants = cva(
           "border-transparent bg-accent text-accent-foreground shadow-sm shadow-accent/20 hover:bg-accent/80",
         "accent-outline":
           "border-accent/30 bg-accent/10 text-accent-foreground",
+        // emerald-700, not emerald-500: white on emerald-500 measures 2.5:1,
+        // well under the 4.5:1 text minimum. This variant has no call sites
+        // yet, so the failure was latent — waiting for whoever reached for it
+        // first. emerald-700 measures ~5.5:1.
         success:
-          "border-transparent bg-emerald-500 text-white shadow-sm hover:bg-emerald-600",
+          "border-transparent bg-emerald-700 text-white shadow-sm hover:bg-emerald-800",
         "success-outline":
-          "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+          "border-success/30 bg-success/10 text-success",
       },
     },
     defaultVariants: {

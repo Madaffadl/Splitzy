@@ -51,7 +51,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toast = React.useCallback(
-    ({ title, description, variant = "info", duration = 3500, action }: ToastOptions) => {
+    (opts: ToastOptions) => {
+      const { title, description, variant = "info", action } = opts;
+      // A toast carrying a recovery action has to outlive a glance. 3.5s is
+      // enough to read "Trip deleted" but not to notice it, decide, and reach
+      // Undo — and once it goes, the trip is gone. Explicit durations still win.
+      const duration = opts.duration ?? (action ? 9000 : 3500);
       const id = ++idCounter;
       setToasts((prev) => [...prev, { id, title, description, variant, duration, action }]);
       if (duration > 0) {
@@ -85,10 +90,10 @@ const variantStyles: Record<
   { bg: string; border: string; icon: React.ElementType; iconClass: string }
 > = {
   success: {
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/40",
+    bg: "bg-success/10",
+    border: "border-success/40",
     icon: CheckCircle2,
-    iconClass: "text-emerald-500",
+    iconClass: "text-success",
   },
   error: {
     bg: "bg-destructive/10",
@@ -137,7 +142,7 @@ function ToastItem({
             toast.action!.onClick();
             onDismiss();
           }}
-          className="shrink-0 self-center rounded-md border border-current/20 px-2 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-foreground/10"
+          className="touch-manipulation flex min-h-[44px] shrink-0 items-center self-center rounded-md border border-current/20 px-3 text-xs font-semibold text-foreground transition-colors hover:bg-foreground/10"
         >
           {toast.action.label}
         </button>
@@ -146,7 +151,7 @@ function ToastItem({
         type="button"
         onClick={onDismiss}
         aria-label="Dismiss notification"
-        className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+        className="touch-manipulation flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
       >
         <X className="h-4 w-4" />
       </button>
