@@ -95,7 +95,7 @@ function PlanBadge({ user }: { user: AdminUser }) {
   if (user.bannedAt) return <Badge variant="destructive">Banned</Badge>;
   if (user.plan === "pro")
     return (
-      <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+      <Badge className="bg-success/15 text-success border-success/30">
         Pro
       </Badge>
     );
@@ -111,11 +111,11 @@ function ScanBar({ user }: { user: AdminUser }) {
     <div className="flex items-center gap-2 min-w-[130px]">
       <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all ${over ? "bg-red-500" : "bg-primary"}`}
+          className={`h-full rounded-full transition-all ${over ? "bg-destructive" : "bg-primary"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={`text-xs tabular-nums whitespace-nowrap ${over ? "text-red-500 font-medium" : "text-muted-foreground"}`}>
+      <span className={`text-xs tabular-nums whitespace-nowrap ${over ? "text-destructive font-medium" : "text-muted-foreground"}`}>
         {user.aiScanCount}/{user.aiScanLimit ?? FREE_SCAN_LIMIT}
         {user.aiScanLimit !== null && user.aiScanLimit !== FREE_SCAN_LIMIT && (
           <span className="text-primary ml-0.5">*</span>
@@ -324,7 +324,7 @@ function UserDrawer({
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Success toast */}
           {successMsg && (
-            <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <div className="flex items-center gap-2 rounded-lg bg-success/10 border border-success/30 px-3 py-2 text-sm text-success">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               {successMsg}
             </div>
@@ -332,7 +332,7 @@ function UserDrawer({
 
           {/* Error toast — a failed mutation must never look like success */}
           {errorMsg && (
-            <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-700 dark:text-red-400">
+            <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
@@ -352,7 +352,7 @@ function UserDrawer({
 
           {/* Ban warning */}
           {user.bannedAt && (
-            <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-sm text-red-700 dark:text-red-400">
+            <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium">Account suspended</p>
@@ -436,15 +436,15 @@ function UserDrawer({
                     if (limitError) setLimitError(null);
                   }}
                   aria-invalid={!!limitError}
-                  className="h-8 text-sm"
+                  className="h-11 text-base sm:h-9 sm:text-sm"
                 />
               </div>
-              <Button variant="outline" size="sm" className="mt-5 h-8" disabled={busy} onClick={applyLimit}>
+              <Button variant="outline" size="sm" className="mt-5" disabled={busy} onClick={applyLimit}>
                 Save
               </Button>
             </div>
             {limitError && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
+              <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3 shrink-0" />
                 {limitError}
               </p>
@@ -475,7 +475,7 @@ function UserDrawer({
                 <p className="text-sm font-medium">Trips</p>
                 <p className="text-xs text-muted-foreground">{user.tripCount} total owned</p>
               </div>
-              <Plane className="h-4 w-4 text-emerald-500" />
+              <Plane className="h-4 w-4 text-success" />
             </div>
             {tripsLoading ? (
               <div className="flex justify-center py-4">
@@ -578,7 +578,7 @@ function UserDrawer({
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full gap-2 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
+                className="w-full gap-2 border-success/40 text-success hover:bg-success/10"
                 disabled={busy}
                 onClick={() =>
                   setConfirm({
@@ -850,7 +850,11 @@ export default function AdminPage() {
     try {
       const res = await fetch(`/api/admin/users?${buildParams(null)}`);
       if (res.status === 403 || res.status === 401) {
-        router.replace("/");
+        // Carries a reason. A silent bounce to the marketing landing is what an
+        // admin with an expired session used to get: no explanation, and the
+        // first-run modal on top of it. `?login=required` is the convention the
+        // rest of the app already uses, and it leaks nothing about this route.
+        router.replace("/?login=required&redirect=/admin");
         return;
       }
       if (!res.ok) throw new Error("Failed");
@@ -939,9 +943,9 @@ export default function AdminPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { icon: Users, label: "Total users", value: stats.total, color: "bg-primary/10 text-primary" },
-            { icon: Shield, label: "Pro accounts", value: stats.pro, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-            { icon: Ban, label: "Banned", value: stats.banned, color: "bg-red-500/10 text-red-600 dark:text-red-400" },
-            { icon: Scan, label: "Scans (month)", value: stats.scans, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+            { icon: Shield, label: "Pro accounts", value: stats.pro, color: "bg-success/10 text-success" },
+            { icon: Ban, label: "Banned", value: stats.banned, color: "bg-destructive/10 text-destructive" },
+            { icon: Scan, label: "Scans (month)", value: stats.scans, color: "bg-warning/10 text-warning" },
           ].map(({ icon: Icon, label, value, color }) => (
             <Card key={label}>
               <CardContent className="pt-4 pb-3">

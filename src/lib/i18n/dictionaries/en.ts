@@ -932,6 +932,10 @@ export const en: Dictionary = {
       signIn: "Sign in with Google",
       later: "Maybe later",
     },
+    loginRequired: {
+      body: "Sign in to continue.",
+      signIn: "Sign in with Google",
+    },
     locale: {
       switchAria: "Change language",
     },

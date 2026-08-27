@@ -441,3 +441,31 @@ test.describe("action bar", () => {
     });
 });
 
+test.describe("protected routes explain themselves", () => {
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test("a bounced admin is told why, not dumped on the landing page", async ({ page }) => {
+        // /admin used to `router.replace("/")` on 401/403. An admin whose session
+        // had expired tapped their bookmark and got the marketing landing with
+        // the first-run modal on top — no explanation, and no reason to think the
+        // URL had not simply changed. It carries ?login=required now, which is
+        // the convention /history/[id] and UpgradeButton already use, and which
+        // reveals nothing about the route.
+        await page.addInitScript(() => localStorage.setItem("splitzy-onboarding-seen", "1"));
+        await page.goto("/admin");
+
+        await expect(page).toHaveURL(/login=required/);
+        await expect(page.getByText(/sign in to continue|masuk untuk melanjutkan/i)).toBeVisible();
+    });
+
+    test("the bounce banner does not claim to be about receipt history", async ({ page }) => {
+        // Its copy was hardcoded to "Sign in to view your Receipt History", so it
+        // was already lying to UpgradeButton, which bounces off /pricing.
+        await page.addInitScript(() => localStorage.setItem("splitzy-onboarding-seen", "1"));
+        await page.goto("/?login=required&redirect=/pricing");
+        const banner = page.getByText(/sign in to continue/i);
+        await expect(banner).toBeVisible();
+        await expect(page.getByText(/Receipt History across devices/i)).toHaveCount(0);
+    });
+});
+

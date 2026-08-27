@@ -953,6 +953,10 @@ export const id = {
       signIn: "Masuk dengan Google",
       later: "Nanti saja",
     },
+    loginRequired: {
+      body: "Masuk untuk melanjutkan.",
+      signIn: "Masuk dengan Google",
+    },
     locale: {
       switchAria: "Ganti bahasa",
     },
