@@ -1806,8 +1806,8 @@ export function TravelSpendView() {
 
               {/* Receipts */}
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div>
+                <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                  <div className="min-w-0">
                     <CardTitle>Receipts</CardTitle>
                     <CardDescription>
                       {activeTrip.receipts.length} receipt{activeTrip.receipts.length !== 1 ? "s" : ""}

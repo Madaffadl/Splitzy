@@ -285,18 +285,18 @@ export function SingleSplitView() {
 
   const blockingMessage = useMemo(() => {
     if (currentStep !== 1) return null;
-    if (state.items.length === 0) return "Add at least one item to continue.";
+    if (state.items.length === 0) return t.editor.needItem;
     const unassigned = state.items.filter((i) => i.assignedToIds.length === 0).length;
     if (unassigned > 0) {
-      return `Assign ${unassigned} item${unassigned > 1 ? "s" : ""} to at least one person.`;
+      return fill(t.editor.needAssign, { count: unassigned });
     }
     const zeroTotal = state.items.filter((i) => i.total <= 0).length;
     if (zeroTotal > 0) {
-      return `${zeroTotal} item${zeroTotal > 1 ? "s have" : " has"} no price.`;
+      return t.editor.needPrice;
     }
-    if (!state.payerId) return "Select who paid the bill.";
+    if (!state.payerId) return t.editor.needPayer;
     return null;
-  }, [currentStep, state]);
+  }, [currentStep, state, t.editor]);
 
   // Whether THIS split has already been counted against the guest allowance.
   // It used to increment on every 1 → 2 transition, so a guest who opened the
@@ -873,7 +873,7 @@ export function SingleSplitView() {
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowResetDialog(false)}>
-              Cancel
+              {t.summary.cancel}
             </Button>
             <Button variant="destructive" onClick={confirmReset}>
               <RotateCcw className="h-4 w-4 mr-2" />
@@ -891,17 +891,17 @@ export function SingleSplitView() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Replace what&rsquo;s in the editor?</DialogTitle>
+            <DialogTitle>{t.multiple.replaceTitle}</DialogTitle>
             <DialogDescription>
-              You have a split in progress here ({state.items.length}{" "}
-              item{state.items.length === 1 ? "" : "s"}). Opening
-              &ldquo;{pendingResume?.title}&rdquo; will replace it, and anything
-              you haven&rsquo;t saved will be lost.
+              {fill(t.multiple.replaceBody, {
+                count: state.items.length,
+                title: pendingResume?.title ?? "",
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setPendingResume(null)}>
-              Keep what I have
+              {t.multiple.keepMine}
             </Button>
             <Button
               onClick={() => {
@@ -909,7 +909,7 @@ export function SingleSplitView() {
                 setPendingResume(null);
               }}
             >
-              Open the saved split
+              {t.multiple.openSaved}
             </Button>
           </DialogFooter>
         </DialogContent>

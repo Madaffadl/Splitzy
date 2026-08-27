@@ -346,7 +346,7 @@ function PersonBreakdown({
             type="button"
             onClick={onTogglePaid}
             aria-pressed={paid}
-            aria-label={paid ? `${name} has paid their share — tap to undo` : `Mark ${name}'s share as paid`}
+            aria-label={paid ? fill(t.undoPaidPersonAria, { name }) : fill(t.markPaidPersonAria, { name })}
             className={cn(
               // 44px, like the expand button it sits beside — this was
               // min-h-[36px] on the same row as a min-h-[44px] sibling.
@@ -357,7 +357,7 @@ function PersonBreakdown({
             )}
           >
             <Check className="h-3 w-3 shrink-0" />
-            {paid ? "Paid" : "Mark paid"}
+            {paid ? t.paid : t.markPaid}
           </button>
         )}
       </div>
@@ -474,6 +474,7 @@ export function ReceiptBreakdown({
   // Travel Spend: toggle every non-payer's share at once (whole-receipt shortcut).
   onToggleAllPaid?: () => void;
 }) {
+  const t = useDictionary().app.summary;
   const [expanded, setExpanded] = useState(false);
   const paidBy = paidParticipantIds ?? EMPTY_PAID;
 
@@ -573,8 +574,8 @@ export function ReceiptBreakdown({
                 type="button"
                 onClick={onToggleAllPaid}
                 aria-pressed={allPaid}
-                aria-label={allPaid ? `Mark ${receipt.title} as unpaid` : `Mark everyone's share of ${receipt.title} as paid`}
-                title={allPaid ? "Everyone has paid — click to undo" : "Mark everyone's share as paid"}
+                aria-label={allPaid ? fill(t.unmarkAllPaidAria, { title: receipt.title }) : fill(t.markAllPaidAria, { title: receipt.title })}
+                title={allPaid ? t.everyonePaidTitle : t.markEveryoneTitle}
                 className={cn(
                   "touch-manipulation hidden h-11 w-11 items-center justify-center rounded-md transition-colors sm:flex",
                   allPaid
@@ -589,7 +590,7 @@ export function ReceiptBreakdown({
               <button
                 type="button"
                 onClick={onEdit}
-                aria-label={`Edit ${receipt.title}`}
+                aria-label={fill(t.edit, {}) + " " + receipt.title}
                 className="touch-manipulation h-11 w-11 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <Edit2 className="h-4 w-4" />
@@ -616,7 +617,7 @@ export function ReceiptBreakdown({
       {onTogglePaidShare && owing.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 px-3 pb-2 -mt-0.5">
           {paidBy.size === 0 && (
-            <span className="text-[10px] text-muted-foreground mr-0.5">Tap to mark paid:</span>
+            <span className="text-[10px] text-muted-foreground mr-0.5">{t.tapToMarkPaid}</span>
           )}
           {/* Each of these records or removes a payment in the trip ledger and
               syncs it to every member. They were ~20px tall at gap-1.5 (6px),
@@ -630,7 +631,7 @@ export function ReceiptBreakdown({
                 type="button"
                 onClick={() => onTogglePaidShare(p.id)}
                 aria-pressed={isPaid}
-                aria-label={isPaid ? `${p.name} has paid — tap to undo` : `Mark ${p.name}'s share as paid`}
+                aria-label={isPaid ? fill(t.undoPaidPersonAria, { name: p.name }) : fill(t.markPaidPersonAria, { name: p.name })}
                 className={cn(
                   "touch-manipulation flex min-h-[44px] items-center gap-1.5 rounded-full border px-3 text-[11px] font-medium transition-colors",
                   isPaid
@@ -657,7 +658,7 @@ export function ReceiptBreakdown({
           {onTogglePaidShare && (
             <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Check className="h-3 w-3 shrink-0 text-success" />
-              Tap <span className="font-medium text-foreground">Mark paid</span> when someone has settled their share.
+              {t.tapMarkPaidHint}
             </p>
           )}
           {isForeign && (
@@ -1295,6 +1296,7 @@ export function MultipleReceiptSummaryPanel({
   onRecordPayment,
   onDeletePayment,
 }: MultipleReceiptSummaryPanelProps) {
+  const t = useDictionary().app.summary;
   const [copied, setCopied] = useState(false);
   // Short link is created lazily on first Share/Copy and cached for the session
   // so repeated clicks reuse the same link instead of minting a new row.
@@ -1774,7 +1776,7 @@ export function MultipleReceiptSummaryPanel({
       <Card className="border-dashed">
         <CardContent className="py-8 text-center text-muted-foreground">
           <Calculator className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>Add receipts to see the summary</p>
+          <p>{t.needReceipts}</p>
         </CardContent>
       </Card>
     );
@@ -1791,12 +1793,12 @@ export function MultipleReceiptSummaryPanel({
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            Summary
+            {t.title}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 tabular-nums">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Total spent</span>
+            <span className="text-sm text-muted-foreground">{t.totalSpent}</span>
             <span className="text-lg font-bold text-primary">Rp {formatCurrency(totalGrandTotal)}</span>
           </div>
 
@@ -1807,7 +1809,7 @@ export function MultipleReceiptSummaryPanel({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground flex items-center gap-1.5">
                   <Target className="h-4 w-4" />
-                  Budget
+                  {t.budget}
                 </span>
                 <span className="font-medium">Rp {formatCurrency(budget)}</span>
               </div>
@@ -1824,7 +1826,7 @@ export function MultipleReceiptSummaryPanel({
           )}
 
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-muted-foreground">Balances</h4>
+            <h4 className="text-sm font-medium text-muted-foreground">{t.balances}</h4>
             <div className="space-y-1">
               {Array.from(aggregateBalances.entries()).map(([id, net]) => (
                 <div key={id} className="flex items-center justify-between text-sm">
@@ -1860,7 +1862,7 @@ export function MultipleReceiptSummaryPanel({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="h-5 w-5" />
-            Summary
+            {t.title}
           </CardTitle>
           {!readOnly && (
             <div className="flex w-full items-center gap-2 sm:w-auto">
@@ -1879,7 +1881,7 @@ export function MultipleReceiptSummaryPanel({
                 )}
                 {/* md:, matching the single-receipt panel — the same button was
                     showing its label at a different breakpoint in each. */}
-                <span className="ml-1.5">Share</span>
+                <span className="ml-1.5">{t.share}</span>
               </Button>
               <Button
                 variant="outline"
@@ -1890,7 +1892,7 @@ export function MultipleReceiptSummaryPanel({
                 aria-label="Share the split to WhatsApp"
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="ml-1.5">WhatsApp</span>
+                <span className="ml-1.5">{t.whatsapp}</span>
               </Button>
               <Button
                 variant="accent"
@@ -1902,12 +1904,12 @@ export function MultipleReceiptSummaryPanel({
                 {copied ? (
                   <>
                     <Check className="mr-1 h-3 w-3" />
-                    Copied!
+                    {t.copied}
                   </>
                 ) : (
                   <>
                     <Copy className="mr-1 h-3 w-3" />
-                    Copy
+                    {t.copy}
                   </>
                 )}
               </Button>
@@ -1918,22 +1920,22 @@ export function MultipleReceiptSummaryPanel({
       <CardContent className="space-y-4 tabular-nums">
         {/* Split Stats */}
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <div className="text-muted-foreground">Receipts</div>
+          <div className="text-muted-foreground">{t.receiptsCount}</div>
           <div className="text-right font-medium">{receipts.length}</div>
           <div className="text-muted-foreground font-medium pt-2 border-t">
-            Total
+            {t.total}
           </div>
           <div className={cn("text-right pt-2 border-t", totalDiscount > 0 ? "font-medium" : "font-bold text-primary")}>
             Rp {formatCurrency(totalGrandTotal)}
           </div>
           {totalDiscount > 0 && (
             <>
-              <div className="text-success">Discount</div>
+              <div className="text-success">{t.discount}</div>
               <div className="text-right text-success">
                 − Rp {formatCurrency(totalDiscount)}
               </div>
               <div className="text-muted-foreground font-medium pt-2 border-t">
-                Amount Paid
+                {t.amountPaid}
               </div>
               <div className="text-right font-bold pt-2 border-t text-primary">
                 Rp {formatCurrency(totalPaid)}
@@ -1979,7 +1981,7 @@ export function MultipleReceiptSummaryPanel({
             (Travel Spend) surfaces these in its own Receipts list. */}
         {showReceiptDetails && (
           <CollapsibleSection
-            title="Receipt details"
+            title={t.receiptDetails}
             badge={
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
                 {receipts.length}
@@ -2010,7 +2012,7 @@ export function MultipleReceiptSummaryPanel({
           title={
             <span className="flex items-center gap-1.5">
               <Wallet className="h-4 w-4" />
-              Spending breakdown
+              {t.spendingBreakdown}
             </span>
           }
         >
@@ -2148,7 +2150,7 @@ export function MultipleReceiptSummaryPanel({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium text-muted-foreground">
-              Final Settlements
+              {t.finalSettlements}
             </h4>
             {settlements.length > 0 && (
               <button
@@ -2158,7 +2160,7 @@ export function MultipleReceiptSummaryPanel({
                 aria-pressed={showTrace}
               >
                 <Info className="h-3.5 w-3.5" />
-                {showTrace ? "Hide explanation" : "How is this calculated?"}
+                {showTrace ? t.hideExplanation : t.howCalculated}
               </button>
             )}
           </div>
@@ -2172,7 +2174,7 @@ export function MultipleReceiptSummaryPanel({
                 title={
                   <span className="flex items-center gap-1.5 font-medium text-success">
                     <Check className="h-3.5 w-3.5 shrink-0" />
-                    Already paid — not included in settlement
+                    {t.alreadyPaid}
                   </span>
                 }
                 badge={
@@ -2187,12 +2189,12 @@ export function MultipleReceiptSummaryPanel({
                     <span className="min-w-0 truncate text-foreground/90">
                       {p.receiptTitle ? (
                         <>
-                          <span className="font-semibold">{getParticipantName(p.from)}</span> paid their share of{" "}
+                          <span className="font-semibold">{getParticipantName(p.from)}</span> {t.paidTheirShare}{" "}
                           <span className="font-medium">{p.receiptTitle}</span>
                         </>
                       ) : (
                         <>
-                          <span className="font-semibold">{getParticipantName(p.from)}</span> paid{" "}
+                          <span className="font-semibold">{getParticipantName(p.from)}</span> {t.paidPerson}{" "}
                           <span className="font-semibold">{getParticipantName(p.to)}</span>
                           {p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}
                         </>
@@ -2214,8 +2216,8 @@ export function MultipleReceiptSummaryPanel({
                         <button
                           type="button"
                           onClick={() => onDeletePayment(p.id)}
-                          aria-label="Undo this payment"
-                          title="Undo — move back to settlement"
+                          aria-label={t.undoPayment}
+                          title={t.undoPaymentTitle}
                           className="touch-manipulation -my-2 h-11 w-11 flex items-center justify-center rounded text-emerald-700/70 hover:text-destructive hover:bg-background/60 transition-colors"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -2238,7 +2240,7 @@ export function MultipleReceiptSummaryPanel({
 
               {/* Starting net balances */}
               <div className="space-y-1">
-                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">Net balances before settlement</p>
+                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">{t.netBalances}</p>
                 {Array.from(aggregateBalances.entries())
                   .sort((a, b) => b[1] - a[1])
                   .map(([id, balance]) => (
@@ -2262,7 +2264,7 @@ export function MultipleReceiptSummaryPanel({
 
               {/* Step-by-step transfer trace */}
               <div className="space-y-2">
-                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">Step-by-step</p>
+                <p className="font-semibold text-[11px] uppercase tracking-wide text-muted-foreground">{t.stepByStep}</p>
                 {settlementTrace.map((step, i) => {
                   const fromAfter = step.balancesAfter.get(step.transfer.from) ?? 0;
                   const toAfter = step.balancesAfter.get(step.transfer.to) ?? 0;
@@ -2300,7 +2302,8 @@ export function MultipleReceiptSummaryPanel({
 
           {settlements.length === 0 ? (
             <div className="text-sm text-center py-2 text-success bg-success/10 rounded-md">
-              ✓ Everyone is settled!
+              <Check className="mr-1 inline h-4 w-4 shrink-0" aria-hidden="true" />
+              {t.everyoneSettled}
             </div>
           ) : onRecordPayment ? (
             // Ledger mode (Travel): marking a transfer paid records a real,
@@ -2308,7 +2311,7 @@ export function MultipleReceiptSummaryPanel({
             // and the remaining list updates — nothing is silently hidden.
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Tap <span className="font-medium text-foreground">Mark paid</span> once a transfer is done — it&apos;s recorded and synced.
+                {t.tapMarkPaidHint}
               </p>
               {settlements.map((s, i) => (
                 <div
@@ -2328,7 +2331,7 @@ export function MultipleReceiptSummaryPanel({
                     onClick={() => onRecordPayment(s.from, s.to, s.amount)}
                   >
                     <Check className="h-3.5 w-3.5" />
-                    Mark paid
+                    {t.markPaid}
                   </Button>
                 </div>
               ))}

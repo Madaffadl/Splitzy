@@ -46,7 +46,7 @@ import {
   Info,
 } from "@/components/ui/icons";
 import { AppFooter } from "@/components/AppFooter";
-import { useDictionary } from "@/lib/i18n/use-locale";
+import { fill, useDictionary } from "@/lib/i18n/use-locale";
 
 // A "split" here is one named group of receipts shared by the same people and
 // settled together. It reuses the Trip domain shape (id/name/participants/
@@ -57,7 +57,7 @@ interface MultipleState {
 
 const DEFAULT_SPLIT: Trip = {
   id: generateId(),
-  name: "My Split",
+  name: "My Split", // replaced with the localised default on first render
   participants: [],
   receipts: [],
 };
@@ -168,8 +168,8 @@ export function MultipleReceiptView() {
         if (!cancelled) {
           router.replace("/multiple");
           toast({
-            title: "Couldn't open that split",
-            description: "It may have expired or been deleted.",
+            title: t.cards.resumeFailed,
+            description: t.cards.resumeFailedBody,
             variant: "error",
           });
         }
@@ -179,7 +179,7 @@ export function MultipleReceiptView() {
     return () => {
       cancelled = true;
     };
-  }, [resumeId, applyResume, router, toast]);
+  }, [resumeId, applyResume, router, toast, t.cards.resumeFailed, t.cards.resumeFailedBody]);
 
   useEffect(() => {
     if (viewMode === "edit-receipt") {
@@ -220,8 +220,8 @@ export function MultipleReceiptView() {
     // of overwriting the one this editor held.
     forget();
     toast({
-      title: "Split reset",
-      description: "All receipts and participants were cleared.",
+      title: t.multiple.resetDone,
+      description: t.multiple.resetDoneBody,
       variant: "success",
     });
   };
@@ -270,7 +270,7 @@ export function MultipleReceiptView() {
     setViewMode("overview");
     router.replace("/multiple", { scroll: false });
     toast({
-      title: isNew ? "Receipt added" : "Receipt updated",
+      title: isNew ? t.multiple.receiptAdded : t.multiple.receiptUpdated,
       description: receipt.title,
       variant: "success",
     });
@@ -284,7 +284,7 @@ export function MultipleReceiptView() {
     updateSplit({ receipts: split.receipts.filter((r) => r.id !== receiptId) });
     setShowDeleteDialog(null);
     toast({
-      title: "Receipt deleted",
+      title: t.multiple.receiptDeleted,
       description: removed?.title,
       variant: "success",
     });
@@ -379,9 +379,9 @@ export function MultipleReceiptView() {
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <p className="text-foreground/90">
             <span className="font-semibold text-warning">
-              Saved on this device only.
+              {t.multiple.localOnly}
             </span>{" "}
-            This split is stored in your browser. Clearing browser data or switching devices will lose it.
+            {t.multiple.localOnlyBody}
           </p>
         </div>
         {viewMode === "overview" && (
@@ -393,16 +393,16 @@ export function MultipleReceiptView() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Layers className="h-5 w-5" />
-                    Split Details
+                    {t.multiple.splitDetails}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Split name</Label>
+                    <Label>{t.multiple.splitName}</Label>
                     <Input
                       value={split.name}
                       onChange={(e) => updateSplit({ name: e.target.value })}
-                      placeholder="e.g., Weekend Getaway"
+                      placeholder={t.multiple.splitNamePlaceholder}
                     />
                   </div>
                 </CardContent>
@@ -411,10 +411,8 @@ export function MultipleReceiptView() {
               {/* Participants */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Participants</CardTitle>
-                  <CardDescription>
-                    Add everyone splitting these receipts
-                  </CardDescription>
+                  <CardTitle>{t.multiple.participants}</CardTitle>
+                  <CardDescription>{t.multiple.participantsHint}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ParticipantManager
@@ -426,12 +424,11 @@ export function MultipleReceiptView() {
 
               {/* Receipts List */}
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div>
-                    <CardTitle>Receipts</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                  <div className="min-w-0">
+                    <CardTitle>{t.multiple.receipts}</CardTitle>
                     <CardDescription>
-                      {split.receipts.length} receipt
-                      {split.receipts.length !== 1 ? "s" : ""} added
+                      {fill(t.multiple.receiptsAdded, { count: split.receipts.length })}
                     </CardDescription>
                   </div>
                   <Button
@@ -439,7 +436,7 @@ export function MultipleReceiptView() {
                     disabled={split.participants.length < 2}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Receipt
+                    {t.multiple.addReceipt}
                   </Button>
                 </CardHeader>
                 <CardContent>
@@ -448,19 +445,19 @@ export function MultipleReceiptView() {
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                         <Users className="h-6 w-6 text-primary opacity-80" />
                       </div>
-                      <p className="font-semibold text-foreground mb-1">Waiting for friends</p>
-                      <p className="text-sm text-muted-foreground max-w-xs">Add at least 2 participants to start adding receipts to this split.</p>
+                      <p className="font-semibold text-foreground mb-1">{t.multiple.waitingTitle}</p>
+                      <p className="text-sm text-muted-foreground max-w-xs">{t.multiple.waitingBody}</p>
                     </div>
                   ) : split.receipts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed bg-muted/10 text-center">
                       <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
                         <ReceiptIcon className="h-6 w-6 text-accent-strong" />
                       </div>
-                      <p className="font-semibold text-foreground mb-1">No receipts yet</p>
-                      <p className="text-sm text-muted-foreground max-w-sm mb-4">You&rsquo;re all set! Start tracking your shared expenses.</p>
+                      <p className="font-semibold text-foreground mb-1">{t.multiple.noReceiptsTitle}</p>
+                      <p className="text-sm text-muted-foreground max-w-sm mb-4">{t.multiple.noReceiptsBody}</p>
                       <Button onClick={startNewReceipt} size="sm" variant="secondary">
                         <Plus className="h-4 w-4 mr-2" />
-                        Add First Receipt
+                        {t.multiple.addFirstReceipt}
                       </Button>
                     </div>
                   ) : (
@@ -477,10 +474,10 @@ export function MultipleReceiptView() {
                             <div className="min-w-0 flex-1">
                               <p className="font-medium truncate">{receipt.title}</p>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <span className="shrink-0">{receipt.items.length} items</span>
+                                <span className="shrink-0">{fill(t.multiple.itemsCount, { count: receipt.items.length })}</span>
                                 <span className="shrink-0">•</span>
                                 <span className="truncate">
-                                  Paid by {getParticipantName(receipt.payerId)}
+                                  {fill(t.multiple.paidByName, { name: getParticipantName(receipt.payerId) })}
                                 </span>
                               </div>
                             </div>
@@ -496,7 +493,7 @@ export function MultipleReceiptView() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => editReceipt(receipt.id)}
-                                aria-label={`Edit ${receipt.title}`}
+                                aria-label={fill(t.multiple.editAria, { title: receipt.title })}
                               >
                                 <Edit2 className="h-4 w-4" />
                               </Button>
@@ -504,7 +501,7 @@ export function MultipleReceiptView() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => setShowDeleteDialog(receipt.id)}
-                                aria-label={`Delete ${receipt.title}`}
+                                aria-label={fill(t.multiple.deleteAria, { title: receipt.title })}
                                 className="text-muted-foreground hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -557,7 +554,7 @@ export function MultipleReceiptView() {
                   className="w-full min-h-[44px] touch-manipulation sm:w-auto"
                 >
                   <Cloud className="h-4 w-4 mr-2" />
-                  {savingSplit ? "Saving…" : "Save split"}
+                  {savingSplit ? t.multiple.saving : t.multiple.saveSplit}
                 </Button>
               </div>
             )}
@@ -603,10 +600,9 @@ export function MultipleReceiptView() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Receipt?</DialogTitle>
+            <DialogTitle>{t.multiple.deleteTitle}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this receipt? This action cannot be
-              undone.
+              {t.multiple.deleteBody}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
@@ -627,18 +623,18 @@ export function MultipleReceiptView() {
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset everything?</DialogTitle>
+            <DialogTitle>{t.multiple.resetTitle}</DialogTitle>
             <DialogDescription>
-              This will clear the split name, participants, and all receipts. This action cannot be undone.
+              {t.multiple.resetBody}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowResetDialog(false)}>
-              Cancel
+              {t.summary.cancel}
             </Button>
             <Button variant="destructive" onClick={confirmReset}>
               <RotateCcw className="h-4 w-4 mr-2" />
-              Yes, reset
+              {t.cards.resetConfirm}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -654,17 +650,17 @@ export function MultipleReceiptView() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Replace what&rsquo;s in the editor?</DialogTitle>
+            <DialogTitle>{t.multiple.replaceTitle}</DialogTitle>
             <DialogDescription>
-              You have a split in progress here ({split.receipts.length} receipt
-              {split.receipts.length === 1 ? "" : "s"}). Opening &ldquo;
-              {pendingResume?.title}&rdquo; will replace it, and anything you
-              haven&rsquo;t saved will be lost.
+              {fill(t.multiple.replaceBody, {
+                count: split.receipts.length,
+                title: pendingResume?.title ?? "",
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setPendingResume(null)}>
-              Keep what I have
+              {t.multiple.keepMine}
             </Button>
             <Button
               onClick={() => {
@@ -672,7 +668,7 @@ export function MultipleReceiptView() {
                 setPendingResume(null);
               }}
             >
-              Open the saved split
+              {t.multiple.openSaved}
             </Button>
           </DialogFooter>
         </DialogContent>

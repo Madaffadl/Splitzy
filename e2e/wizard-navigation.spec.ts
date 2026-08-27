@@ -259,3 +259,61 @@ test.describe("language", () => {
         }
     });
 });
+
+// /multiple shares its summary panel with /travel, so translating it covers both.
+test.describe("multiple-receipt split in Indonesian", () => {
+    test.use({ viewport: { width: 375, height: 667 } });
+
+    test.beforeEach(async ({ page }) => {
+        await page.addInitScript(() => {
+            localStorage.setItem("splitzy-locale", "id");
+            localStorage.setItem("splitzy-onboarding-seen", "1");
+            localStorage.setItem("splitbill-multiple", JSON.stringify({
+                split: {
+                    id: "s1", name: "Liburan Bali",
+                    participants: [{ id: "p1", name: "Alya" }, { id: "p2", name: "Budi" }],
+                    receipts: [{
+                        id: "r1", title: "Warung Sate", date: "2026-08-24", payerId: "p1",
+                        items: [{ id: "i1", name: "Sate Ayam", qty: 2, unitPrice: 35000, total: 70000, assignedToIds: ["p1", "p2"] }],
+                        tax: 7000, service: 5000,
+                    }],
+                },
+            }));
+        });
+    });
+
+    test("no untranslated strings on the overview", async ({ page }) => {
+        await page.goto("/multiple");
+        await expect(page.getByText("Rincian split")).toBeVisible();
+
+        const leaks = await page.evaluate(() => {
+            // Not in this list, deliberately: "Total" and "Subtotal" are the
+            // same words in Indonesian and are what real receipts print, and
+            // "WhatsApp" is a brand name.
+            const english = ["Split Details", "Split name", "Add Receipt", "Saved on this device only",
+                             "receipts added", "Paid by", "Save split", "Summary", "Balances",
+                             "Final Settlements", "Receipt details", "Spending breakdown",
+                             "Share", "Copy", "Payment Details"];
+            return english.filter((w) => document.body.innerText.includes(w));
+        });
+        expect(leaks, `untranslated on /multiple: ${leaks.join(", ")}`).toHaveLength(0);
+    });
+
+    test("the Receipts header keeps a real gap from its button", async ({ page }) => {
+        // Measured at 4px once the Indonesian description widened the left block.
+        await page.goto("/multiple");
+        // The split is seeded into localStorage, so the receipts card only exists
+        // once the client has hydrated and read it.
+        await expect(page.getByText("Warung Sate")).toBeVisible();
+        const gap = await page.evaluate(() => {
+            const row = Array.from(document.querySelectorAll("div.flex.flex-row.items-center.justify-between"))
+                .find((r) => r.children.length >= 2) as HTMLElement | undefined;
+            if (!row) return null;
+            const kids = Array.from(row.children) as HTMLElement[];
+            return Math.round(kids[kids.length - 1].getBoundingClientRect().left - kids[0].getBoundingClientRect().right);
+        });
+        expect(gap).not.toBeNull();
+        expect(gap!, "title and button must keep 8px apart").toBeGreaterThanOrEqual(8);
+    });
+});
+
