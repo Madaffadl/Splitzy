@@ -1,4 +1,4 @@
-﻿import { Loader2 } from "@/components/ui/icons";
+import { Loader2 } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 // Shared loading spinner (Sprint 5 design-system primitive). One place for

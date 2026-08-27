@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { SearchX, Home, ArrowLeft, Sparkles } from "@/components/ui/icons";

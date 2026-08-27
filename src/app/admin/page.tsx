@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { FREE_SCAN_LIMIT } from "@/lib/scan-quota";
-import { describeAuditEntry, type AdminAuditEntry } from "@/lib/admin-audit";
+import { describeAuditEntry, type AdminAuditEntry } from "@/lib/admin/admin-audit";
 import { describeActivity, featureLabel, type ActivityEntry } from "@/lib/activity";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +19,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthButton } from "@/components/AuthButton";
-import { AppFooter } from "@/components/AppFooter";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AuthButton } from "@/components/auth/AuthButton";
+import { AppFooter } from "@/components/layout/AppFooter";
 import {
   Shield,
   Loader2,

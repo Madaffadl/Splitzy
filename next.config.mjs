@@ -70,6 +70,10 @@ const nextConfig = {
       {
         // Advertise the API contract version on every API response (audit
         // Sprint 3). See docs/API_VERSIONING.md for the go-forward strategy.
+        //
+        // ⚠️ This literal duplicates API_VERSION in src/lib/api-version.ts and
+        // the two must be bumped together. It cannot be imported: this file is
+        // .mjs and loads before any TypeScript transform runs.
         source: "/api/:path*",
         headers: [{ key: "X-API-Version", value: "1" }],
       },

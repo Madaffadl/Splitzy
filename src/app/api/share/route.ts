@@ -11,7 +11,7 @@ import {
   shareExpiryFromNow,
   MAX_PAYLOAD_BYTES,
   SHARE_TTL_DAYS,
-} from "@/lib/shared-summary";
+} from "@/lib/receipt/shared-summary";
 
 export const runtime = "nodejs";
 

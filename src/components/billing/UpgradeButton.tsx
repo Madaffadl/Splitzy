@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { ArrowRight, Loader2, Sparkles } from "@/components/ui/icons";

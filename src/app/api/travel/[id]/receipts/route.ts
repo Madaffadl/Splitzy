@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse } from "@/lib/validation";
-import { validateTripReceiptPayload } from "@/lib/travel-cloud";
-import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
+import { validateTripReceiptPayload } from "@/lib/travel/travel-cloud";
+import { getTripAccess, requireOwnerWrite } from "@/lib/travel/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { broadcastTripChange } from "@/lib/realtime";
 

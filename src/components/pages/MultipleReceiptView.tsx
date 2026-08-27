@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -9,17 +9,17 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSaveSplit } from "@/hooks/useSaveSplit";
 import { supabaseDataService } from "@/lib/data/supabase-data-service";
 import type { ReceiptDetail } from "@/lib/data/types";
-import { receiptsFromDetail } from "@/lib/receipt-detail";
+import { receiptsFromDetail } from "@/lib/receipt/receipt-detail";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
 import { logFeatureUsage } from "@/lib/activity-client";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthButton } from "@/components/AuthButton";
-import { ParticipantManager } from "@/components/ParticipantManager";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AuthButton } from "@/components/auth/AuthButton";
+import { ParticipantManager } from "@/components/receipt/ParticipantManager";
 import { useToast } from "@/components/ui/toast";
-import { ReceiptEditor } from "@/components/ReceiptEditor";
-import { MultipleReceiptSummaryPanel } from "@/components/SummaryPanel";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ReceiptEditor } from "@/components/receipt/ReceiptEditor";
+import { MultipleReceiptSummaryPanel } from "@/components/receipt/SummaryPanel";
+import { ErrorBoundary } from "@/components/providers/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ import {
   Users,
   Info,
 } from "@/components/ui/icons";
-import { AppFooter } from "@/components/AppFooter";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
 import { localePath } from "@/lib/i18n/config";

@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { Wrench, Sparkles, RefreshCcw, HandHeart } from "@/components/ui/icons";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Button } from "@/components/ui/button";
 
 export default function MaintenancePage() {

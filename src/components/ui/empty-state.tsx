@@ -1,4 +1,4 @@
-﻿import type { LucideIcon } from "@/components/ui/icons";
+import type { LucideIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 // Reusable empty-state (Sprint 5 design-system primitive): a centered icon +

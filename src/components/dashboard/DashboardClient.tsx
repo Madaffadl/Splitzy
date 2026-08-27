@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -13,8 +13,8 @@ import {
   Sparkles,
 } from "@/components/ui/icons";
 import { useAuth } from "@/hooks/useAuth";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthButton } from "@/components/AuthButton";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AuthButton } from "@/components/auth/AuthButton";
 import { BRAND } from "@/lib/brand";
 import { isEnabled } from "@/lib/flags";
 import { FREE_SCAN_LIMIT } from "@/lib/scan-quota";

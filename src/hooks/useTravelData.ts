@@ -20,15 +20,15 @@ import {
   addPaymentToTrips,
   replacePaymentInTrips,
   removePaymentFromTrips,
-} from "@/lib/travel-sync";
-import { mergePrefs } from "@/lib/trip-prefs";
-import { ReceiptOp, pushOp, removeOp, replayOps } from "@/lib/travel-outbox";
+} from "@/lib/travel/travel-sync";
+import { mergePrefs } from "@/lib/travel/trip-prefs";
+import { ReceiptOp, pushOp, removeOp, replayOps } from "@/lib/travel/travel-outbox";
 import {
   ChangeOp,
   TripProposal,
   TripChangeRequestDTO,
   applyOpsToTrip,
-} from "@/lib/change-ops";
+} from "@/lib/travel/change-ops";
 
 export interface TravelStore {
   trips: TravelTrip[];

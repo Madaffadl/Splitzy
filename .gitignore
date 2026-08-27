@@ -3,6 +3,15 @@ node_modules
 .pnp
 .pnp.js
 
+# One package manager only: npm. CI runs `npm ci`, which requires
+# package-lock.json. A tracked yarn.lock sat next to it for months resolving a
+# different dependency tree, leaving it ambiguous which one a given build would
+# honour. Ignored rather than merely deleted so a stray `yarn install` cannot
+# reintroduce the ambiguity.
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
 # Testing
 coverage
 

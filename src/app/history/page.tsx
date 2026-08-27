@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthButton } from "@/components/AuthButton";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AuthButton } from "@/components/auth/AuthButton";
 import { Button } from "@/components/ui/button";
-import { ReceiptHistoryList } from "@/components/ReceiptHistoryList";
+import { ReceiptHistoryList } from "@/components/history/ReceiptHistoryList";
 import { ArrowLeft, History, Loader2, LogIn } from "@/components/ui/icons";
 
 export default function HistoryPage() {

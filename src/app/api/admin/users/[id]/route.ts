@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { getAuthUser, forbidden, notFound, assertSameOrigin } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
-import { isAdmin, isBootstrapAdmin } from "@/lib/admin-auth";
+import { isAdmin, isBootstrapAdmin } from "@/lib/admin/admin-auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";

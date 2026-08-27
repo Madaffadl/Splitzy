@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ContentPageShell } from "@/components/ContentPageShell";
+import { ContentPageShell } from "@/components/layout/ContentPageShell";
 import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {

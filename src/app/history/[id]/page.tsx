@@ -4,15 +4,15 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthButton } from "@/components/AuthButton";
-import { SummaryPanel, MultipleReceiptSummaryPanel } from "@/components/SummaryPanel";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AuthButton } from "@/components/auth/AuthButton";
+import { SummaryPanel, MultipleReceiptSummaryPanel } from "@/components/receipt/SummaryPanel";
 import { ArrowLeft, Loader2, AlertCircle } from "@/components/ui/icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Participant } from "@/types";
 import type { ReceiptDetail } from "@/lib/data/types";
-import { isMultipleSplit, receiptsFromDetail } from "@/lib/receipt-detail";
+import { isMultipleSplit, receiptsFromDetail } from "@/lib/receipt/receipt-detail";
 
 export default function HistoryDetailPage() {
   const { id } = useParams<{ id: string }>();

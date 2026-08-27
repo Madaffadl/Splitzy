@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, Calculator, AlertCircle, Clock } from "@/components/ui/icons";
 import { prisma } from "@/lib/prisma";
-import { parseSharedSummaryPayload } from "@/lib/shared-summary";
-import { SummaryPanel, MultipleReceiptSummaryPanel } from "@/components/SummaryPanel";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AppFooter } from "@/components/AppFooter";
+import { parseSharedSummaryPayload } from "@/lib/receipt/shared-summary";
+import { SummaryPanel, MultipleReceiptSummaryPanel } from "@/components/receipt/SummaryPanel";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 

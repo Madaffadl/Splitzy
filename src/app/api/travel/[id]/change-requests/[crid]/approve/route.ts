@@ -3,11 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
 import { ValidationError, validationErrorResponse } from "@/lib/validation";
-import { getTripAccess, requireOwnerWrite } from "@/lib/trip-access";
+import { getTripAccess, requireOwnerWrite } from "@/lib/travel/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
-import { buildChangeOpsWrites } from "@/lib/apply-change-ops";
+import { buildChangeOpsWrites } from "@/lib/travel/apply-change-ops";
 import { broadcastTripChange } from "@/lib/realtime";
-import type { ChangeOp } from "@/lib/change-ops";
+import type { ChangeOp } from "@/lib/travel/change-ops";
 
 export const runtime = "nodejs";
 

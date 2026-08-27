@@ -12,7 +12,7 @@ import {
   validateSavedSplit,
   savedSplitExpiryFromNow,
   SAVED_SPLIT_TTL_DAYS,
-} from "@/lib/saved-splits";
+} from "@/lib/receipt/saved-splits";
 
 // Cursor format is `<ISO createdAt>|<id>`. Two columns are needed for stable
 // ordering when multiple rows share the same createdAt (rare, but safe).

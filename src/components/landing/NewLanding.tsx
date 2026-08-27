@@ -19,8 +19,8 @@ import {
   Wallet,
   Zap,
 } from "@/components/ui/icons";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthButton } from "@/components/AuthButton";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AuthButton } from "@/components/auth/AuthButton";
 import { BRAND, copyrightYear } from "@/lib/brand";
 import { LoginBanner } from "@/components/landing/LoginBanner";
 import { LocaleSync } from "@/components/i18n/LocaleSync";

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 // UI for the member-approval workflow:
 //   ChangeOpList  — renders a batch of ChangeOp as a human-readable diff.
@@ -6,7 +6,7 @@
 //   ProposalBar   — member's local buffer status (submit / discard / declined note).
 
 import { useState } from "react";
-import { ChangeOp, TripChangeRequestDTO, TripProposal, describeChangeOp } from "@/lib/change-ops";
+import { ChangeOp, TripChangeRequestDTO, TripProposal, describeChangeOp } from "@/lib/travel/change-ops";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

@@ -1,11 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Calculator, AlertCircle } from "@/components/ui/icons";
-import { decodeShare, type SharePayload } from "@/lib/share";
-import { SummaryPanel } from "@/components/SummaryPanel";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { decodeShare, type SharePayload } from "@/lib/receipt/share";
+import { SummaryPanel } from "@/components/receipt/SummaryPanel";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 

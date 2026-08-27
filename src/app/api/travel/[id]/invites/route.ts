@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, forbidden, assertSameOrigin } from "@/lib/api-auth";
-import { getTripAccess } from "@/lib/trip-access";
+import { getTripAccess } from "@/lib/travel/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";

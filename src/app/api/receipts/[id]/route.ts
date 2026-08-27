@@ -15,12 +15,12 @@ import {
   validateSharedSummaryInput,
   shareExpiryFromNow,
   SHARE_PAYLOAD_VERSION,
-} from "@/lib/shared-summary";
+} from "@/lib/receipt/shared-summary";
 import {
   validateSavedSplit,
   savedSplitExpiryFromNow,
   SAVED_SPLIT_TTL_DAYS,
-} from "@/lib/saved-splits";
+} from "@/lib/receipt/saved-splits";
 
 // GET /api/receipts/[id] - Get receipt detail
 export async function GET(

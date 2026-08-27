@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
@@ -10,18 +10,18 @@ import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
 import { localePath } from "@/lib/i18n/config";
 import { useAuth } from "@/hooks/useAuth";
-import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/calculations";
-import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/settle-up";
+import { calculatePersonTotals, computeTripTotals, receiptInBaseCurrency, paymentInBaseCurrency } from "@/lib/receipt/calculations";
+import { findSharePayment, paidShareParticipants, sharePaymentSource, pairSettlement, coveredShareParticipants, isManualPayment } from "@/lib/travel/settle-up";
 import { formatCurrency, cn } from "@/lib/utils";
 import { generateId, todayDateString } from "@/lib/utils";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthButton } from "@/components/AuthButton";
-import { ParticipantManager } from "@/components/ParticipantManager";
-import { ReceiptEditor } from "@/components/ReceiptEditor";
-import { MultipleReceiptSummaryPanel, ReceiptBreakdown } from "@/components/SummaryPanel";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AuthButton } from "@/components/auth/AuthButton";
+import { ParticipantManager } from "@/components/receipt/ParticipantManager";
+import { ReceiptEditor } from "@/components/receipt/ReceiptEditor";
+import { MultipleReceiptSummaryPanel, ReceiptBreakdown } from "@/components/receipt/SummaryPanel";
 import { ReviewInbox, ProposalBar } from "@/components/travel/ChangeRequests";
 import { logFeatureUsage } from "@/lib/activity-client";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary } from "@/components/providers/ErrorBoundary";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,8 +69,8 @@ import {
   Camera,
 } from "@/components/ui/icons";
 import { TRAVEL_CURRENCIES } from "@/lib/currencies";
-import { setTripPref, archivedTripIds } from "@/lib/trip-prefs";
-import { AppFooter } from "@/components/AppFooter";
+import { setTripPref, archivedTripIds } from "@/lib/travel/trip-prefs";
+import { AppFooter } from "@/components/layout/AppFooter";
 
 type ViewMode = "overview" | "edit-receipt" | "summary";
 

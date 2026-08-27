@@ -5,7 +5,7 @@ import { getAuthUser, unauthorized, assertSameOrigin } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { ValidationError, validationErrorResponse } from "@/lib/validation";
-import { validateTravelTripInput } from "@/lib/travel-cloud";
+import { validateTravelTripInput } from "@/lib/travel/travel-cloud";
 
 export const runtime = "nodejs";
 

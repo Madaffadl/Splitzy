@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { enforceRateLimitAsync } from "@/lib/rate-limit";
 import { assertSameOrigin, getAuthUser } from "@/lib/api-auth";
 import { apiError, isAbortError } from "@/lib/api-response";
-import { parseIndonesianPrice } from "@/lib/parser";
+import { parseIndonesianPrice } from "@/lib/receipt/parser";
 import { checkScanQuota, incrementScanCount } from "@/lib/scan-quota";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");

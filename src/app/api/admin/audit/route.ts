@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, forbidden } from "@/lib/api-auth";
-import { isAdmin } from "@/lib/admin-auth";
+import { isAdmin } from "@/lib/admin/admin-auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";

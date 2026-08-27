@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -9,24 +9,24 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSaveSplit } from "@/hooks/useSaveSplit";
 import { supabaseDataService } from "@/lib/data/supabase-data-service";
 import type { ReceiptDetail } from "@/lib/data/types";
-import { receiptsFromDetail } from "@/lib/receipt-detail";
+import { receiptsFromDetail } from "@/lib/receipt/receipt-detail";
 import { usePersistErrorToast } from "@/hooks/usePersistErrorToast";
 import { useGuestLimit } from "@/hooks/useGuestLimit";
 import { formatCurrency, generateId, todayDateString } from "@/lib/utils";
-import { getReceiptSummary } from "@/lib/calculations";
+import { getReceiptSummary } from "@/lib/receipt/calculations";
 import { logFeatureUsage } from "@/lib/activity-client";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { AuthButton } from "@/components/AuthButton";
-import { GuestLimitDialog } from "@/components/GuestLimitDialog";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { AuthButton } from "@/components/auth/AuthButton";
+import { GuestLimitDialog } from "@/components/auth/GuestLimitDialog";
 import { useToast } from "@/components/ui/toast";
-import { Stepper, Step } from "@/components/Stepper";
-import { ParticipantManager } from "@/components/ParticipantManager";
-import { ReceiptInput } from "@/components/ReceiptInput";
-import { ItemsTable } from "@/components/ItemsTable";
-import { FeesInput } from "@/components/FeesInput";
-import { DiscountsInput } from "@/components/DiscountsInput";
-import { SummaryPanel } from "@/components/SummaryPanel";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Stepper, Step } from "@/components/receipt/Stepper";
+import { ParticipantManager } from "@/components/receipt/ParticipantManager";
+import { ReceiptInput } from "@/components/receipt/ReceiptInput";
+import { ItemsTable } from "@/components/receipt/ItemsTable";
+import { FeesInput } from "@/components/receipt/FeesInput";
+import { DiscountsInput } from "@/components/receipt/DiscountsInput";
+import { SummaryPanel } from "@/components/receipt/SummaryPanel";
+import { ErrorBoundary } from "@/components/providers/ErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,7 +52,7 @@ import {
   AlertTriangle,
   Lightbulb,
 } from "@/components/ui/icons";
-import { AppFooter } from "@/components/AppFooter";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
 import { localePath } from "@/lib/i18n/config";

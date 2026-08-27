@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ContentPageShell } from "@/components/ContentPageShell";
+import { ContentPageShell } from "@/components/layout/ContentPageShell";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { BRAND } from "@/lib/brand";
 import { localePath, type Locale } from "@/lib/i18n/config";
