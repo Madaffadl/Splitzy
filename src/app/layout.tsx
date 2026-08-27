@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ToastProvider } from "@/components/ui/toast";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
+import { PwaInstallTelemetry } from "@/components/PwaInstallTelemetry";
 import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { RefCapture } from "@/components/referral/RefCapture";
@@ -61,12 +62,26 @@ export const metadata: Metadata = {
   // don't index it" for /single, /pricing, /privacy and the rest. Canonicals
   // must be declared per page; see src/lib/seo/metadata.ts.
   //
-  // icon.jpeg is a 512×512 square JPEG (Google requires square, ≥48 px).
-  // logo.png (1920×2194 portrait) is still used inside the app but cannot
-  // serve as a favicon — Google ignores non-square images and shows a globe.
+  // Favicon and apple-touch-icon come from the same generated PNG set as the
+  // PWA manifest (see src/app/manifest.ts). Both must be square — Google
+  // ignores non-square favicons and shows a globe, which is why logo.png
+  // (1920×2194 portrait) can only be used inside the app, never here.
+  //
+  // apple-touch-icon is 180×180: the size iOS actually asks for. It was
+  // previously a 1.5 MB 2048×2048 JPEG, downloaded in full by every iPhone.
   icons: {
-    icon: "/icon.jpeg",
-    apple: "/icon.jpeg",
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
+  // iOS has no install prompt at all — the user adds the site from the Share
+  // sheet. These control what they get when they do: a full-screen launch
+  // rather than a Safari tab, and "Splitzy" on the home screen instead of the
+  // full SEO title. iOS 15.4+ reads display/short_name from the manifest, but
+  // these tags are the only thing older versions honour.
+  appleWebApp: {
+    capable: true,
+    title: "Splitzy",
+    statusBarStyle: "default",
   },
   openGraph: {
     type: "website",
@@ -164,6 +179,7 @@ export default function RootLayout({
                 Skip to content
               </a>
               <RegisterServiceWorker />
+              <PwaInstallTelemetry />
               <AnalyticsProvider />
               <OnboardingModal />
               <Suspense fallback={null}>

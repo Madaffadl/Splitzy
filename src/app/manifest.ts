@@ -22,15 +22,33 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#fbfaf5",
     theme_color: "#3a4a1f",
     orientation: "portrait",
+    // Icons are derived from Splitzy-Color-Bgwhite.jpeg (2048×2048 square) by
+    // the recipe in docs/PWA_ICONS.md. Two rules the previous set broke, both of
+    // which silently killed Android installs:
+    //
+    //   1. The declared `sizes` must match the file's real pixel dimensions.
+    //      /logo.png was declared 512×512 while actually being 1920×2194.
+    //   2. A `maskable` icon needs its own asset with padding. Android crops to
+    //      a circle of 80% diameter, so a logo that fills the canvas loses its
+    //      top and bottom. The maskable variant scales the mark to 410/512 and
+    //      pads with the source background.
+    //
+    // manifest-icons.test.ts enforces (1) against the actual files on disk.
     icons: [
       {
-        src: "/logo.png",
+        src: "/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icon-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/logo.png",
+        src: "/icon-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

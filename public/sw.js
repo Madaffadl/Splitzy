@@ -2,20 +2,32 @@
 // Strategy:
 //   * App shell (start_url) — network-first with cache fallback so users with
 //     a flaky connection still see the landing screen.
-//   * Same-origin static assets (Next.js _next/static, /icon.svg, /manifest)
+//   * Same-origin static assets (Next.js _next/static, icons, /manifest)
 //     — stale-while-revalidate.
 //   * Everything else (API calls, third-party) — passes through to the network.
 //
 // Bump CACHE_VERSION to invalidate old caches on deploy.
 
-const CACHE_VERSION = "splitzy-v1";
-const APP_SHELL = ["/", "/icon.svg", "/manifest.webmanifest"];
+const CACHE_VERSION = "splitzy-v2";
+
+// Every entry must be a real, cacheable URL. This list previously contained
+// "/icon.svg", a file that has never existed — and because cache.addAll() is
+// atomic, that single 404 rejected the whole batch and left the cache
+// completely empty. The .catch() below then swallowed the rejection, so the
+// offline fallback in the fetch handler had silently had nothing to fall back
+// to since day one.
+//
+// Each URL is now added individually via allSettled, so one bad entry can never
+// take the rest down with it again.
+const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then((cache) =>
+        Promise.allSettled(APP_SHELL.map((url) => cache.add(url)))
+      )
       .catch(() => {})
   );
   self.skipWaiting();

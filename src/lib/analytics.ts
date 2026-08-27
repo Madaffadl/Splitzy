@@ -47,6 +47,13 @@ export const EVENTS = {
   shareWhatsapp: "share_whatsapp",
   upgradeClicked: "upgrade_clicked",
   pricingViewed: "pricing_viewed",
+  // PWA install funnel. The ratio of installPromptAvailable → appInstalled is
+  // the only signal we have that installing actually works: both the Chrome
+  // heuristics and Google's WebAPK build server sit outside our control and
+  // fail silently. See src/components/PwaInstallTelemetry.tsx.
+  installPromptAvailable: "pwa_install_prompt_available",
+  appInstalled: "pwa_app_installed",
+  launchedStandalone: "pwa_launched_standalone",
 } as const;
 
 export async function capture(
