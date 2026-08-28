@@ -47,7 +47,7 @@ Every case here is currently unautomated. TC-013 is the regression test for VULN
 
 | TC | Feature | Scenario | Precondition | Steps | Expected | Pri | Type | Automated? |
 |---|---|---|---|---|---|---|---|---|
-| **TC-013** | FEAT-020 | **Anonymous request to `/multiple` (VULN-001)** | No session | 1. `GET /multiple` | **307 to `/?login=required&redirect=/multiple`**. *Currently returns 200 with the full tool* | **P1** | **P** | — ⚠ **fails today** |
+| **TC-013** | FEAT-020 | **Anonymous request to `/multiple` (VULN-001)** | No session | 1. `GET /multiple` | **307 to `/?login=required&redirect=/multiple`** | **P1** | **P** | — ✅ **passes since the fix; still needs automating** |
 | TC-014 | FEAT-003 | Anonymous request to `/history` | No session | 1. `GET /history` | Sign-in gate rendered, no user data | P1 | P | — |
 | TC-015 | FEAT-054 | Non-creator cannot update a saved split (BR-046) | Split owned by user A | 1. As B, `PUT /api/receipts/<id>` | 403 | P1 | P | — |
 | TC-016 | FEAT-057 | Non-creator cannot delete a saved split | As above | 1. As B, `DELETE /api/receipts/<id>` | 403 | P1 | P | — |
@@ -234,7 +234,7 @@ Every case here is currently unautomated. TC-013 is the regression test for VULN
 
 | TC | Status |
 |---|---|
-| **TC-013** | **Fails.** `/multiple` returns 200 to anonymous requests (VULN-001) |
+| ~~TC-013~~ | ✅ **Fixed.** `/multiple` now 307s. The behaviour is verified manually; the automated test is still to be written |
 | TC-012 | Fails by design gap — `/api/auth/me` does not apply the ban guard (VULN-003) |
 | TC-070 | Unmet — anonymous AI scanning is unmetered (VULN-006) |
 | TC-103 | Unmet — settle-up payments have no idempotency key (VULN-011) |
@@ -242,5 +242,5 @@ Every case here is currently unautomated. TC-013 is the regression test for VULN
 ### Where to start
 
 The 16 authorization cases (TC-013 … TC-028) are the highest value in this document: they are all
-P1, all currently unautomated, and one of them already fails in production code. **TC-013 is a
-five-line test that would have caught a shipped defect.**
+P1 and all currently unautomated. **TC-013 is a five-line test that would have caught a shipped
+defect** — the defect is now fixed, but nothing stops it regressing until that test exists.

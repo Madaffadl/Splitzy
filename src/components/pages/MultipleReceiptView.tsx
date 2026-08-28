@@ -44,7 +44,9 @@ import {
   Edit2,
   Users,
   Info,
+  LogIn,
 } from "@/components/ui/icons";
+import { LoadingState } from "@/components/ui/spinner";
 import { AppFooter } from "@/components/layout/AppFooter";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { fill, useDictionary, useLocale } from "@/lib/i18n/use-locale";
@@ -89,7 +91,7 @@ export function MultipleReceiptView() {
   // append the same new receipt twice before viewMode flips to "overview".
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, signIn } = useAuth();
   const t = useDictionary().app;
   // Home in the language being read, not always the English root.
   const locale = useLocale();
@@ -324,6 +326,41 @@ export function MultipleReceiptView() {
     const subtotal = receipt.items.reduce((sum, item) => sum + item.total, 0);
     return formatCurrency(subtotal + receipt.tax + receipt.service);
   };
+
+  // Page-level auth gate. /multiple is listed in proxy.ts's protectedPaths, but
+  // a route must not depend on the proxy alone: the proxy fails open when the
+  // auth service is unreachable, and it did so for every anonymous request
+  // until the AuthSessionMissingError bug was fixed — serving this whole tool
+  // to visitors who were never signed in.
+  //
+  // /history already gates itself this way, which is the only reason it was
+  // unaffected. This is that same gate: one screen, two independent locks.
+  if (authLoading) {
+    return (
+      <main className="min-h-screen flex flex-col">
+        <LoadingState />
+      </main>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5">
+          <Layers className="h-8 w-8 text-primary" />
+        </div>
+        <h1 className="text-heading mb-2">{t.modes.multiple.title}</h1>
+        <p className="mb-6 max-w-sm text-muted-foreground">{t.loginRequired.body}</p>
+        <Button onClick={() => signIn("/multiple")} size="lg" className="gap-2">
+          <LogIn className="h-4 w-4" />
+          {t.loginRequired.signIn}
+        </Button>
+        <Link href={homeHref} className="mt-4 text-xs text-primary hover:underline">
+          {t.common.back}
+        </Link>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen flex flex-col">

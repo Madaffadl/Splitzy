@@ -28,7 +28,7 @@
 | SCR-008 | `/terms` | public | static ○ | ✅ mobile · desktop |
 | SCR-009 | `/pricing` | public (flagged) | dynamic ƒ | ✅ mobile · desktop · dark |
 | SCR-010 | `/single` | public | static ○ | ✅ full wizard driven |
-| SCR-011 | `/multiple` | **intended auth-only** | static ○ | ⚠️ **rendered anonymously — see UX-001** |
+| SCR-011 | `/multiple` | auth-only | static ○ | ⚠️ rendered anonymously at audit time — **fixed**, see UX-001 |
 | SCR-012 | `/travel` | public (local) / auth (cloud) | static ○ | ✅ mobile · desktop · dark |
 | SCR-013 | `/dashboard` | auth | static ○ | ✅ signed-out gate only |
 | SCR-014 | `/history` | auth | static ○ | ✅ signed-out gate only |

@@ -58,7 +58,7 @@ Every row was probed against a production build on `localhost:3200`. **[VISUAL-V
 | `/pricing` | public, flag-gated | `isEnabled("pricingPage")` → `notFound()` | 200 *(flag on locally)* | ✅ |
 | `/single` | public | — | 200 | ✅ |
 | `/travel` | public (local mode) | — | 200 | ✅ |
-| **`/multiple`** | **authenticated** | `protectedPaths` in `src/proxy.ts` | **200 — full tool rendered** | ❌ **fails** |
+| **`/multiple`** | **authenticated** | `protectedPaths` in `src/proxy.ts` **+** a page-level gate | **200 — full tool rendered** at audit time; **307 after the fix** | ✅ **now holds** |
 | `/dashboard` | authenticated | page-level gate | 200 with an in-page sign-in gate | ✅ degrades safely |
 | `/history` | authenticated | proxy **+** page-level gate | 200 with an in-page sign-in gate | ✅ degrades safely |
 | `/history/[id]` | authenticated | page-level `router.replace` | redirect | ✅ |
@@ -82,10 +82,14 @@ the server.
 
 ---
 
-## 4. The access-control discrepancy **[VISUAL-VERIFIED]**
+## 4. The access-control discrepancy — found, then fixed **[VISUAL-VERIFIED]**
 
-`src/proxy.ts` lists `/multiple` and `/history` as protected. In practice **neither is protected by
-the proxy for an anonymous visitor**, because of this guard:
+> ✅ **Resolved.** The guard now matches on `isAuthRetryableFetchError`, and `/multiple` has a
+> page-level gate. Anonymous `GET /multiple` and `GET /history` both return **307**. The section is
+> kept because knock-on effect (2) below is still open.
+
+`src/proxy.ts` lists `/multiple` and `/history` as protected. At audit time **neither was protected
+by the proxy for an anonymous visitor**, because of this guard:
 
 ```ts
 if (authError && authError.status !== 401) {
@@ -104,14 +108,14 @@ therefore takes the "transient" branch.
 
 Three knock-on effects:
 
-1. **BR-044 does not hold as documented.** Corrected in
-   [business-rules.md](../requirements/business-rules.md).
-2. **The sitemap exclusion rests on a false premise.** `sitemap.ts` omits `/multiple` because
-   *"an unauthenticated visitor — Googlebot included — is 307'd to `/?login=required`"*. Googlebot
-   actually receives a **200 with full content**. The page is crawlable today; it is simply not
-   advertised.
-3. **The guest split cap does not apply.** `useGuestLimit` is wired into `SingleSplitView` only, so
-   `/multiple` offers unlimited anonymous use.
+1. ~~**BR-044 does not hold as documented.**~~ ✅ Fixed; [business-rules.md](../requirements/business-rules.md) records both the finding and the fix.
+2. ⚠️ **Still open — the sitemap exclusion.** `sitemap.ts` omits `/multiple` because *"an
+   unauthenticated visitor — Googlebot included — is 307'd to `/?login=required`"*. That premise was
+   false at audit time and is **true again now**, so the exclusion is correct. But the product
+   question the comment itself raises — whether `/multiple` should be publicly viewable in a
+   read-only state for its keyword value — remains unanswered.
+3. ~~**The guest split cap does not apply.**~~ ✅ Moot — `/multiple` now requires a session.
+   (`useGuestLimit` is still wired into `SingleSplitView` only, which is correct.)
 
 Full write-up: [../security/FINDINGS-PRIVATE.md](../security/FINDINGS-PRIVATE.md) (VULN-001).
 

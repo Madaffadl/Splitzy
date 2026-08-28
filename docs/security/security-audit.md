@@ -22,7 +22,7 @@
 | **CSRF, headers, secrets** | Solid. Same-origin enforcement on all mutations, full header set, no secret reachable from the browser |
 | **Defence in depth** | **Weak.** No database-level authorization is present in the repository, so a single missed guard is a complete bypass |
 | **Verification** | **Weak.** Zero automated tests assert any authorization rule |
-| **One control does not hold** | Route protection fails for anonymous users — reproduced in a browser. See VULN-001 |
+| **One control did not hold** | Route protection failed for anonymous users — reproduced in a browser, then **fixed and re-verified**. See VULN-001 |
 | **Dependencies** | **10 advisories (9 high, 1 moderate)**, including one that affects proxy behaviour in this exact Next.js version range |
 
 **[INFERRED]** The security work here is above average for a project of this size — the reasoning is
@@ -57,17 +57,20 @@ redirects so no loop occurs.
 
 ### SEC-004 — Route protection (edge)
 **Control** `/multiple` and `/history*` require a session.
-**Implementation** ⚠️ **[IMPLEMENTED] but does not hold** — see **VULN-001** (private).
+**Implementation** ✅ **[IMPLEMENTED]** — was broken, now fixed. See **VULN-001** (private).
 **Evidence** [src/proxy.ts](../../src/proxy.ts) `protectedPaths`
-**Notes** **[VISUAL-VERIFIED]** An anonymous request to `/multiple` returns HTTP 200 with the
-complete tool. `/history` degrades safely because it carries its own in-page gate (SEC-005). The
-control is present and mis-specified, not absent.
+**Notes** **[VISUAL-VERIFIED]** This audit found an anonymous request to `/multiple` returning HTTP
+200 with the complete tool — the guard tested `status !== 401`, but a session-less request throws
+`AuthSessionMissingError` with status **400**. Fixed after the audit: the guard now matches on
+`isAuthRetryableFetchError`, and `MultipleReceiptView` gained a page-level gate so the route no
+longer depends on the proxy alone. Re-verified: anonymous `GET /multiple` → **307**.
 
 ### SEC-005 — Page-level gates
 **Control** Independent client-side gates on `/history`, `/history/[id]`, `/admin`, `/dashboard`.
 **Implementation** **[IMPLEMENTED]**
-**Notes** These are the reason three of the four protected surfaces still behave correctly despite
-SEC-004. `/multiple` is the one screen with no gate of its own.
+**Notes** These were the reason three of the four protected surfaces behaved correctly while SEC-004
+was broken. `/multiple` was the one screen without a gate of its own; it now has one, so every
+protected surface holds independently of the proxy.
 
 ### SEC-006 — API authentication
 **Control** Every protected handler calls `getAuthUser(request)`; the proxy deliberately excludes
@@ -357,8 +360,8 @@ review. This is the finding to act on first, because it is what would have caugh
 
 | Status | Count | Controls |
 |---|---|---|
-| **[IMPLEMENTED]** | 24 | SEC-001, 002, 003, 005, 006, 008, 009, 010, 011, 012, 013, 014, 015, 017, 018, 019, 020, 021, 022, 026, 027, 028, 030, 032 |
-| **[IMPLEMENTED] with caveats** | 7 | SEC-004 (fails), 007 (inconsistent), 023 (not constant-time), 024 (GET deletes), 025 (partial), 029 (report-only), 033 (may not run) |
+| **[IMPLEMENTED]** | 25 | SEC-001, 002, 003, **004** *(fixed)*, 005, 006, 008, 009, 010, 011, 012, 013, 014, 015, 017, 018, 019, 020, 021, 022, 026, 027, 028, 030, 032 |
+| **[IMPLEMENTED] with caveats** | 6 | SEC-007 (inconsistent), 023 (not constant-time), 024 (GET deletes), 025 (partial), 029 (report-only), 033 (may not run) |
 | **[MISSING]** | 2 | SEC-016 (RLS absent from repo), SEC-031 (no dependency scanning) |
 
 ---
@@ -367,7 +370,7 @@ review. This is the finding to act on first, because it is what would have caugh
 
 | # | Recommendation | Why |
 |---|---|---|
-| 1 | **Fix route protection** (SEC-004) and add a page-level gate to `/multiple` | A stated control does not hold — reproduced in a browser |
+| 1 | ~~Fix route protection (SEC-004)~~ | ✅ **Done.** Guard narrowed to `isAuthRetryableFetchError`; page-level gate added |
 | 2 | **Upgrade Next.js** past the proxy-bypass advisory | A second, independent path to the same failure; also clears `postcss` and `nanoid` |
 | 3 | **Add authorization regression tests** | The only way these rules stop depending on reviewer memory |
 | 4 | **Enable RLS**, committing policies to `prisma/sql/` | Turns one missed guard from a breach into a blocked query |

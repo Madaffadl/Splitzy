@@ -26,7 +26,7 @@ Nine areas. A failure here means not shipping.
 
 | TC | Check | Runnable | Cost of a miss |
 |---|---|---|---|
-| **TC-013** | Anonymous `GET /multiple` → 307, not 200 | ⚙️ | **Currently failing.** A protected route is open |
+| **TC-013** | Anonymous `GET /multiple` → 307, not 200 | ⚙️ | ✅ **Now passing** (fixed). Unautomated, so nothing prevents a regression |
 | TC-014 | Anonymous `/history` shows a gate, no data | ⚙️ | Data exposure |
 | TC-015 | Non-creator cannot update a saved split | ⚙️ | Data tampering |
 | TC-017 | Uninvolved user cannot read a split | ⚙️ | **Data leak** |
@@ -36,7 +36,8 @@ Nine areas. A failure here means not shipping.
 | TC-025 | Non-admin → 403 on admin APIs | ⚙️ | **Full admin exposure** |
 | TC-011 | Banned user → 401 everywhere | ⚙️ | Moderation defeated |
 
-**None of these run today.** This block is the single highest-value addition to CI.
+**None of these are automated.** TC-013 passes now that the bug is fixed, but only a human has
+checked it. This block is the single highest-value addition to CI.
 
 ### P1.2 — Money correctness
 
@@ -206,7 +207,7 @@ run does not block production.
 |---|---|
 | P1 checks that run today | **19 of 40** |
 | P1 checks that are automatable but unwritten | **21** |
-| P1 checks currently **failing** | **1** — TC-013 |
+| P1 checks currently **failing** | **0** — TC-013 was failing and is now fixed |
 
 **[INFERRED]** The suite is strong where the code is pure and absent where it touches I/O. Writing
 the nine P1.1 authorization cases would take a single focused session, would move P1 coverage from
@@ -214,7 +215,7 @@ the nine P1.1 authorization cases would take a single focused session, would mov
 
 **Recommended order**
 
-1. TC-013 — the failing case, as a regression test.
+1. TC-013 — the case that was failing, now as a regression test.
 2. The remaining eight P1.1 authorization cases.
 3. `npm audit --audit-level=high` in CI.
 4. One E2E that completes a split (P1.5).

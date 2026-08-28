@@ -233,7 +233,12 @@ only), and `/api/auth/me` does not apply the guard · **[IMPLEMENTED]**
 Source: `protectedPaths` in `src/proxy.ts` (prefix match, so `/history/<id>` is covered) ·
 **[IMPLEMENTED]**
 
-> ⚠️ **Corrected in Phase C.** This protection **does not hold for anonymous users**. `supabase.auth.getUser()` with no session throws `AuthSessionMissingError` with status **400**, not 401, so the proxy's transient-error branch lets every anonymous request through. `/history` degrades safely via its own in-page gate; **`/multiple` has no gate and renders the full tool**. Reproduced against a production build. See [ux-audit.md UX-001](../ux/ux-audit.md) and the private security findings.
+> **Phase C found this protection did not hold**, and it has since been fixed.
+> `AuthSessionMissingError` carries status 400, not 401, so the proxy's transient-error
+> branch admitted every anonymous request; `/multiple` had no page-level gate and served
+> the whole tool. The guard now matches on `isAuthRetryableFetchError`, and
+> `MultipleReceiptView` has its own gate. Verified: anonymous `GET /multiple` → **307**.
+> See [ux-audit.md UX-001](../ux/ux-audit.md).
 
 
 **BR-045 — A transient auth error must not redirect a signed-in user**

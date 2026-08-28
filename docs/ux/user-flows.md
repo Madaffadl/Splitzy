@@ -182,8 +182,8 @@ flowchart TD
     B -->|Travel| D["SCR-012 /travel ✅ local only"]
     B -->|Multiple| E["SCR-011 /multiple"]
 
-    E --> E1["INTENDED: bounce to sign-in"]
-    E --> E2["ACTUAL: full tool renders ⚠ UX-001"]
+    E --> E1["bounce to sign-in ✅ after the fix"]
+    E --> E2["full tool rendered at audit time ⚠ UX-001 — fixed"]
 
     C --> F["complete a split"]
     F --> G["share link · WhatsApp · copy"]
@@ -193,8 +193,9 @@ flowchart TD
     J -->|Later| F
 ```
 
-**Verified ⚠** `E2` is the observed behaviour: `/multiple` returned 200 and rendered the complete
-tool to an anonymous request, with no gate.
+**Verified** `E2` was the observed behaviour at audit time: `/multiple` returned 200 and rendered
+the complete tool to an anonymous request. **Fixed** — it now 307s to `/?login=required`, and the
+screen additionally gates itself.
 
 ---
 

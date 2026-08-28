@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 
 // Canonical-host redirect (SEO Sprint 7).
 //
@@ -108,11 +109,21 @@ export default async function proxy(request: NextRequest) {
   );
 
   if (isProtected && !user) {
-    // If getUser() failed due to a transient network/service error (not a real
-    // 401), let the request through rather than false-redirecting a logged-in
-    // user. The page-level auth check will catch genuinely unauthenticated
-    // requests.
-    if (authError && authError.status !== 401) {
+    // If getUser() failed because the auth service was unreachable, let the
+    // request through rather than false-redirecting a logged-in user.
+    //
+    // This used to test `authError.status !== 401`, which was wrong in the one
+    // case that matters most: a visitor with NO session gets
+    // AuthSessionMissingError, and that carries status 400, not 401. So every
+    // anonymous request took the fail-open branch and /multiple — which, unlike
+    // /history, has no page-level gate of its own — served the whole tool to
+    // anyone who asked.
+    //
+    // `isAuthRetryableFetchError` is the library's own name for "the request to
+    // the auth service failed", which is exactly the condition this branch was
+    // reaching for. Matching on it instead of guessing status codes means a new
+    // error class can't silently widen the hole again.
+    if (isAuthRetryableFetchError(authError)) {
       return response;
     }
 

@@ -17,7 +17,7 @@
 
 | Severity | Count | IDs |
 |---|---|---|
-| **Critical** | 1 | UX-001 |
+| **Critical** | 1 | UX-001 — ✅ **fixed after the audit** |
 | **High** | 6 | UX-002, UX-005, UX-007, UX-011, UX-015, UX-019 |
 | **Medium** | 11 | UX-003, UX-008, UX-009, UX-010, UX-014, UX-016, UX-017, UX-018, UX-020, UX-021, UX-022 |
 | **Low** | 5 | UX-004, UX-006, UX-012, UX-013, UX-023 |
@@ -43,8 +43,12 @@ results below, which retired suspicions a code review would have raised.
 
 ## Critical
 
-### UX-001 — `/multiple` renders in full to unauthenticated visitors
-**Problem** The route is declared auth-protected, and is not. An anonymous request returns HTTP 200
+### UX-001 — `/multiple` renders in full to unauthenticated visitors ✅ **FIXED**
+
+> **Resolved after this audit.** The guard now matches on `isAuthRetryableFetchError` and `MultipleReceiptView` has its own page-level gate; anonymous `GET /multiple` returns **307**. Verified in a browser. The finding is kept
+> on record because it is the reason two other decisions need revisiting (see Impact).
+
+**Problem** The route was declared auth-protected, and was not. An anonymous request returns HTTP 200
 with the complete Multiple-receipts tool: participants, receipts, fees, discounts, summary.
 
 **Evidence** [VISUAL-VERIFIED] `curl` and a headless browser both received 200 at `/multiple` with
@@ -61,12 +65,13 @@ stated access control does not hold; the guest split cap is bypassed entirely; a
 excludes `/multiple` on the belief that crawlers are redirected, when in fact Googlebot receives a
 full 200.
 
-**Severity** Critical — a stated security guarantee does not hold, verified in a browser.
+**Severity** Critical — a stated security guarantee did not hold, verified in a browser.
 
-**Recommendation** Narrow the fail-open test to genuinely transient conditions (a network/5xx
-failure), treating `AuthSessionMissingError` as unauthenticated; **and** add a page-level gate to
-`MultipleReceiptView` mirroring `/history`, so the route degrades safely regardless. Then revisit
-the sitemap decision on its real merits.
+**Recommendation** ✅ **Both parts applied.** The fail-open test now matches on
+`isAuthRetryableFetchError` (the library's own name for "the auth service was unreachable"), and
+`MultipleReceiptView` has a page-level gate mirroring `/history`.
+**Still open:** the `/multiple` sitemap exclusion should be revisited on its real merits, now that
+the premise it rested on is actually true.
 
 **Requires visual check** No — already verified.
 
@@ -364,7 +369,7 @@ Worth recording, because a code-only review would likely have flagged these as s
 
 | # | Finding | Why first |
 |---|---|---|
-| 1 | UX-001 | A stated access control does not hold, and it invalidates a separate SEO decision |
+| 1 | ~~UX-001~~ | ✅ **Done.** Guard narrowed + page-level gate added. The dependent SEO decision (`/multiple` in the sitemap) still needs revisiting |
 | 2 | UX-011 | Systematic, measured, affects every primary CTA in dark mode |
 | 3 | UX-019 | It is the reason other defects go undetected |
 | 4 | UX-002 | Cheap to fix, removes an accessibility exclusion from the two most-seen screens |
