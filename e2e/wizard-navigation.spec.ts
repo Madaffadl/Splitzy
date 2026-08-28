@@ -46,7 +46,11 @@ test.describe("single-receipt wizard navigation", () => {
     });
 
     test("no horizontal overflow on any mode at 375px", async ({ page }) => {
-        for (const route of ["/single", "/multiple", "/travel"]) {
+        // /multiple is deliberately absent: it is auth-gated in proxy.ts, so an
+        // anonymous visit lands on the landing page instead. Leaving it in the
+        // list kept the test green while measuring "/" a second time — a pass
+        // that asserted nothing. It comes back with PBI-047.
+        for (const route of ["/single", "/travel"]) {
             await page.goto(route);
             const { scrollW, clientW } = await page.evaluate(() => ({
                 scrollW: document.documentElement.scrollWidth,
@@ -141,7 +145,18 @@ test.describe("layout regressions", () => {
         }
     });
 
-    test("a split with a receipt does not widen the document", async ({ page }) => {
+    // SKIPPED: needs a signed-in session. /multiple is in proxy.ts's
+    // protectedPaths and now redirects anonymous visitors, so this test can no
+    // longer reach the screen it measures.
+    //
+    // It was written while the proxy's auth guard was failing open for every
+    // anonymous request, which made /multiple look public. It was not. Unblock
+    // by seeding a Supabase test account and a Playwright storageState (PBI-047
+    // in docs/analysis/improvement-backlog.md); CI today runs against a
+    // placeholder Supabase host with no database, so no session can exist.
+    //
+    // The regression below is real and still worth guarding — do not delete it.
+    test.skip("a split with a receipt does not widen the document", async ({ page }) => {
         // `mx-auto` on a flex item cancels cross-axis stretch, so the wrapper is
         // sized to fit-content and can never be narrower than its min-content.
         // One un-shrinkable row therefore widened the whole page — which is why
@@ -261,7 +276,16 @@ test.describe("language", () => {
 });
 
 // /multiple shares its summary panel with /travel, so translating it covers both.
-test.describe("multiple-receipt split in Indonesian", () => {
+//
+// SKIPPED: both tests here need a signed-in session. /multiple is protected in
+// proxy.ts and redirects anonymous visitors; these were written while the auth
+// guard was failing open, which made the route look public. Unblock with a
+// seeded Supabase test account and a Playwright storageState (PBI-047).
+//
+// Until then the Indonesian coverage of the shared summary panel rests on the
+// "trip mode in Indonesian" block below, which reaches the same panel through
+// /travel — an unprotected route. That is narrower, not equivalent.
+test.describe.skip("multiple-receipt split in Indonesian", () => {
     test.use({ viewport: { width: 375, height: 667 } });
 
     test.beforeEach(async ({ page }) => {
@@ -381,7 +405,12 @@ test.describe("action bar", () => {
         });
     }
 
-    test("the split and the receipt editor use the same bar at 375px", async ({ page }) => {
+    // SKIPPED: the second half needs a signed-in session — /multiple is
+    // protected in proxy.ts and redirects anonymous visitors. The whole test
+    // goes rather than half of it, because its assertion *is* the comparison:
+    // measuring /single's bar alone proves nothing about the two matching.
+    // Unblock with a seeded test account and storageState (PBI-047).
+    test.skip("the split and the receipt editor use the same bar at 375px", async ({ page }) => {
         await page.setViewportSize({ width: 375, height: 667 });
         await page.addInitScript(() => {
             localStorage.setItem("splitzy-onboarding-seen", "1");

@@ -146,9 +146,29 @@ test("indexable pages are not accidentally noindexed", async ({ page }) => {
   }
 });
 
-test("private pages are noindexed", async ({ page }) => {
+test("private pages are not indexable", async ({ page }) => {
+  // A private route can satisfy "not indexable" two ways, and both are correct:
+  // it renders and declares noindex, or the proxy turns the anonymous visitor
+  // away before there is a page to index. /dashboard takes the first path;
+  // /history is in proxy.ts's protectedPaths and takes the second.
+  //
+  // This used to assert the meta tag only, which quietly assumed every private
+  // route renders for a signed-out visitor. That assumption held only because
+  // the proxy's auth guard was failing open for anonymous requests — a
+  // signed-out visitor produces AuthSessionMissingError, which carries status
+  // 400, and the guard was admitting everything that was not a 401. With that
+  // fixed, /history redirects and there is no meta tag to read.
   for (const route of ["/dashboard", "/history"]) {
     await page.goto(route);
+    const landed = new URL(page.url()).pathname;
+
+    if (landed !== route) {
+      expect(landed, `${route} must redirect to the login entry point`).toBe(
+        "/"
+      );
+      continue;
+    }
+
     const robots = await page
       .locator('meta[name="robots"]')
       .first()

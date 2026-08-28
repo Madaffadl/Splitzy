@@ -102,6 +102,30 @@ on real metadata output. Chromium only.
 previous build will be reused, and the tests then pass against yesterday's code. In CI it always
 builds fresh.
 
+### Four dormant tests **[IMPLEMENTED]**
+
+38 tests: **34 run, 4 are `test.skip`.** All four measured `/multiple`, which is listed in
+`proxy.ts`'s `protectedPaths` and now redirects anonymous visitors. They were written on 27 August
+against the fail-open auth guard, which made the route look public; it was not, and had been
+protected since 8 July.
+
+| Skipped test | What it guarded |
+|---|---|
+| `a split with a receipt does not widen the document` | A `mx-auto` flex item forcing the document wider than the viewport |
+| `no untranslated strings on the overview` | Indonesian coverage of the shared summary panel |
+| `the Receipts header keeps a real gap from its button` | Header/button spacing at 375 px |
+| `the split and the receipt editor use the same bar at 375px` | Action-bar parity between `/single` and `/multiple` |
+
+A fifth, `no horizontal overflow on any mode at 375px`, still runs but **dropped `/multiple` from its
+route list** — it had been silently re-measuring the landing page and passing on that.
+
+These are real regressions left unguarded, not dead tests. They return when a seeded Supabase test
+account and a Playwright `storageState` exist (**PBI-047**). CI today runs against a placeholder
+Supabase host with no database, so no session can be established.
+
+**[INFERRED]** This is the clearest illustration of TD-011 in the whole suite: a security fix silently
+invalidated four UI tests, and nothing but a red CI run connected the two.
+
 ### What is covered **[IMPLEMENTED]**
 
 `e2e/smoke.spec.ts` — **13 tests, and it is largely an SEO regression suite.** It exists because of

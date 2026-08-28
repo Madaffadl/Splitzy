@@ -158,7 +158,7 @@ proxy this app depends on for route protection (TD-017).
 
 ### TD-014
 **Category** Test coverage · **Severity** High · **Effort** Small
-**Description** **No E2E test completes a split.** The 15 E2E tests are 13 SEO regressions and 2
+**Description** **No E2E test completes a split.** The E2E tests are SEO regressions and
 navigation assertions.
 **Location** `e2e/`
 **Risk if left** The core user journey has no end-to-end coverage. Phase C demonstrated the wizard is

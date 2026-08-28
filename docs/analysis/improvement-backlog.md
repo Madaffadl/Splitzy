@@ -354,7 +354,7 @@ All fields present, condensed for density.
 | PBI-044 | One success-response shape | Technical Debt | `{ ok: true }` vs `{ success: true }` → pick one | Cosmetic now; a real cost for any future consumer | S | GAP-019, TD-009 |
 | PBI-045 | Automated accessibility testing | Accessibility | Good affordances, **zero** automated verification → axe/pa11y in CI | Nothing prevents an a11y regression | S | UX-audit §a11y |
 | PBI-046 | Client data cache | Perf | No cache; history/dashboard/admin refetch on every mount → SWR or React Query | Redundant requests, visible re-loading | M | TD-028 |
-| PBI-047 | Seeded test account | Technical Debt | Six screens unreachable by any harness → a Supabase test user on staging | Unblocks authenticated E2E and visual coverage | M | test-strategy §6 |
+| PBI-047 | Seeded test account **— treat as High** | Technical Debt | Six screens unreachable by any harness → a Supabase test user on staging | Unblocks authenticated E2E and visual coverage. **No longer hypothetical:** fixing VULN-001 made `/multiple` redirect anonymous visitors, so 4 E2E tests that measured it are now `test.skip` and one overflow check dropped the route. Those are dormant regressions until this lands | M | test-strategy §6 |
 
 ---
 
