@@ -21,13 +21,16 @@ Evidence: [src/app/api/parse-receipt/route.ts](../../src/app/api/parse-receipt/r
 | Mode | Route | View | Persistence model |
 |---|---|---|---|
 | Single receipt | `/single` | `SingleSplitView` | local-first (localStorage), optional server save |
-| Multiple receipts | `/multiple` | `MultipleReceiptView` | local-first, optional server save, **auth-gated** |
+| Multiple receipts | `/multiple` | `MultipleReceiptView` | local-first, optional server save, *intended* auth-gated — ⚠️ gate does not hold (UX-001) |
 | Travel Spend (trips) | `/travel` | `TravelSpendView` | local-first for guests, cloud-synced for signed-in users |
 
 Evidence: [src/app/single/page.tsx](../../src/app/single/page.tsx),
 [src/app/multiple/page.tsx](../../src/app/multiple/page.tsx),
 [src/app/travel/page.tsx](../../src/app/travel/page.tsx),
 [src/proxy.ts](../../src/proxy.ts) (`protectedPaths = ["/multiple", "/history"]`).
+
+> ⚠️ **Corrected in Phase C.** That guard does not fire for anonymous users — `/multiple`
+> renders in full without a session. See [../ux/ux-audit.md](../ux/ux-audit.md) UX-001.
 
 **[IMPLEMENTED]** The market is Indonesia: IDR is the base settlement currency, pricing is in
 Rupiah, and the AI prompt is tuned for Indonesian receipt vocabulary (`PB1`, `PPN`, `Ongkos Kirim`,

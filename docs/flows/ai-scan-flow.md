@@ -301,7 +301,10 @@ No prompt, response, image, or latency is logged anywhere. Failures reach `conso
 | Extracted items and amounts | The user's browser; the DB only if they save | Per the normal retention rules |
 | User identity | **Not sent to Google** — no id, email, or app data accompanies the image | — |
 
-**[IMPLEMENTED]** There is no disclosure at the upload point that the image is sent to Google.
+**[IMPLEMENTED]** A disclosure **is** shown at the upload point, localised in both languages:
+*"Your photo is sent to Google Gemini for parsing and is not stored by Splitzy. Avoid uploading
+receipts with sensitive personal data."* Confirmed by rendering `/single?step=bill` during Phase C.
+*(This corrects an error in the first draft of this document, which stated no disclosure existed.)*
 **[UNKNOWN]** whether `/privacy` covers this — not verified line by line.
 
 ---

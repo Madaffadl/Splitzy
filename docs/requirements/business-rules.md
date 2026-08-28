@@ -233,6 +233,9 @@ only), and `/api/auth/me` does not apply the guard · **[IMPLEMENTED]**
 Source: `protectedPaths` in `src/proxy.ts` (prefix match, so `/history/<id>` is covered) ·
 **[IMPLEMENTED]**
 
+> ⚠️ **Corrected in Phase C.** This protection **does not hold for anonymous users**. `supabase.auth.getUser()` with no session throws `AuthSessionMissingError` with status **400**, not 401, so the proxy's transient-error branch lets every anonymous request through. `/history` degrades safely via its own in-page gate; **`/multiple` has no gate and renders the full tool**. Reproduced against a production build. See [ux-audit.md UX-001](../ux/ux-audit.md) and the private security findings.
+
+
 **BR-045 — A transient auth error must not redirect a signed-in user**
 Description: only a genuine 401 triggers the bounce; any other `getUser()` error lets the request
 through.

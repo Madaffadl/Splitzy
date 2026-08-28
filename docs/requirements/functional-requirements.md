@@ -39,6 +39,12 @@
 | **FR-003** | A failure to write the profile shall not prevent sign-in | US-001 / BR-042 | The upsert block is wrapped in `try/catch` that logs only | Implemented | same |
 | **FR-004** | The system shall refresh the session on every matched navigation and propagate refreshed cookies across redirects | US-004 / FEAT-003 | `@supabase/ssr` `createServerClient` in the edge proxy | Implemented | `src/proxy.ts` |
 | **FR-005** | The system shall require authentication for `/multiple` and `/history*` | US-005 / BR-044 | `protectedPaths` prefix match → `302 /?login=required&redirect=<path>` | Implemented | `src/proxy.ts` |
+
+> ⚠️ **Corrected in Phase C — FR-005 is NOT met.** An anonymous request to `/multiple` returns
+> **200 with the full tool**. Root cause: `AuthSessionMissingError` carries status 400, not 401, so the
+> proxy's transient-error branch admits every anonymous request. Status should read **Missing**.
+> See [../ux/ux-audit.md](../ux/ux-audit.md) UX-001.
+
 | **FR-006** | A transient authentication error shall not redirect an otherwise-valid user | US-004 / BR-045 | Only `authError.status === 401` triggers the bounce | Implemented | `src/proxy.ts` |
 | **FR-007** | The system shall clear all application-owned local data on sign-out | US-003 / FEAT-002 | Seven `localStorage.removeItem` calls inside `try/catch` | Implemented | `hooks/useAuth.ts` |
 | **FR-008** | The system shall treat a banned account as unauthenticated on every protected endpoint | US-053 / BR-043 | `getAuthUser` returns `null` when `bannedAt != null` | **Partial** — `/api/auth/me` does not apply the guard, and existing cookies are not revoked | `lib/api-auth.ts` |

@@ -28,7 +28,7 @@ persistence models, different collaboration models, and different guarantees.
 |---|---|---|---|
 | Route | `/single` | `/multiple` | `/travel` |
 | Use case | One dinner, one bill | Several receipts, several payers, one settle-up | A multi-day trip |
-| Account required | ❌ (3 free splits, then a prompt) | ✅ — proxy-gated | ❌ for local use |
+| Account required | ❌ (3 free splits, then a prompt) | ⚠️ *intended* proxy-gated — **the gate does not hold; see UX-001** | ❌ for local use |
 | Storage | `localStorage` | `localStorage` | Local for guests; **cloud + offline outbox** when signed in |
 | Server involvement | Only on Save / Share / Scan | Same | Every mutation |
 | Collaboration | None | None | Members, invite links, approval workflow |

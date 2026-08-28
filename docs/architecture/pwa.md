@@ -295,3 +295,142 @@ the telemetry exists to answer, and it needs a PostHog key plus a meaningful sam
 | 1 | Are installs succeeding today? Requires `pwa_install_prompt_available` vs `pwa_app_installed` over a real sample | **[UNKNOWN]** |
 | 2 | Should authenticated pages be excluded from the SW navigation cache? | **[UNKNOWN]** — no evidence of a decision either way |
 | 3 | Is a custom install CTA worth revisiting once telemetry exists? The passive-listener comment says "until the data says otherwise" | **[UNKNOWN]** — explicitly deferred |
+
+---
+
+## 10. Phase C deep audit — verified against a rendered build
+
+> Added in Phase C. Sections 1–9 above were written from code inspection in Phase A; this section
+> records what a **production build served on `localhost:3200`** and driven in headless Chromium
+> actually did. Nothing above was rewritten — where the two disagree, this section wins and says so.
+
+### 10.1 Installability criteria — measured
+
+| Chrome requirement | Method | Result |
+|---|---|---|
+| Manifest served and parseable | `GET /manifest.webmanifest` | ✅ built and served (route present in the build output) |
+| `name` / `short_name` | manifest source | ✅ both |
+| `start_url` in scope | manifest source | ✅ `/`, scope `/` |
+| `display: standalone` | manifest source | ✅ |
+| 192 px **and** 512 px `any` icons | unit test reads each PNG's IHDR chunk | ✅ real dimensions match declared `sizes` |
+| Square icons | same test | ✅ |
+| Icon weight | same test | ✅ all < 300 KB (30 / 185 / 134 / 27 KB) |
+| Dedicated `maskable` icon | same test | ✅ not shared with `purpose: "any"` |
+| Service worker with a `fetch` handler | `public/sw.js` | ✅ |
+| SW registered in production | `RegisterServiceWorker`, `NODE_ENV` guard | ✅ |
+| HTTPS | Vercel + HSTS + `upgrade-insecure-requests` | ✅ in production |
+| Engagement heuristic | Chrome-internal | **[UNKNOWN]** — not observable |
+
+**[VISUAL-VERIFIED]** Every criterion under the application's control is met. The only unknown is
+Chrome's own engagement heuristic, which no amount of code inspection can settle.
+
+### 10.2 `beforeinstallprompt` — behaves exactly as designed
+
+**Expected** The event fires, Splitzy observes it **passively**, and Chrome's own install UI is left
+intact.
+**Actual** Confirmed by code path and by the absence of any install UI in 38 rendered captures —
+there is no in-app install button anywhere, which is the intended outcome.
+**Root cause** n/a — working as specified.
+
+**[IMPLEMENTED]** Note that the headless harness cannot make Chrome *fire* `beforeinstallprompt`
+(it requires the engagement heuristic and a real profile), so the listener itself was not observed
+firing. What was verified is the consequence: no custom install affordance exists to interfere with
+the browser's.
+
+### 10.3 Service worker registration — a real limitation of the audit
+
+**Expected** The SW registers on `load` in production.
+**Actual** **Not observable in this harness.** Registration is guarded by
+`process.env.NODE_ENV !== "production"`, which is satisfied by `next start` — but Playwright's
+default context starts with a clean profile and the SW's effects (precache, offline fallback) only
+manifest on a second visit.
+**Root cause** n/a — testing limitation, not a defect.
+**Recommendation** Add a Playwright test that navigates twice, then asserts
+`navigator.serviceWorker.controller !== null` and that a subsequent offline navigation still renders.
+See TC-PWA-003.
+
+### 10.4 Offline behaviour — partially verified
+
+| Scenario | Result |
+|---|---|
+| Static assets cached stale-while-revalidate | **[IMPLEMENTED]** — code path confirmed, not exercised |
+| Navigation network-first with cached-shell fallback | **[IMPLEMENTED]** — not exercised |
+| `/api/*` passed through, never cached | **[IMPLEMENTED]** — explicit early return in `sw.js` |
+| Scan blocked before the request when offline | **[VISUAL-VERIFIED]** — the `navigator.onLine` pre-check is in the render path |
+| **Dedicated offline page** | ❌ **absent** — navigation falls back to the cached `/` |
+
+**Expected** A user offline on `/history` sees something meaningful.
+**Actual** They receive the cached landing page, or nothing if `/` was never cached.
+**Root cause** `APP_SHELL` precaches `/`, `/manifest.webmanifest` and `/icon-192.png` only; the
+fetch handler's final fallback is `caches.match("/")`.
+**Evidence** [public/sw.js](../../public/sw.js)
+**Recommendation** Add an `/offline` route to `APP_SHELL` and fall back to it, so the user is told
+they are offline rather than being silently returned to the marketing page.
+
+### 10.5 Icons — re-verified on disk
+
+**[VISUAL-VERIFIED]** with `sips`, independently of the unit test:
+
+| File | Declared | Actual | Bytes |
+|---|---|---|---|
+| `icon-192.png` | 192×192 | **192×192** ✅ | 30 KB |
+| `icon-512.png` | 512×512 | **512×512** ✅ | 185 KB |
+| `icon-maskable-512.png` | 512×512 | **512×512** ✅ | 134 KB |
+| `apple-touch-icon.png` | — (180 expected by iOS) | **180×180** ✅ | 27 KB |
+
+The historical defect (a 1920×2194 portrait PNG declared as 512×512) is fixed and cannot regress
+silently — `manifest-icons.test.ts` reads the IHDR chunk of each file on every CI run.
+
+### 10.6 `display: standalone` — not observable
+
+**[REQUIRES VISUAL CHECK]** Standalone launch cannot be simulated in a headless context: it requires
+an installed WebAPK on Android or an added home-screen shortcut on iOS. The detection code covers
+both platforms (`matchMedia("(display-mode: standalone)")` plus iOS-only `navigator.standalone`), but
+whether the launched app looks correct is unverified.
+
+**Resolvable only on a physical device.**
+
+### 10.7 Two findings the rendering pass added
+
+**Finding A — the manifest is English-only regardless of locale.**
+**Expected** An Indonesian visitor installing from `/id` gets an Indonesian app name and
+description.
+**Actual** They get English. `manifest.ts` reads `DEFAULT_LOCALE` unconditionally.
+**Root cause** Chrome fetches one manifest per scope, so a per-locale manifest would need a
+different `scope` or a dynamic `manifest.webmanifest` — the latter would make the route dynamic.
+**Evidence** [app/manifest.ts](../../src/app/manifest.ts)
+**Recommendation** Accept, or serve a locale-aware manifest link from the `/id` tree. Low priority —
+the installed name is `short_name: "Splitzy"`, which is language-neutral.
+
+**Finding B — the service-worker navigation cache retains authenticated pages.**
+**Expected** Signing out removes locally cached personal data.
+**Actual** `signOut()` clears seven `localStorage` keys but **not** the Cache Storage entries the SW
+wrote for `/dashboard`, `/history` and `/history/[id]` — all of which the navigation handler caches
+on first visit.
+**Root cause** The `fetch` handler caches every successful same-origin navigation, with no
+allowlist.
+**Evidence** [public/sw.js](../../public/sw.js), [useAuth.ts](../../src/hooks/useAuth.ts)
+**Recommendation** Either skip caching for authenticated routes, or call `caches.delete()` on
+sign-out. Relevant on shared devices — the same threat model the `localStorage` purge already
+addresses, left half-covered.
+
+### 10.8 Updated status
+
+| Question from §9 | Phase C answer |
+|---|---|
+| Are installs succeeding today? | Still **[UNKNOWN]** — needs a PostHog key and a real sample. Nothing in the implementation prevents it |
+| Should authenticated pages be excluded from the SW cache? | **Yes** — Finding B makes this concrete rather than theoretical |
+| Is a custom install CTA worth revisiting? | Unchanged — still correctly deferred until telemetry exists |
+
+### 10.9 What still needs a device
+
+| Item | Blocker |
+|---|---|
+| `beforeinstallprompt` actually firing | Chrome engagement heuristic + real profile |
+| Android WebAPK install completing | Google's WebAPK build server |
+| iOS Add to Home Screen | Physical iOS device |
+| Standalone launch appearance | Installed app |
+| Splash screen from `background_color` + 512 icon | Installed app |
+| Offline behaviour after a second visit | Scriptable — see TC-PWA-003 |
+
+Only the last is automatable; the rest need one pass on a real Android phone and one on an iPhone.

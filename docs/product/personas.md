@@ -156,7 +156,7 @@ publicly viewable as an unresolved *product* decision, not an SEO one.
 | Capability | P-04 Guest | P-01 Payer (signed in) | P-02 Owner | P-03 Member | P-05 Recipient | P-06 Admin |
 |---|---|---|---|---|---|---|
 | `/single` split | ✅ (3 cap) | ✅ | ✅ | ✅ | — | ✅ |
-| `/multiple` split | ❌ proxy-gated | ✅ | ✅ | ✅ | — | ✅ |
+| `/multiple` split | ⚠️ *intended* ❌ — **actually reachable** (UX-001) | ✅ | ✅ | ✅ | — | ✅ |
 | Travel trip (local) | ✅ | ✅ | ✅ | ✅ | — | ✅ |
 | Travel trip (cloud) | ❌ | ✅ | ✅ owner | ✅ read | — | ✅ |
 | AI scan | ✅ **unmetered** | ✅ 15/mo | ✅ | ✅ | — | ✅ |

@@ -128,7 +128,7 @@ it before committing.
   scan a receipt, assign items and see the settlement.
 - *Alternative:* **Then** I can also create a public share link (`createdById` stays null).
 - *Alternative:* **Then** I can use `/travel` with trips stored only in `localStorage`.
-- *Permission:* **Given** I open `/multiple`, **Then** I am redirected to sign in.
+- *Permission:* **Given** I open `/multiple`, **Then** I should be redirected to sign in. ⚠️ **Phase C: not enforced — see [UX-001](../ux/ux-audit.md).**
 - *Edge:* **Then** my AI scans are **not** counted against any monthly quota — only the 10/min IP
   limit applies.
 - *Edge:* **Given** I later sign in, **Then** my local data is **not** migrated automatically;
@@ -362,7 +362,7 @@ once.
 **AC**
 - *Happy:* **Given** one participant set and several receipts each with its own payer, **Then** I
   see an aggregated summary and one minimal transfer set.
-- *Permission:* **Given** I am not signed in, **Then** `/multiple` redirects me to sign in.
+- *Permission:* **Given** I am not signed in, **Then** `/multiple` should redirect me to sign in. ⚠️ **Phase C: it does not — 200 with the full tool. See [UX-001](../ux/ux-audit.md).**
 - *Alternative:* **Then** I can save the whole group as one document and resume it later.
 - *Edge:* `/multiple` is deliberately excluded from the sitemap because crawlers are redirected.
 

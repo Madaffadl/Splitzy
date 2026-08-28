@@ -156,6 +156,11 @@ user still receives their profile from `/api/auth/me` even though every other pr
 `startsWith`, so `/history/<id>` is covered. Unauthenticated requests are redirected to
 `/?login=required&redirect=<pathname>`.
 
+> ⚠️ **Corrected in Phase C.** In practice this redirect **never fires for anonymous users**:
+> `AuthSessionMissingError` carries status **400**, not 401, so the failure-tolerant branch below
+> admits every session-less request. `/history` is saved by its own page-level gate; `/multiple` is
+> not. See [../ux/ux-audit.md](../ux/ux-audit.md) UX-001.
+
 **Failure-tolerant guard**: if `supabase.auth.getUser()` returns an error whose status is *not* 401
 (a transient network/service fault), the request is allowed through rather than false-redirecting a
 signed-in user. The page-level check then catches genuinely anonymous requests.

@@ -102,7 +102,12 @@ participant names, no session token, no history. **[IMPLEMENTED]**
 
 **[INFERRED]** Privacy exposure is therefore whatever is visible in the photograph: merchant name,
 date, items, totals, and any card-tail or loyalty number printed on the receipt. There is no
-redaction step and no user-facing disclosure at the point of upload.
+redaction step.
+
+**[IMPLEMENTED]** There **is** a user-facing disclosure at the point of upload, localised in both
+languages and rendered beside the scan control: *"Your photo is sent to Google Gemini for parsing
+and is not stored by Splitzy. Avoid uploading receipts with sensitive personal data."*
+(`dictionaries/en.ts:836`, `id.ts:856`). Confirmed by rendering the page in Phase C.
 
 No generation config is set — no `temperature`, no `responseMimeType: "application/json"`, no
 `responseSchema`, no safety-setting overrides. All Gemini defaults apply. **[IMPLEMENTED]**
@@ -345,6 +350,6 @@ See [../flows/ai-scan-flow.md](../flows/ai-scan-flow.md) for the full sequence d
 | 4 | Guest scans bypass the monthly quota entirely | **[IMPLEMENTED]** |
 | 5 | Quota check → increment is not atomic | **[IMPLEMENTED]** |
 | 6 | No confidence score is requested or surfaced; "low confidence" is indistinguishable from "empty receipt" | **[IMPLEMENTED]** |
-| 7 | No disclosure at the upload point that the image is sent to Google. Whether `/privacy` covers this was not verified line-by-line | **[UNKNOWN]** |
+| 7 | ~~No disclosure at the upload point~~ — **corrected in Phase C.** A localised notice *is* rendered beside the upload control in both languages: *"Your photo is sent to Google Gemini for parsing and is not stored by Splitzy. Avoid uploading receipts with sensitive personal data."* (`dictionaries/en.ts:836`, `id.ts:856`). Verified by rendering `/single?step=bill` | **[IMPLEMENTED]** |
 | 8 | Google's data-retention terms for the API key's project (free vs paid tier behaviour differs materially) | **[UNKNOWN]** — not determinable from the repo |
 | 9 | A planned UX improvement — a rectangular framing overlay on the camera view to coach users to fill the frame — is not present in the code | **[IMPLEMENTED]** absence |

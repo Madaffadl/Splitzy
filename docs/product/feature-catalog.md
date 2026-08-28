@@ -229,7 +229,7 @@ Name, email and avatar are copied from Google on every sign-in (`user.upsert`). 
 ### FEAT-020 — Multiple-receipt split
 - **Status** Implemented · **Actor** P-01 (signed in) · **Evidence** [MultipleReceiptView.tsx](../../src/components/pages/MultipleReceiptView.tsx)
 - **Purpose** Several receipts with **different payers**, settled once. A "split" is one named group of receipts shared by the same people.
-- **Preconditions** **Authenticated** — the proxy gates `/multiple`.
+- **Preconditions** *Intended:* authenticated. ⚠️ **Phase C found the gate does not hold** — an anonymous request renders the full tool ([UX-001](../ux/ux-audit.md)).
 - **Main flow** Define participants once → add N receipts, each with its own payer/items/fees/discounts → one aggregated summary with wallet stats and a minimised transfer set.
 - **Alternative** `?resume=<id>` · save/update the whole split as one document.
 - **Rules** BR-019…BR-034 · **API** API-010, API-012, API-045, API-008 · **DB** `Receipt.payloadJson`
