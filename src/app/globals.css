@@ -130,6 +130,46 @@
     outline-offset: 2px;
     border-radius: 3px;
   }
+
+  /* ── Temporal inputs on iOS ───────────────────────────────────────────────
+     iOS Safari does not render input[type="date"] as a text field. It renders a
+     native control with its own UA metrics, and two of them fight the shared
+     Input styling in a way no desktop engine reproduces — which is exactly why
+     this was only ever visible on a real phone and looked fine in a 390px
+     browser window:
+
+       * a UA min-width taken from the control's own content. min-width beats
+         width, so `w-full` could not hold it and the field pushed out past the
+         edge of the card it lives in.
+       * the value is centred inside ::-webkit-date-and-time-value, while every
+         other field in the app is left-aligned — so the one date field on the
+         screen read as a different kind of control.
+
+     Measured in both Playwright engines before writing this: desktop WebKit and
+     Chromium already report min-width 0, text-align start, 44px height and zero
+     overflow, and they still do with these rules applied. So this is inert off
+     iOS and corrective on it. */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"] {
+    /* Let the field honour width:100% and shrink inside a grid/flex column. */
+    min-width: 0;
+    /* Stop iOS treating it as a native button with its own padding and metrics. */
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value,
+  input[type="month"]::-webkit-date-and-time-value {
+    text-align: left;
+    /* With no value picked, iOS collapses this box to zero height and the field
+       loses its vertical centring. Hold a line so an empty date sits where a
+       filled one does. */
+    min-height: 1.5rem;
+  }
 }
 
 /* ── z-index scale ──────────────────────────────────────────────────────────

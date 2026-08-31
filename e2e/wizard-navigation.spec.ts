@@ -191,6 +191,70 @@ test.describe("layout regressions", () => {
         expect(m.headerW, "header must span the full document width").toBe(m.vw);
     });
 
+    // Reported from an iPhone 15 on 2026-08-31: the date field in the receipt
+    // editor sat wider than its card and its value was centred while every other
+    // field was left-aligned.
+    //
+    // Read this test for what it is. The defect itself does NOT reproduce in any
+    // desktop engine — measured in both Playwright Chromium and WebKit, where the
+    // field already matches its sibling exactly and overflows nothing. It comes
+    // from iOS Safari's native date control, which neither engine ships. So the
+    // geometry half below is a property worth holding but passes trivially here;
+    // the load-bearing half is the computed-style check, which fails the moment
+    // the globals.css block that corrects iOS is edited away.
+    test("the date field is styled to survive iOS's native date control", async ({ page }) => {
+        await page.addInitScript(() => {
+            localStorage.setItem("splitzy-onboarding-seen", "1");
+            localStorage.setItem("splitzy-travel", JSON.stringify({
+                activeId: "t1",
+                trips: [{
+                    id: "t1", name: "Bali 2026",
+                    participants: [{ id: "p1", name: "Alya" }, { id: "p2", name: "Budi" }],
+                    receipts: [],
+                }],
+            }));
+        });
+        await page.goto("/travel");
+        await page.getByRole("button", { name: /add receipt/i }).first().click();
+        await page.waitForSelector('input[type="date"]');
+
+        const m = await page.evaluate(() => {
+            const date = document.querySelector('input[type="date"]') as HTMLInputElement;
+            const text = Array.from(document.querySelectorAll("input")).find(
+                (i) => i.type === "text"
+            ) as HTMLInputElement | undefined;
+            let card: HTMLElement | null = date.parentElement;
+            while (card && card.getBoundingClientRect().width <= date.getBoundingClientRect().width) {
+                card = card.parentElement;
+            }
+            const cs = getComputedStyle(date);
+            return {
+                dateW: Math.round(date.getBoundingClientRect().width),
+                dateRight: Math.round(date.getBoundingClientRect().right),
+                textW: text ? Math.round(text.getBoundingClientRect().width) : null,
+                cardRight: card ? Math.round(card.getBoundingClientRect().right) : null,
+                minWidth: cs.minWidth,
+                appearance: cs.appearance,
+            };
+        });
+
+        // iOS's UA min-width beats width:100%; pinning it to 0 is what lets the
+        // field stay inside its column.
+        expect(m.minWidth, "date input must not carry a min-width floor").toBe("0px");
+        // Stops iOS rendering it as a native button with its own metrics.
+        expect(m.appearance, "date input must opt out of native appearance").toBe("none");
+
+        expect(m.textW, "no sibling text field to compare against").not.toBeNull();
+        expect(
+            Math.abs(m.dateW - m.textW!),
+            "the date field must be the same width as the text field above it"
+        ).toBeLessThanOrEqual(1);
+        expect(
+            m.dateRight,
+            "the date field must not extend past the card it sits in"
+        ).toBeLessThanOrEqual(m.cardRight! + 1);
+    });
+
     test("every form control is at least 16px on mobile, so iOS cannot auto-zoom", async ({ page }) => {
         await page.goto("/single");
         await page.getByRole("button", { name: /sample data/i }).click();

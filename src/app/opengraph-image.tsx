@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { ImageResponse } from "next/og";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { DEFAULT_LOCALE } from "@/lib/i18n/config";
@@ -27,6 +29,26 @@ const OLIVE = "#3a4a1f";
 const CREAM = "#fbfaf5";
 const ACCENT = "#c8d96f";
 
+// The real logo, inlined as a data URL.
+//
+// It used to be the character "S" set in the fallback sans — a stand-in from
+// when this card was written to replace the portrait PNG that social platforms
+// were centre-cropping. The card shape got fixed; the mark never did, so every
+// link shared into WhatsApp showed a letter where the brand should be. The one
+// image a new user sees before they see the product was not the logo.
+//
+// Satori (next/og) cannot resolve a runtime URL during a build-time render, so
+// the file is read off disk and embedded. icon-192.png rather than logo.png:
+// 30KB against 2.2MB, and 192px is still 2.5× the 76px it is drawn at.
+//
+// This read is what keeps the route static. It runs once, while Next prerenders
+// the card, with the repo root as cwd. If this route is ever made dynamic, the
+// read moves into a lambda where public/ is not bundled and it will throw at
+// request time — pass the bytes in some other way before doing that.
+const LOGO_DATA_URL = `data:image/png;base64,${fs
+  .readFileSync(path.join(process.cwd(), "public", "icon-192.png"))
+  .toString("base64")}`;
+
 export default function OpengraphImage() {
   return new ImageResponse(
     (
@@ -45,22 +67,21 @@ export default function OpengraphImage() {
       >
         {/* Wordmark */}
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 76,
-              height: 76,
-              borderRadius: 22,
-              backgroundColor: ACCENT,
-              color: CHARCOAL,
-              fontSize: 46,
-              fontWeight: 800,
-            }}
-          >
-            S
-          </div>
+          {/* The logo art sits on its own cream field, so rounding the image
+              itself reads as the app icon rather than a raw square dropped on
+              the charcoal.
+              Two tighter-crop attempts were tried and reverted, both Satori
+              limits rather than CSS mistakes: a scaled child inside
+              `overflow: hidden` is clipped to the box but not to the radius
+              (square corners), and `backgroundImage` with a data URL renders
+              nothing at all (empty tile). The source's launcher padding stays. */}
+          <img
+            src={LOGO_DATA_URL}
+            alt=""
+            width={76}
+            height={76}
+            style={{ width: 76, height: 76, borderRadius: 22 }}
+          />
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span style={{ fontSize: 42, fontWeight: 800, color: CREAM, letterSpacing: -1 }}>
               Splitzy
