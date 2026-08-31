@@ -191,6 +191,82 @@ test.describe("layout regressions", () => {
         expect(m.headerW, "header must span the full document width").toBe(m.vw);
     });
 
+    // Reported from an iPhone 15 on 2026-08-31: on /travel with a trip open the
+    // cards looked off-centre and asymmetric.
+    //
+    // They were. A grid item defaults to `min-width: auto`, so the single
+    // implicit column the workspace collapses to on a phone could not size below
+    // its content — and the page grew 70px wider than the viewport. `mx-auto`
+    // then centred the cards inside the *document*, not the screen.
+    //
+    // The overflow also put real controls out of reach: a receipt's delete
+    // button, a payment's remove button and half the settle-up form were past
+    // the right edge with no way to scroll to them. So the last assertion here
+    // is the functional one — every control has to be reachable.
+    //
+    // The pre-existing overflow test in this file covers /travel with no trip
+    // open, which is why this went unnoticed: it takes a trip with content to
+    // push the column past the viewport.
+    test("a trip with receipts does not widen the page past the viewport", async ({ page }) => {
+        await page.addInitScript(() => {
+            localStorage.setItem("splitzy-onboarding-seen", "1");
+            const receipt = (id: string, title: string, price: number) => ({
+                id, title, date: "2026-08-30", payerId: "p1",
+                items: [{
+                    id: `${id}i`, name: "Item panjang sekali namanya untuk menguji lebar",
+                    qty: 1, unitPrice: price, total: price, assignedToIds: ["p1", "p2", "p3"],
+                }],
+                tax: 0, service: 0,
+            });
+            localStorage.setItem("splitzy-travel", JSON.stringify({
+                activeId: "t1",
+                trips: [{
+                    id: "t1", name: "Trip Bali Bareng Anak Kantor", budget: 10_000_000,
+                    participants: [{ id: "p1", name: "Daffa" }, { id: "p2", name: "Tere" }, { id: "p3", name: "leo" }],
+                    receipts: [
+                        receipt("r1", "Billiard", 347_000),
+                        receipt("r2", "Makan Malam Seafood", 1_250_000),
+                        receipt("r3", "Hotel", 1_500_000),
+                    ],
+                    payments: [{ id: "pay1", from: "p2", to: "p1", amount: 10_000, createdAt: "2026-08-30T10:00:00.000Z" }],
+                }],
+            }));
+        });
+        await page.goto("/travel");
+        await expect(page.getByText("Settle-up payments")).toBeVisible();
+
+        const m = await page.evaluate(() => {
+            const de = document.documentElement;
+            const vw = de.clientWidth;
+            const cards = Array.from(document.querySelectorAll(".rounded-2xl.border")).map((el) => {
+                const r = el.getBoundingClientRect();
+                return {
+                    label: (el.textContent ?? "").trim().slice(0, 24),
+                    gapL: Math.round(r.left),
+                    gapR: Math.round(vw - r.right),
+                };
+            });
+            const unreachable = Array.from(document.querySelectorAll("main button")).filter((b) => {
+                const r = b.getBoundingClientRect();
+                return r.width > 0 && (r.right > vw + 1 || r.left < -1);
+            }).map((b) => (b.getAttribute("aria-label") || b.textContent || "?").trim().slice(0, 30));
+            return { vw, over: de.scrollWidth - de.clientWidth, cards, unreachable };
+        });
+
+        expect(m.over, "the trip workspace widens the document past the viewport").toBeLessThanOrEqual(1);
+        expect(m.cards.length, "no cards found — the trip did not render").toBeGreaterThan(3);
+        for (const c of m.cards) {
+            expect(
+                Math.abs(c.gapL - c.gapR),
+                `card "${c.label}" is off-centre: ${c.gapL}px left vs ${c.gapR}px right`
+            ).toBeLessThanOrEqual(1);
+        }
+        expect(
+            m.unreachable,
+            "these controls sit outside the viewport with no way to reach them"
+        ).toEqual([]);
+    });
+
     // Reported from an iPhone 15 on 2026-08-31: the date field in the receipt
     // editor sat wider than its card and its value was centred while every other
     // field was left-aligned.

@@ -1717,8 +1717,19 @@ export function TravelSpendView() {
               />
             )}
 
+          {/* min-w-0 on both items is load-bearing, not decoration.
+              A grid item defaults to `min-width: auto`, so the single implicit
+              column this collapses to on a phone cannot size below its items'
+              min-content — and min-width beats the available width. One card's
+              content wanted 453px inside a 369px column, so the whole grid, and
+              with it every card and the page, grew 70px wider than the viewport.
+              At scroll-x 0 that reads as "the cards aren't centred": mx-auto was
+              centring them inside a 463px document, not the 393px screen.
+              Measured: 70px of horizontal overflow before, 0px after, and
+              nothing needs clipping — the content wraps perfectly well once it
+              is allowed to. */}
           <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 min-w-0 space-y-6">
               {/* Trip details + budget */}
               <Card>
                 <CardHeader>
@@ -1916,21 +1927,10 @@ export function TravelSpendView() {
                 </div>
               )}
 
-              <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-destructive"
-                  onClick={() => setDeleteTripId(activeTrip.id)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {tt.deleteTrip}
-                </Button>
-              </div>
             </div>
 
             {/* Summary sidebar — compact */}
-            <div className="space-y-3 lg:sticky lg:top-24 lg:self-start">
+            <div className="min-w-0 space-y-3 lg:sticky lg:top-24 lg:self-start">
               <ErrorBoundary label="the trip summary">
                 <MultipleReceiptSummaryPanel
                   receipts={activeTrip.receipts}
@@ -1957,6 +1957,34 @@ export function TravelSpendView() {
                   currentUserId={dbUser?.id ?? null}
                 />
               )}
+            </div>
+
+            {/* Delete trip, as the grid's own last row rather than the tail of
+                the left column.
+                Where it was, it was the last thing in the left column — which on
+                desktop is the bottom of the page, but on a phone the sidebar
+                collapses underneath, so the most destructive control on the
+                screen landed *between* the Settle-up card and the Summary card.
+                Two white cards facing each other across a 92px gap, their edges
+                aligned and their shadows leaning in from both sides, with an
+                unbounded row floating in the middle: that gap is the "shadow
+                box" in the report. Nothing was drawing it — measured the band and
+                the only painters are the two cards either side of it. It was a
+                hole in the card rhythm, and the eye reads a hole as a recess.
+                Out here the gap above it is the same gap-6 as every other card
+                boundary on the page, and a destructive action is last on both
+                breakpoints. Matches MultipleReceiptView, which already puts its
+                Reset in a full-width row of its own. */}
+            <div className="flex justify-end lg:col-span-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => setDeleteTripId(activeTrip.id)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {tt.deleteTrip}
+              </Button>
             </div>
           </div>
           </div>

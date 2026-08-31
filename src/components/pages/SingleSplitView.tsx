@@ -544,7 +544,7 @@ export function SingleSplitView() {
 
         <div className={`grid gap-8 ${currentStep === 2 ? 'lg:grid-cols-1 max-w-4xl mx-auto' : 'lg:grid-cols-3'}`}>
           {/* Main Content */}
-          <div className={`space-y-6 ${currentStep === 2 ? '' : 'lg:col-span-2'}`}>
+          <div className={`min-w-0 space-y-6 ${currentStep === 2 ? '' : 'lg:col-span-2'}`}>
             {/* Step 0: Participants */}
             {currentStep === 0 && (
               <Card className="animate-fade-in">
