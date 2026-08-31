@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, forbidden, assertSameOrigin } from "@/lib/api-auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { isUuid } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const limited = enforceRateLimit(request, "travel:trip", { userId: user.id, limit: 120, windowMs: 60_000 });
   if (limited) return limited;
   const { id } = await params;
+  // This route bypasses getTripAccess (it must see deleted rows), so it needs
+  // the uuid guard that lives there.
+  if (!isUuid(id)) return notFound();
 
   const trip = await prisma.trip.findUnique({
     where: { id },

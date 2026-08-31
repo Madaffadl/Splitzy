@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api-auth";
 import { apiError } from "@/lib/api-response";
-import { ValidationError, validationErrorResponse } from "@/lib/validation";
+import { ValidationError, validationErrorResponse, isUuid } from "@/lib/validation";
 import { validateTripPaymentInput } from "@/lib/travel/travel-cloud";
 import { getTripAccess, requireOwnerWrite } from "@/lib/travel/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -30,9 +31,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const participants = (trip?.participantsJson as unknown as { id: string }[] | null) ?? [];
   const participantIds = new Set(participants.map((p) => p.id));
 
+  const rawBody = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+
   let input;
   try {
-    input = validateTripPaymentInput(await request.json().catch(() => null), participantIds);
+    input = validateTripPaymentInput(rawBody, participantIds);
   } catch (err) {
     if (err instanceof ValidationError) {
       const { body, status } = validationErrorResponse(err);
@@ -41,20 +44,52 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return apiError("BAD_REQUEST", "Invalid request body");
   }
 
-  const payment = await prisma.tripPayment.create({
-    data: {
-      tripId: id,
-      fromParticipantId: input.from,
-      toParticipantId: input.to,
-      amount: input.amount,
-      currency: input.currency ?? null,
-      fxRate: input.fxRate ?? null,
-      note: input.note ?? null,
-      source: input.source ?? null,
-      createdById: user.id,
-    },
-    select: { id: true, fromParticipantId: true, toParticipantId: true, amount: true, currency: true, fxRate: true, note: true, source: true, createdAt: true },
-  });
+  // The client may mint the row id (a real UUID) so its optimistic row and the
+  // stored row are the same thing — no temp id to swap, and no window where a
+  // delete addresses an id the server has never heard of. Anything that isn't a
+  // UUID is rejected rather than silently ignored, so a client that regresses to
+  // a placeholder id fails loudly here instead of at the driver.
+  if (rawBody?.id != null && !isUuid(rawBody.id)) {
+    return apiError("BAD_REQUEST", "payment id must be a UUID");
+  }
+  const clientId = isUuid(rawBody?.id) ? rawBody.id : undefined;
+
+  const SELECT = {
+    id: true, fromParticipantId: true, toParticipantId: true, amount: true,
+    currency: true, fxRate: true, note: true, source: true, createdAt: true,
+  } as const;
+
+  let payment;
+  try {
+    payment = await prisma.tripPayment.create({
+      data: {
+        ...(clientId ? { id: clientId } : {}),
+        tripId: id,
+        fromParticipantId: input.from,
+        toParticipantId: input.to,
+        amount: input.amount,
+        currency: input.currency ?? null,
+        fxRate: input.fxRate ?? null,
+        note: input.note ?? null,
+        source: input.source ?? null,
+        createdById: user.id,
+      },
+      select: SELECT,
+    });
+  } catch (err) {
+    // A retried POST (offline replay, double tap) hits the primary key. Return
+    // the row that already exists instead of a 500 — but only if it belongs to
+    // THIS trip, so a guessed id can never be used to read another trip's row.
+    const isDuplicate =
+      err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+    if (!isDuplicate || !clientId) throw err;
+    const existing = await prisma.tripPayment.findFirst({
+      where: { id: clientId, tripId: id },
+      select: SELECT,
+    });
+    if (!existing) return apiError("BAD_REQUEST", "payment id already in use");
+    payment = existing;
+  }
 
   await broadcastTripChange(id, { kind: "payment", actorId: user.id });
   return NextResponse.json(

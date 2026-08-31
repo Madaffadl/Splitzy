@@ -5,6 +5,7 @@ import { apiError } from "@/lib/api-response";
 import { getTripAccess, requireOwnerWrite } from "@/lib/travel/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { broadcastTripChange } from "@/lib/realtime";
+import { isUuid } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,8 @@ export async function POST(
   const limited = enforceRateLimit(request, "travel:changereq", { userId: user.id, limit: 60, windowMs: 60_000 });
   if (limited) return limited;
   const { id, crid } = await params;
+  // uuid column — a malformed id misses, it does not crash the driver.
+  if (!isUuid(crid)) return notFound();
 
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();

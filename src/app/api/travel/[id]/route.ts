@@ -127,7 +127,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     data: { ...data, version: { increment: 1 } },
   });
   if (result.count === 0) {
-    return apiError("VERSION_CONFLICT", "This trip is out of sync (another device/tab, or an interrupted save). Reload and try again.");
+    // The WHERE missed on version *or* deletedAt. Distinguish them, and hand
+    // back where the trip actually is: with `currentVersion` in the body the
+    // client can rebase its own edit and retry silently instead of showing the
+    // user a conflict they did not cause.
+    const current = await prisma.trip.findUnique({
+      where: { id },
+      select: { version: true, deletedAt: true },
+    });
+    if (!current || current.deletedAt) return notFound();
+    return apiError(
+      "VERSION_CONFLICT",
+      "This trip is out of sync (another device/tab, or an interrupted save). Reload and try again.",
+      { currentVersion: current.version }
+    );
   }
 
   await broadcastTripChange(id, { kind: "trip", actorId: user.id, version: expectedVersion + 1 });

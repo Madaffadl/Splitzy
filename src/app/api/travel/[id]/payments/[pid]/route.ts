@@ -4,6 +4,7 @@ import { getAuthUser, unauthorized, notFound, assertSameOrigin } from "@/lib/api
 import { getTripAccess, requireOwnerWrite } from "@/lib/travel/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { broadcastTripChange } from "@/lib/realtime";
+import { isUuid } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,10 @@ export async function DELETE(
   const limited = enforceRateLimit(request, "travel:payment", { userId: user.id, limit: 120, windowMs: 60_000 });
   if (limited) return limited;
   const { id, pid } = await params;
+  // `TripPayment.id` is a uuid column — anything else is a client that raced
+  // itself (deleting an optimistic row before its POST returned an id) and
+  // would otherwise crash the driver rather than simply miss.
+  if (!isUuid(pid)) return notFound();
 
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();

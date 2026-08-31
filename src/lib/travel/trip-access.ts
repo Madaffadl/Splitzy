@@ -4,6 +4,7 @@
 import type { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api-response";
+import { isUuid } from "@/lib/validation";
 
 export interface TripAccess {
   id: string;
@@ -19,6 +20,11 @@ export async function getTripAccess(
   tripId: string,
   userId: string
 ): Promise<TripAccess | null> {
+  // `Trip.id` is a uuid column: a malformed path segment can never match a row,
+  // but handing it to Prisma throws instead of missing. Every /api/travel/[id]
+  // route funnels through here, so one guard turns that whole class of 500 into
+  // the 404 it always was.
+  if (!isUuid(tripId)) return null;
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
     select: {

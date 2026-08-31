@@ -9,8 +9,8 @@ import {
 } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { isEnabled } from "@/lib/flags";
-import { TravelTrip, Receipt, Participant, TripPayment } from "@/types";
-import { generateId } from "@/lib/utils";
+import { TravelTrip, Receipt, Participant, TripPayment, TripMember } from "@/types";
+import { generateId, generateUuid } from "@/lib/utils";
 import {
   classifyWriteResult,
   deriveSyncStatus,
@@ -37,6 +37,12 @@ export interface TravelStore {
 
 const LOCAL_KEY = "splitzy-travel";
 const DEFAULT: TravelStore = { trips: [], activeId: null };
+
+// One rebase attempt after a version conflict before it reaches the user.
+const MAX_PUT_ATTEMPTS = 2;
+// Floor between two foreground-triggered refetches, so tab-switching doesn't
+// turn into a request per switch.
+const FOCUS_REFETCH_MIN_MS = 15_000;
 
 // Local-first (cloud mode) persistence. Both are scoped to the signed-in user
 // so a shared device never shows one account's data to the next, and are cleared
@@ -182,15 +188,44 @@ export function useTravelData() {
   );
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+  // The ref is the synchronous source of truth; React state is the *rendering*
+  // copy that follows it.
+  //
+  // This used to update `cloudRef.current` from inside the React updater. React
+  // only runs that updater during the render phase, so the ref lagged a commit
+  // behind — and every queued write reads the trip's version out of the ref the
+  // microtask after the previous write resolved, well before React has
+  // rendered. So the second of two quick edits re-sent the version the first one
+  // had already consumed, the server rejected it, and the sole editor of the
+  // trip was told "this changed somewhere else. Reload." (React sometimes
+  // evaluates the updater eagerly when no other update is pending, which is why
+  // it only bit when a save was already in flight — i.e. exactly when a person
+  // types fast.) Deriving `next` from the ref keeps read-then-write correct.
   const setCloudTrips = useCallback(
     (updater: TravelTrip[] | ((prev: TravelTrip[]) => TravelTrip[])) => {
-      _setCloudTrips((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        cloudRef.current = next;
-        return next;
-      });
+      const next = typeof updater === "function" ? updater(cloudRef.current) : updater;
+      cloudRef.current = next;
+      _setCloudTrips(next);
     },
     []
+  );
+
+  // The member row the server creates for whoever creates a trip. Built locally
+  // so the Members card (and the invite link inside it) is populated on the very
+  // first paint instead of after a refetch.
+  const ownerMember = useCallback(
+    (): TripMember[] =>
+      dbUser
+        ? [{
+            userId: dbUser.id,
+            name: dbUser.name,
+            email: dbUser.email,
+            avatarUrl: dbUser.avatarUrl,
+            role: "owner" as const,
+            joinedAt: new Date().toISOString(),
+          }]
+        : [],
+    [dbUser]
   );
 
   // The current user's role on a trip. The owner is stored as a member with
@@ -252,6 +287,13 @@ export function useTravelData() {
     }
   }, [setCloudTrips]);
 
+  // Stable handle on the latest loadCloud, so listeners and timers can call it
+  // without re-subscribing every time the callback identity changes.
+  const loadCloudRef = useRef(loadCloud);
+  useEffect(() => {
+    loadCloudRef.current = loadCloud;
+  }, [loadCloud]);
+
   // Persist the outbox and surface its size (drives the "will sync" banner).
   const persistOutbox = useCallback(() => {
     if (uid) trackScoped(writeScoped(OUTBOX_KEY, uid, outboxRef.current));
@@ -266,11 +308,14 @@ export function useTravelData() {
   // a short backoff. Only pass it for idempotent writes (receipt upsert/delete),
   // never for the version-locked trip PUT where a retry could clobber a genuine
   // concurrent edit.
+  // `quietConflict` suppresses the sticky conflict banner for a write that will
+  // handle its own 409 (see the rebase-and-retry in updateTrip). Without it the
+  // banner latches on an attempt we are about to resolve invisibly.
   const trackedFetch = useCallback(
     async (
       input: string,
       init?: RequestInit,
-      opts?: { retryOnNetworkError?: boolean; quietNetworkError?: boolean }
+      opts?: { retryOnNetworkError?: boolean; quietNetworkError?: boolean; quietConflict?: boolean }
     ): Promise<Response | null> => {
       const maxAttempts = opts?.retryOnNetworkError ? 3 : 1;
       setPendingWrites((n) => n + 1);
@@ -291,8 +336,9 @@ export function useTravelData() {
             }
             const outcome = classifyWriteResult(res.ok, res.status, code);
             if (outcome === "ok") setSyncError(null);
-            else if (outcome === "conflict") setConflict(true);
-            else setSyncError(message || "Couldn't save your changes.");
+            else if (outcome === "conflict") {
+              if (!opts?.quietConflict) setConflict(true);
+            } else setSyncError(message || "Couldn't save your changes.");
             return res;
           } catch {
             // Network failure. Retry a couple of times before giving up so a
@@ -470,6 +516,33 @@ export function useTravelData() {
     setProposals(stored);
   }, [isAuthenticated, uid]);
 
+  // Re-pull authoritative trips when the tab comes back to the foreground.
+  //
+  // Realtime is the fast path, but it is best-effort by design (flag-gated,
+  // fire-and-forget broadcast, one channel for the *active* trip only) and the
+  // code that ships it says clients "still refetch on focus/reconnect" — which
+  // was not true: the only focus listener in this hook reconciled proposals, not
+  // trips. So any dropped signal, or any change to a trip that wasn't the open
+  // one, stayed invisible until a manual reload. Throttled, because switching
+  // tabs is not an event worth a request every time.
+  const lastFocusLoadRef = useRef(0);
+  useEffect(() => {
+    if (typeof window === "undefined" || !isAuthenticated) return;
+    const refetch = () => {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastFocusLoadRef.current < FOCUS_REFETCH_MIN_MS) return;
+      lastFocusLoadRef.current = now;
+      void loadCloudRef.current();
+    };
+    window.addEventListener("focus", refetch);
+    document.addEventListener("visibilitychange", refetch);
+    return () => {
+      window.removeEventListener("focus", refetch);
+      document.removeEventListener("visibilitychange", refetch);
+    };
+  }, [isAuthenticated]);
+
   // Track connectivity and flush the outbox the moment we're back online.
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -549,9 +622,14 @@ export function useTravelData() {
         });
         if (res && res.ok) {
           const { id: dbId, version } = (await res.json()) as { id: string; version?: number };
-          // Replace optimistic local ID with the DB-assigned ID.
+          // Replace optimistic local ID with the DB-assigned ID, and seed the
+          // owner membership the server just created. Without that entry the
+          // Members card — which is also where the invite link is generated —
+          // stayed hidden on a brand-new trip until the next full reload, so
+          // "create a trip and invite someone" did not work in one sitting.
+          // (syncLocalToCloud already did this; the create path did not.)
           setCloudTrips((prev) =>
-            prev.map((t) => (t.id === trip.id ? { ...t, id: dbId, version } : t))
+            prev.map((t) => (t.id === trip.id ? { ...t, id: dbId, version, members: ownerMember() } : t))
           );
           setCloudActiveId(dbId);
         } else {
@@ -563,7 +641,85 @@ export function useTravelData() {
         setLocal((prev) => ({ trips: [trip, ...prev.trips], activeId: trip.id }));
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch]
+    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, ownerMember]
+  );
+
+  // Record the version the server just wrote, so the next queued edit sends it.
+  const setTripVersion = useCallback(
+    (id: string, version: number) => {
+      setCloudTrips((prev) => prev.map((t) => (t.id === id ? { ...t, version } : t)));
+    },
+    [setCloudTrips]
+  );
+
+  /**
+   * PUT a trip's fields, rebasing onto the server's version if it has moved.
+   *
+   * The optimistic lock exists to stop a silent lost update, and it should stay.
+   * But "reject and make the human reload" is the wrong *response* to it here: a
+   * trip PUT only ever carries the fields the user just changed (name / budget /
+   * participants), members cannot write the trip at all (they go through change
+   * requests), so a stale version almost always means the same person's previous
+   * save had already landed. Refusing that is a false alarm — and the reload it
+   * offered threw away what they had just typed.
+   *
+   * So: on a 409 we take the server's current version, replay the *same* fields
+   * on top of it, and try once more. Last-write-wins for the fields the user
+   * touched; everything they did not send is untouched on the server either way.
+   * Only if the retry also loses (a genuinely concurrent editor) does the
+   * conflict reach the UI, and we resync before it does.
+   */
+  const putTripFields = useCallback(
+    async (id: string, fields: Record<string, unknown>): Promise<void> => {
+      for (let attempt = 1; attempt <= MAX_PUT_ATTEMPTS; attempt++) {
+        const isLastAttempt = attempt === MAX_PUT_ATTEMPTS;
+        // Read the version *now* — after any previous queued save has advanced
+        // it — not at the time updateTrip was called.
+        const expectedVersion = cloudRef.current.find((t) => t.id === id)?.version;
+        const res = await trackedFetch(
+          `/api/travel/${id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...fields, expectedVersion }),
+          },
+          // Don't latch the conflict banner on an attempt we are about to rebase.
+          { quietConflict: !isLastAttempt }
+        );
+        if (!res) return; // offline — trackedFetch already surfaced it
+        if (res.ok) {
+          const data = (await res.json().catch(() => null)) as { version?: number } | null;
+          if (typeof data?.version === "number") setTripVersion(id, data.version);
+          return;
+        }
+        if (res.status !== 409) return; // a real error — already surfaced
+        if (isLastAttempt) {
+          // Someone really is editing alongside us. The banner is up; pull the
+          // authoritative trip so what they see next is the truth.
+          void loadCloud();
+          return;
+        }
+        // Rebase. The 409 body carries the server's version; fall back to a GET
+        // for an older deployment that doesn't send it yet.
+        const body = (await res
+          .clone()
+          .json()
+          .catch(() => null)) as { currentVersion?: number } | null;
+        let serverVersion = body?.currentVersion;
+        if (typeof serverVersion !== "number") {
+          try {
+            const fresh = await fetch(`/api/travel/${id}`);
+            if (!fresh.ok) return;
+            serverVersion = ((await fresh.json()) as { version?: number }).version;
+          } catch {
+            return;
+          }
+        }
+        if (typeof serverVersion !== "number") return;
+        setTripVersion(id, serverVersion);
+      }
+    },
+    [trackedFetch, setTripVersion, loadCloud]
   );
 
   const updateTrip = useCallback(
@@ -618,23 +774,7 @@ export function useTravelData() {
         // wrote rather than the stale version seen at call time. This prevents
         // rapid successive edits from self-inflicting a false 409 "changed
         // elsewhere" and losing whichever save arrived second.
-        await enqueue(id, async () => {
-          // Read expectedVersion here — after the previous save has finished and
-          // advanced the local version — not at the time updateTrip was called.
-          body.expectedVersion = cloudRef.current.find((t) => t.id === id)?.version;
-          const res = await trackedFetch(`/api/travel/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-          if (res && res.ok) {
-            const data = (await res.json().catch(() => null)) as { version?: number } | null;
-            if (typeof data?.version === "number") {
-              // Advance local version so the next queued edit sends the right one.
-              setCloudTrips((prev) => prev.map((t) => (t.id === id ? { ...t, version: data.version } : t)));
-            }
-          }
-        });
+        await enqueue(id, () => putTripFields(id, body));
       } else {
         setLocal((prev) => ({
           ...prev,
@@ -642,7 +782,7 @@ export function useTravelData() {
         }));
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, enqueue, roleForTrip, appendOp]
+    [isAuthenticated, setCloudTrips, setLocal, putTripFields, enqueue, roleForTrip, appendOp]
   );
 
   const deleteTrip = useCallback(
@@ -757,8 +897,14 @@ export function useTravelData() {
   // ── Mutations: settle-up payments ─────────────────────────────────────────
   const addPayment = useCallback(
     async (tripId: string, input: { from: string; to: string; amount: number; note?: string; source?: string }) => {
+      // A real UUID, not a generateId() token: `trip_payments.id` is a uuid
+      // column, so the optimistic id has to be something the server can adopt as
+      // the row id. Then the id the UI holds is the id the row has from the very
+      // first paint, and toggling a "share paid" checkbox off while its POST is
+      // still in the air addresses a real row instead of a placeholder the
+      // database cannot even parse.
       const optimistic: TripPayment = {
-        id: generateId(),
+        id: generateUuid(),
         createdAt: new Date().toISOString(),
         ...input,
       };
@@ -770,11 +916,17 @@ export function useTravelData() {
           return;
         }
         setCloudTrips((prev) => addPaymentToTrips(prev, tripId, optimistic));
-        const res = await trackedFetch(`/api/travel/${tripId}/payments`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(input),
-        });
+        // Through the per-trip queue so this POST and a DELETE for the same
+        // payment can never cross on the wire (which used to leave the row
+        // created on the server and gone from the UI — a payment that came back
+        // from the dead on the next refetch).
+        const res = await enqueue(tripId, () =>
+          trackedFetch(`/api/travel/${tripId}/payments`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...input, id: optimistic.id }),
+          })
+        );
         if (res && res.ok) {
           const created = (await res.json()) as TripPayment;
           setCloudTrips((prev) => replacePaymentInTrips(prev, tripId, optimistic.id, created));
@@ -786,7 +938,7 @@ export function useTravelData() {
         setLocal((prev) => ({ ...prev, trips: addPaymentToTrips(prev.trips, tripId, optimistic) }));
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, roleForTrip, appendOp]
+    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, enqueue, roleForTrip, appendOp]
   );
 
   const deletePayment = useCallback(
@@ -804,12 +956,16 @@ export function useTravelData() {
           return;
         }
         setCloudTrips((prev) => removePaymentFromTrips(prev, tripId, paymentId));
-        await trackedFetch(`/api/travel/${tripId}/payments/${paymentId}`, { method: "DELETE" });
+        // Queued behind any in-flight add for this trip, so the row exists by
+        // the time we ask for it to be removed.
+        await enqueue(tripId, () =>
+          trackedFetch(`/api/travel/${tripId}/payments/${paymentId}`, { method: "DELETE" })
+        );
       } else {
         setLocal((prev) => ({ ...prev, trips: removePaymentFromTrips(prev.trips, tripId, paymentId) }));
       }
     },
-    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, roleForTrip, appendOp]
+    [isAuthenticated, setCloudTrips, setLocal, trackedFetch, enqueue, roleForTrip, appendOp]
   );
 
   // ── Participant helpers (used by travel/page.tsx) ─────────────────────────
@@ -959,10 +1115,6 @@ export function useTravelData() {
   // fallback when realtime is off or a signal is dropped. One shared client for
   // the hook's lifetime; one channel per active trip (subscribe on open,
   // unsubscribe on switch/unmount).
-  const loadCloudRef = useRef(loadCloud);
-  useEffect(() => {
-    loadCloudRef.current = loadCloud;
-  }, [loadCloud]);
   const rtClientRef = useRef<ReturnType<typeof createClient> | null>(null);
 
   useEffect(() => {
@@ -1010,16 +1162,7 @@ export function useTravelData() {
     // The current user becomes the owner member of every synced trip. Build the
     // member entry locally (matches what the server creates) so the Members
     // card is populated immediately without an extra round trip.
-    const ownerMembers = dbUser
-      ? [{
-          userId: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          avatarUrl: dbUser.avatarUrl,
-          role: "owner" as const,
-          joinedAt: new Date().toISOString(),
-        }]
-      : [];
+    const ownerMembers = ownerMember();
 
     await Promise.all(
       localTrips.map(async (trip) => {
@@ -1071,7 +1214,7 @@ export function useTravelData() {
       }));
     }
     return created.length;
-  }, [local.trips, setLocal, setCloudTrips, dbUser]);
+  }, [local.trips, setLocal, setCloudTrips, ownerMember]);
 
   const dismissSyncDialog = useCallback(() => setShowSyncDialog(false), []);
 

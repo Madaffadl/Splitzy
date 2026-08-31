@@ -21,6 +21,23 @@ const MAX_NAME = 100;
 const MAX_ITEMS_PER_RECEIPT = 200;
 const MAX_ID = 100;
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Is this string a UUID?
+ *
+ * Route params land straight in Prisma `where` clauses, and every `@db.Uuid`
+ * column rejects a non-UUID at the *driver* level — Postgres never sees the
+ * query, Prisma throws `Inconsistent column data: Error creating UUID` and the
+ * route 500s. That is a malformed *request*, not a server fault, so every
+ * handler that puts a path segment into a uuid column must filter it here
+ * first and answer 404.
+ */
+export function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_RE.test(value);
+}
+
 export interface ValidatedReceiptItem {
   name: string;
   qty: number;

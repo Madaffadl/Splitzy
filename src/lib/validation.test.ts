@@ -6,6 +6,7 @@ import {
   validateReceiptPatch,
   validateMemberAdd,
   ValidationError,
+  isUuid,
 } from "./validation";
 
 describe("validateTripCreate", () => {
@@ -212,5 +213,27 @@ describe("validateMemberAdd", () => {
 
   it("rejects missing email", () => {
     expect(() => validateMemberAdd({})).toThrow(ValidationError);
+  });
+});
+
+describe("isUuid", () => {
+  it("accepts a canonical UUID in either case", () => {
+    expect(isUuid("d24c61ba-883f-444b-a1e8-cf38361be1d6")).toBe(true);
+    expect(isUuid("D24C61BA-883F-444B-A1E8-CF38361BE1D6")).toBe(true);
+  });
+
+  // These are the shapes that reached Prisma and threw "Inconsistent column
+  // data: Error creating UUID" — a 500 on what is really a malformed request.
+  it("rejects anything a uuid column cannot parse", () => {
+    expect(isUuid("cyzfjp6vz")).toBe(false); // an optimistic generateId() token
+    expect(isUuid("")).toBe(false);
+    expect(isUuid("d24c61ba883f444ba1e8cf38361be1d6")).toBe(false); // no dashes
+    expect(isUuid("d24c61ba-883f-444b-a1e8-cf38361be1d")).toBe(false); // short
+    expect(isUuid("d24c61ba-883f-444b-a1e8-cf38361be1d6x")).toBe(false); // trailing
+    expect(isUuid("urn:uuid:d24c61ba-883f-444b-a1e8-cf38361be1d6")).toBe(false);
+    expect(isUuid("zzzzzzzz-883f-444b-a1e8-cf38361be1d6")).toBe(false);
+    expect(isUuid(null)).toBe(false);
+    expect(isUuid(undefined)).toBe(false);
+    expect(isUuid(123)).toBe(false);
   });
 });

@@ -132,12 +132,62 @@ describe("useTravelData — cloud", () => {
     expect(result.current.syncStatus).toBe("error");
   });
 
-  it("updateTrip: a 409 surfaces as a conflict", async () => {
+  // ── Optimistic locking ────────────────────────────────────────────────────
+  // A trip PUT is version-checked, so the version the client sends has to be the
+  // one the server last wrote. Three cases, and only the third is a real
+  // conflict the user should ever hear about.
+
+  it("updateTrip: back-to-back edits send the version the previous save returned", async () => {
     asAuthed();
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce(jsonRes({ trips: [cloudTrip("t1", { version: 2 })] }))
-      .mockResolvedValueOnce(jsonRes({ code: "VERSION_CONFLICT" }, { ok: false, status: 409 }));
+    let serverVersion = 1;
+    const sent: (number | undefined)[] = [];
+    global.fetch = vi.fn(async (input: string, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        const body = JSON.parse(String(init.body)) as { expectedVersion?: number };
+        sent.push(body.expectedVersion);
+        if (body.expectedVersion !== serverVersion) {
+          return jsonRes({ code: "VERSION_CONFLICT", currentVersion: serverVersion }, { ok: false, status: 409 });
+        }
+        serverVersion += 1;
+        return jsonRes({ ok: true, version: serverVersion });
+      }
+      return jsonRes({ trips: [cloudTrip("t1", { version: 1 })] });
+    }) as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useTravelData());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Typing a name and then nudging the budget, without waiting in between.
+    // The second PUT used to re-send version 1 — which the first PUT had already
+    // consumed — so the only editor of the trip was told it had changed
+    // elsewhere and offered a reload that discarded what they had just typed.
+    await act(async () => {
+      await Promise.all([
+        result.current.updateTrip("t1", { name: "Bali" }),
+        result.current.updateTrip("t1", { budget: 5_000_000 }),
+      ]);
+    });
+
+    expect(sent).toEqual([1, 2]);
+    expect(result.current.syncStatus).not.toBe("conflict");
+  });
+
+  it("updateTrip: a stale version is rebased onto the server's and retried silently", async () => {
+    asAuthed();
+    const sent: (number | undefined)[] = [];
+    global.fetch = vi.fn(async (input: string, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        const body = JSON.parse(String(init.body)) as { expectedVersion?: number };
+        sent.push(body.expectedVersion);
+        // The trip moved to 7 while we held 1 (another tab, an approved change
+        // request, an interrupted save).
+        if (body.expectedVersion !== 7) {
+          return jsonRes({ code: "VERSION_CONFLICT", currentVersion: 7 }, { ok: false, status: 409 });
+        }
+        return jsonRes({ ok: true, version: 8 });
+      }
+      return jsonRes({ trips: [cloudTrip("t1", { version: 1 })] });
+    }) as unknown as typeof fetch;
 
     const { result } = renderHook(() => useTravelData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -146,7 +196,29 @@ describe("useTravelData — cloud", () => {
       await result.current.updateTrip("t1", { name: "Renamed" });
     });
 
-    expect(result.current.syncStatus).toBe("conflict");
+    expect(sent).toEqual([1, 7]);
+    expect(result.current.trips[0].name).toBe("Renamed");
+    expect(result.current.syncStatus).not.toBe("conflict");
+  });
+
+  it("updateTrip: a conflict that survives the retry does reach the user", async () => {
+    asAuthed();
+    // Every PUT loses — a genuinely concurrent editor, not a stale local version.
+    global.fetch = vi.fn(async (input: string, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        return jsonRes({ code: "VERSION_CONFLICT", currentVersion: 99 }, { ok: false, status: 409 });
+      }
+      return jsonRes({ trips: [cloudTrip("t1", { version: 2 })] });
+    }) as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useTravelData());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.updateTrip("t1", { name: "Renamed" });
+    });
+
+    await waitFor(() => expect(result.current.syncStatus).toBe("conflict"));
   });
 
   it("addPayment: optimistic add, then rollback when the server rejects", async () => {
@@ -204,6 +276,82 @@ describe("useTravelData — cloud", () => {
 
     expect(result.current.trips[0].payments).toHaveLength(1);
     expect(result.current.trips[0].payments![0].id).toBe("pay-1");
+  });
+
+  // ── Payment ids ───────────────────────────────────────────────────────────
+  // `trip_payments.id` is a uuid column, so the id an optimistic payment is
+  // painted with has to be one the server can adopt verbatim. It used to be a
+  // 9-char generateId() token, which meant every path that addressed a payment
+  // before its POST returned handed a non-UUID to Prisma — the driver rejects it
+  // before Postgres is even asked, and the route 500s.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  it("addPayment: mints a UUID and sends it as the row id", async () => {
+    asAuthed();
+    let posted: { id?: string } | null = null;
+    global.fetch = vi.fn(async (input: string, init?: RequestInit) => {
+      if (String(input).endsWith("/payments") && init?.method === "POST") {
+        posted = JSON.parse(String(init.body)) as { id?: string };
+        return jsonRes({ ...posted, createdAt: "2026-01-01T00:00:00.000Z" }, { status: 201 });
+      }
+      return jsonRes({ trips: [cloudTrip("t1")] });
+    }) as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useTravelData());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.addPayment("t1", { from: "b", to: "a", amount: 50 });
+    });
+
+    expect(posted!.id).toMatch(UUID_RE);
+    expect(result.current.trips[0].payments![0].id).toBe(posted!.id);
+  });
+
+  it("deletePayment: queues behind the add, and addresses the same UUID", async () => {
+    asAuthed();
+    const calls: string[] = [];
+    let releasePost = () => {};
+    let postStarted = (_id: string) => {};
+    const postedId = new Promise<string>((resolve) => (postStarted = resolve));
+
+    global.fetch = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/payments") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body)) as { id: string };
+        calls.push(`POST ${url}`);
+        postStarted(body.id);
+        // Hold the POST open so the delete is issued while it is still in flight
+        // — the exact double-tap on a "share paid" checkbox from the bug report.
+        await new Promise<void>((r) => (releasePost = r));
+        return jsonRes({ ...body, createdAt: "2026-01-01T00:00:00.000Z" }, { status: 201 });
+      }
+      if (init?.method === "DELETE") {
+        calls.push(`DELETE ${url}`);
+        return jsonRes({ ok: true });
+      }
+      return jsonRes({ trips: [cloudTrip("t1")] });
+    }) as unknown as typeof fetch;
+
+    const { result } = renderHook(() => useTravelData());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      const add = result.current.addPayment("t1", { from: "b", to: "a", amount: 50 });
+      const paymentId = await postedId;
+      const del = result.current.deletePayment("t1", paymentId);
+      releasePost();
+      await Promise.all([add, del]);
+      expect(paymentId).toMatch(UUID_RE);
+    });
+
+    // The delete must land after the add, so the row it names already exists.
+    // Unordered, the server kept a payment the UI had already dropped — a
+    // settle-up that reappeared by itself on the next refetch.
+    expect(calls).toEqual([
+      "POST /api/travel/t1/payments",
+      `DELETE /api/travel/t1/payments/${await postedId}`,
+    ]);
   });
 
   it("addReceipt: durable via the outbox and synced to the server", async () => {
