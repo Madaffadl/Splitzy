@@ -257,6 +257,22 @@
   background-clip: text;
 }
 
+/* Pro avatar ring — brand gradient halo, only rendered while Pro is active. */
+.avatar-ring-pro {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  padding: 2px;
+  border-radius: 9999px;
+  display: inline-flex;
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.25);
+}
+
+/* Inner gap so the halo reads as a ring, not a tinted edge on the photo. */
+.avatar-ring-pro > * {
+  display: block;
+  border-radius: 9999px;
+  border: 1.5px solid hsl(var(--background));
+}
+
 /* Glass Effect */
 .glass {
   backdrop-filter: blur(16px);

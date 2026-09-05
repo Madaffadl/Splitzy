@@ -47,6 +47,9 @@ export function AuthButton() {
 
   const displayName = dbUser?.name ?? user.email ?? "User";
   const avatarUrl = dbUser?.avatarUrl ?? user.user_metadata?.avatar_url;
+  // isProActive() on the server already returns false once proExpiresAt passes,
+  // so an expired Pro drops the ring on the next /api/auth/me fetch.
+  const isPro = dbUser?.isPro ?? false;
 
   return (
     <div className="relative" ref={menuRef}>
@@ -57,19 +60,21 @@ export function AuthButton() {
         aria-haspopup="menu"
         className="touch-manipulation flex min-h-[44px] items-center gap-2 rounded-full border border-border/50 bg-background/80 px-2 py-1 hover:bg-muted transition-colors"
       >
-        {avatarUrl ? (
-          <Image
-            src={avatarUrl}
-            alt={displayName}
-            width={28}
-            height={28}
-            className="rounded-full"
-          />
-        ) : (
-          <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center">
-            <User className="h-4 w-4 text-primary" />
-          </div>
-        )}
+        <span className={isPro ? "avatar-ring-pro" : undefined}>
+          {avatarUrl ? (
+            <Image
+              src={avatarUrl}
+              alt={displayName}
+              width={28}
+              height={28}
+              className="rounded-full"
+            />
+          ) : (
+            <span className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center">
+              <User className="h-4 w-4 text-primary" />
+            </span>
+          )}
+        </span>
         <span className="hidden sm:inline text-sm font-medium max-w-[120px] truncate">
           {displayName}
         </span>
@@ -78,7 +83,14 @@ export function AuthButton() {
       {showMenu && (
         <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-border bg-background shadow-lg z-50 overflow-hidden">
           <div className="px-3 py-2 border-b border-border">
-            <p className="text-sm font-medium truncate">{displayName}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium truncate">{displayName}</p>
+              {isPro && (
+                <span className="shrink-0 rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-accent-foreground">
+                  PRO
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground truncate">
               {user.email}
             </p>
