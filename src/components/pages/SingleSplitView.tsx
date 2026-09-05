@@ -27,6 +27,7 @@ import { FeesInput } from "@/components/receipt/FeesInput";
 import { DiscountsInput } from "@/components/receipt/DiscountsInput";
 import { SummaryPanel } from "@/components/receipt/SummaryPanel";
 import { ErrorBoundary } from "@/components/providers/ErrorBoundary";
+import { ReviewPromptInline } from "@/components/reviews/ReviewPromptInline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -762,6 +763,11 @@ export function SingleSplitView() {
                     </p>
                   </CardContent>
                 </Card>
+
+                {/* Ask for a review here, where the split is actually finished.
+                    Self-gating: renders nothing unless signed in, un-reviewed
+                    and not previously dismissed. */}
+                <ReviewPromptInline />
               </div>
             )}
 

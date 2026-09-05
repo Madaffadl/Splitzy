@@ -502,6 +502,60 @@ export function validateMemberAdd(body: unknown): { email: string } {
   return { email };
 }
 
+/** Longest testimonial we will store. Roughly a paragraph. */
+export const MAX_REVIEW_BODY = 1000;
+export const MIN_RATING = 1;
+export const MAX_RATING = 5;
+
+export type ReviewSource = "dashboard" | "summary";
+
+export interface ValidatedReviewInput {
+  rating: number;
+  body: string | null;
+  source: ReviewSource;
+  locale: "id" | "en" | null;
+}
+
+/**
+ * Validate a submitted review.
+ *
+ * The rating is checked strictly rather than coerced. A rating is a discrete
+ * choice out of five, so `2.5` or `"3 stars"` is malformed input, not a value
+ * to round — `asPositiveInt` would parseInt `2.5` down to `2` and store a
+ * rating the user never picked.
+ */
+export function validateReviewSubmit(body: unknown): ValidatedReviewInput {
+  if (!body || typeof body !== "object") {
+    throw new ValidationError("body", "must be an object");
+  }
+  const b = body as Record<string, unknown>;
+
+  if (typeof b.rating !== "number" || !Number.isInteger(b.rating)) {
+    throw new ValidationError("rating", "must be an integer");
+  }
+  if (b.rating < MIN_RATING || b.rating > MAX_RATING) {
+    throw new ValidationError(
+      "rating",
+      `must be between ${MIN_RATING} and ${MAX_RATING}`
+    );
+  }
+
+  // The written half is optional: a bare star rating is still usable signal,
+  // and demanding prose is the fastest way to get no reviews at all.
+  //
+  // Clamped rather than rejected. A 400 that throws away someone's paragraph
+  // because it ran 40 characters long is the wrong trade for prose.
+  const text =
+    typeof b.body === "string" ? b.body.trim().slice(0, MAX_REVIEW_BODY) : "";
+
+  // Analytics fields: never fail a review over these. An unrecognised value
+  // degrades to the default instead of costing us the submission.
+  const source: ReviewSource = b.source === "summary" ? "summary" : "dashboard";
+  const locale = b.locale === "id" || b.locale === "en" ? b.locale : null;
+
+  return { rating: b.rating, body: text || null, source, locale };
+}
+
 export function validationErrorResponse(err: unknown): {
   body: { error: string; code: "VALIDATION_FAILED"; field?: string };
   status: 400;

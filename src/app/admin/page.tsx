@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { FREE_SCAN_LIMIT } from "@/lib/scan-quota";
 import { describeAuditEntry, type AdminAuditEntry } from "@/lib/admin/admin-audit";
+import { ReviewQueue } from "@/components/admin/ReviewQueue";
 import { describeActivity, featureLabel, type ActivityEntry } from "@/lib/activity";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1105,6 +1106,9 @@ export default function AdminPage() {
 
         {/* User activity: logins + feature usage per day */}
         <UserActivity />
+
+        {/* Review moderation — sits above the audit trail that records it. */}
+        <ReviewQueue onModerated={() => setAuditReload((n) => n + 1)} />
 
         {/* Audit trail */}
         <ActivityFeed reload={auditReload} />

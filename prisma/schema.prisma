@@ -54,6 +54,7 @@ model User {
   sharedSummaries SharedSummary[]  @relation("SharedSummaryCreator")
   activityEvents  ActivityEvent[]  @relation("UserActivity")
   payments        Payment[]        @relation("UserPayments")
+  reviews         Review[]         @relation("UserReviews")
 
   @@map("users")
 }
@@ -238,6 +239,56 @@ model TripChangeRequest {
   // Owner inbox query: pending requests for a trip, newest first.
   @@index([tripId, status])
   @@map("trip_change_requests")
+}
+
+// A user's rating + written testimonial, awaiting moderation before it can be
+// shown publicly. Mirrors the TripChangeRequest review workflow above: a
+// user-authored body that an approver promotes, never published on submit.
+//
+// The landing page still renders hardcoded placeholder testimonials; this table
+// is the collection side only. Nothing here reaches a public surface until the
+// landing page is deliberately rewired to read from it.
+model Review {
+  id     String  @id @default(uuid()) @db.Uuid
+  userId String  @map("user_id") @db.Uuid
+  rating Int
+  body   String?
+
+  // Name snapshot taken at submit time. A review is approved as a specific
+  // (name, rating, body) tuple; attribution must not silently rewrite itself
+  // when the author renames their account afterwards. Nullable because
+  // User.name is.
+  displayName String? @map("display_name")
+
+  // Which entry point collected it: "dashboard" | "summary". Analytics only —
+  // never 400 on this, an unrecognised value just falls back to "dashboard".
+  source String @default("dashboard")
+
+  // UI language at submit time ("id" | "en"), so a future public surface can
+  // show testimonials in the reader's language instead of mixing them.
+  locale String?
+
+  // pending → approved | rejected. Editing an approved review returns it to
+  // pending, so an innocuous quote cannot be swapped for spam after the fact.
+  status       String    @default("pending")
+  // Internal moderator note on a rejection. Never shown publicly.
+  reviewNote   String?   @map("review_note")
+  reviewedById String?   @map("reviewed_by") @db.Uuid
+  reviewedAt   DateTime? @map("reviewed_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Cascade is load-bearing, not a style choice: five existing FKs to User use
+  // the default RESTRICT and together make account deletion impossible
+  // (PBI-023). A sixth would deepen that hole. Cascading is also the right
+  // privacy answer — deleting the account withdraws the testimonial with it.
+  user User @relation("UserReviews", fields: [userId], references: [id], onDelete: Cascade)
+
+  // One review per account; re-submitting edits the existing row.
+  @@unique([userId])
+  // Moderation queue: pending first, newest first.
+  @@index([status, createdAt(sort: Desc)])
+  @@map("reviews")
 }
 
 model Receipt {

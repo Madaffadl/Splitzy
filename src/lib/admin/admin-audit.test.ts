@@ -45,6 +45,21 @@ describe("describeAuditEntry", () => {
     expect(describeAuditEntry({ ...base, action: "role.revoke" })).toBe("revoked admin access");
   });
 
+  it("renders review moderation with the rating that was moderated", () => {
+    expect(
+      describeAuditEntry({ ...base, action: "review.approve", metadata: { rating: 5 } })
+    ).toBe("approved a 5-star review");
+    expect(
+      describeAuditEntry({ ...base, action: "review.reject", metadata: { rating: 1 } })
+    ).toBe("rejected a 1-star review");
+  });
+
+  it("does not throw when review metadata is missing", () => {
+    expect(describeAuditEntry({ ...base, action: "review.approve", metadata: null })).toBe(
+      "approved a default-star review"
+    );
+  });
+
   it("falls back to the raw action slug for unknown actions", () => {
     expect(describeAuditEntry({ ...base, action: "future.thing" })).toBe("future.thing");
   });

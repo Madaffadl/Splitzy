@@ -71,6 +71,7 @@ import {
   ShieldCheck      as _ShieldCheck,
   ShoppingCart     as _ShoppingCart,
   Sparkle          as _Sparkles,
+  Star             as _Star,
   Sun              as _Sun,
   Tag              as _Tag,
   Target           as _Target,
@@ -170,6 +171,9 @@ export const Shield           = w(_Shield,          "fill");
 export const ShieldCheck      = w(_ShieldCheck,     "fill");
 export const ShoppingCart     = w(_ShoppingCart);
 export const Sparkles         = w(_Sparkles,        "fill");
+// Defaults to the hollow outline; callers pass weight="fill" for a lit star.
+// One export covers both states because w() lets weight be overridden per call.
+export const Star             = w(_Star,            "regular");
 export const Sun              = w(_Sun,             "fill");
 export const Tag              = w(_Tag);
 export const Target           = w(_Target);

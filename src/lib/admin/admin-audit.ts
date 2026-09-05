@@ -9,7 +9,9 @@ export type AdminAuditAction =
   | "user.ban"
   | "user.unban"
   | "role.grant"
-  | "role.revoke";
+  | "role.revoke"
+  | "review.approve"
+  | "review.reject";
 
 export interface AdminAuditEntry {
   id: string;
@@ -41,6 +43,10 @@ export function describeAuditEntry(entry: AdminAuditEntry): string {
       return "granted admin access";
     case "role.revoke":
       return "revoked admin access";
+    case "review.approve":
+      return `approved a ${fmt(m.rating)}-star review`;
+    case "review.reject":
+      return `rejected a ${fmt(m.rating)}-star review`;
     default:
       return entry.action;
   }

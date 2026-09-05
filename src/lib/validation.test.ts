@@ -5,6 +5,8 @@ import {
   validateReceiptCreate,
   validateReceiptPatch,
   validateMemberAdd,
+  validateReviewSubmit,
+  MAX_REVIEW_BODY,
   ValidationError,
   isUuid,
 } from "./validation";
@@ -235,5 +237,87 @@ describe("isUuid", () => {
     expect(isUuid(null)).toBe(false);
     expect(isUuid(undefined)).toBe(false);
     expect(isUuid(123)).toBe(false);
+  });
+});
+
+describe("validateReviewSubmit", () => {
+  it("accepts every rating on the 1–5 scale", () => {
+    for (const rating of [1, 2, 3, 4, 5]) {
+      expect(validateReviewSubmit({ rating })).toEqual({
+        rating,
+        body: null,
+        source: "dashboard",
+        locale: null,
+      });
+    }
+  });
+
+  it("rejects ratings outside the scale", () => {
+    for (const rating of [0, 6, -1, 100]) {
+      expect(() => validateReviewSubmit({ rating })).toThrow(ValidationError);
+    }
+  });
+
+  // The whole reason the rating is checked strictly instead of coerced:
+  // parseInt would round 2.5 down to 2 and store a rating nobody picked.
+  it("rejects a fractional rating rather than rounding it", () => {
+    expect(() => validateReviewSubmit({ rating: 2.5 })).toThrow(ValidationError);
+  });
+
+  it("rejects a non-numeric rating", () => {
+    for (const rating of ["3", null, undefined, NaN, {}, []]) {
+      expect(() => validateReviewSubmit({ rating })).toThrow(ValidationError);
+    }
+  });
+
+  it("rejects a non-object body", () => {
+    expect(() => validateReviewSubmit(null)).toThrow(ValidationError);
+    expect(() => validateReviewSubmit("nope")).toThrow(ValidationError);
+  });
+
+  it("carries the error field so the API can point at the bad input", () => {
+    try {
+      validateReviewSubmit({ rating: 9 });
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      expect((err as ValidationError).field).toBe("rating");
+    }
+  });
+
+  it("keeps a trimmed written review", () => {
+    expect(validateReviewSubmit({ rating: 5, body: "  Sangat membantu!  " })).toMatchObject({
+      rating: 5,
+      body: "Sangat membantu!",
+    });
+  });
+
+  // Analytics fields must never cost us a submission — they degrade, not throw.
+  it("falls back to the default source rather than rejecting an odd value", () => {
+    expect(validateReviewSubmit({ rating: 5, source: "summary" }).source).toBe("summary");
+    expect(validateReviewSubmit({ rating: 5, source: "landing" }).source).toBe("dashboard");
+    expect(validateReviewSubmit({ rating: 5, source: 42 }).source).toBe("dashboard");
+    expect(validateReviewSubmit({ rating: 5 }).source).toBe("dashboard");
+  });
+
+  it("keeps only locales the app actually ships", () => {
+    expect(validateReviewSubmit({ rating: 5, locale: "id" }).locale).toBe("id");
+    expect(validateReviewSubmit({ rating: 5, locale: "en" }).locale).toBe("en");
+    expect(validateReviewSubmit({ rating: 5, locale: "fr" }).locale).toBeNull();
+    expect(validateReviewSubmit({ rating: 5 }).locale).toBeNull();
+  });
+
+  it("stores a blank or whitespace-only body as null, not an empty string", () => {
+    expect(validateReviewSubmit({ rating: 4, body: "   " }).body).toBeNull();
+    expect(validateReviewSubmit({ rating: 4, body: "" }).body).toBeNull();
+    expect(validateReviewSubmit({ rating: 4 }).body).toBeNull();
+  });
+
+  it("truncates an overlong body instead of rejecting the whole review", () => {
+    const result = validateReviewSubmit({ rating: 5, body: "x".repeat(MAX_REVIEW_BODY + 500) });
+    expect(result.body).toHaveLength(MAX_REVIEW_BODY);
+  });
+
+  it("ignores a non-string body rather than throwing", () => {
+    expect(validateReviewSubmit({ rating: 3, body: 42 }).body).toBeNull();
   });
 });
