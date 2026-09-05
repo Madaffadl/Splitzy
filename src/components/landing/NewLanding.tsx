@@ -10,6 +10,7 @@ import {
   Globe,
   Layers,
   Lock,
+  Phone,
   Plane,
   Receipt,
   ScanLine,
@@ -719,6 +720,16 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
             <Link href="/terms" className="hover:text-foreground transition-colors">{dict.nav.terms}</Link>
             <a href={`mailto:${BRAND.supportEmail}`} className="hover:text-foreground transition-colors">
               {dict.nav.support}
+            </a>
+            <a
+              href={`https://wa.me/${BRAND.contactWhatsApp.replace(/\D/g, "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:text-foreground transition-colors"
+              aria-label="WhatsApp"
+            >
+              <Phone className="h-3 w-3" />
+              <span>{BRAND.contactWhatsApp}</span>
             </a>
             {/* Language switcher — a crawlable <a> so Google discovers the
                 alternate-language tree, not just a client-side toggle. */}

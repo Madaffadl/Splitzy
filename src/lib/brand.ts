@@ -11,6 +11,7 @@ export const BRAND = {
   name: "Splitzy",
   tagline: "Split bills fairly with friends.",
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@splitzy.my.id",
+  contactWhatsApp: process.env.NEXT_PUBLIC_CONTACT_WA || "+6285365360955",
   // Public site origin, used for canonical/legal copy. This is the CANONICAL
   // host — the apex (splitzy.my.id) 301s here via src/proxy.ts so the two never
   // compete for the same rankings.

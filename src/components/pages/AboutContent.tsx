@@ -48,6 +48,16 @@ export function AboutContent({ locale }: { locale: Locale }) {
             {dict.about.contactBody}{" "}
             <a href={`mailto:${BRAND.supportEmail}`}>{BRAND.supportEmail}</a>.
           </p>
+          <p>
+            WhatsApp:{" "}
+            <a
+              href={`https://wa.me/${BRAND.contactWhatsApp.replace(/\D/g, "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {BRAND.contactWhatsApp}
+            </a>
+          </p>
         </section>
 
         <section>

@@ -50,6 +50,7 @@ import {
   SignOut          as _LogOut,
   Envelope         as _Mail,
   ChatCircle       as _MessageCircle,
+  Phone            as _Phone,
   Minus            as _Minus,
   MinusCircle      as _MinusCircle,
   Moon             as _Moon,
@@ -157,6 +158,7 @@ export const Layers           = w(_Layers);
 export const Lock             = w(_Lock,            "fill");
 export const Mail             = w(_Mail);
 export const MessageCircle    = w(_MessageCircle);
+export const Phone            = w(_Phone);
 export const Moon             = w(_Moon,            "fill");
 export const Network          = w(_Network);
 export const PartyPopper      = w(_PartyPopper,     "fill");

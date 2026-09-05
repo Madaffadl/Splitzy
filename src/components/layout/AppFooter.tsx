@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Mail } from "@/components/ui/icons";
+import { Mail, Phone } from "@/components/ui/icons";
 import { BRAND, copyrightYear } from "@/lib/brand";
 import { Logo } from "@/components/ui/Logo";
 import { LocaleSwitcher } from "@/components/i18n/LocaleSwitcher";
@@ -43,6 +43,16 @@ export function AppFooter() {
           >
             <Mail className="h-3 w-3" />
             <span>{nav.support}</span>
+          </a>
+          <a
+            href={`https://wa.me/${BRAND.contactWhatsApp.replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+            aria-label="WhatsApp"
+          >
+            <Phone className="h-3 w-3" />
+            <span>{BRAND.contactWhatsApp}</span>
           </a>
         </nav>
       </div>
