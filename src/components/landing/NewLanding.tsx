@@ -56,29 +56,35 @@ import { getDictionary, type Dictionary } from "@/lib/i18n/dictionaries";
 
 // Presentation-only config for the three mode cards. Copy comes from the
 // dictionary and is matched by index.
+// `cta` styles the entry action as a real button at rest — a bordered, tinted
+// pill that fills on hover. The card used to rely on hover alone for every
+// affordance, which meant a touch device saw three flat text blocks.
 const MODE_STYLES = [
   {
     href: "/single",
     icon: Receipt,
     accent: "text-primary",
-    ring: "hover:border-primary/30",
+    ring: "hover:border-primary/40",
     iconBg: "from-primary/20 to-primary/5",
+    cta: "border-primary/25 bg-primary/10 text-primary group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground",
     badge: null as "popular" | "new" | null,
   },
   {
     href: "/multiple",
     icon: Layers,
     accent: "text-accent-strong",
-    ring: "hover:border-accent/30",
+    ring: "hover:border-accent/40",
     iconBg: "from-accent/20 to-accent/5",
+    cta: "border-accent/30 bg-accent/10 text-accent-strong group-hover:border-accent group-hover:bg-accent group-hover:text-accent-foreground",
     badge: "popular" as const,
   },
   {
     href: "/travel",
     icon: Plane,
     accent: "text-success",
-    ring: "hover:border-success/30",
+    ring: "hover:border-success/40",
     iconBg: "from-emerald-500/20 to-emerald-500/5",
+    cta: "border-success/25 bg-success/10 text-success group-hover:border-success group-hover:bg-success group-hover:text-success-foreground",
     badge: "new" as const,
   },
 ];
@@ -314,6 +320,59 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
         </div>
       </section>
 
+      {/* Mode cards — pick your flow.
+          Sits directly under the hero on purpose: these three links are the only
+          way into the product, and further down the page they were competing
+          with six other sections for a first-time visitor's attention. */}
+      <section className="px-4 sm:px-6 py-16 border-t bg-card">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-10">
+            <p className="text-eyebrow uppercase text-muted-foreground mb-3">{dict.modes.eyebrow}</p>
+            <h2 className="text-heading">{dict.modes.heading}</h2>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {dict.modes.items.map((m, i) => {
+              const style = MODE_STYLES[i];
+              const Icon = style.icon;
+              const badge =
+                style.badge === "popular"
+                  ? dict.modes.badgePopular
+                  : style.badge === "new"
+                    ? dict.modes.badgeNew
+                    : null;
+              return (
+                <Link
+                  key={style.href}
+                  href={tool(style.href)}
+                  className={`group relative flex flex-col overflow-hidden rounded-2xl border-2 border-border bg-background p-6 text-left shadow-premium transition-all duration-300 hover:-translate-y-1 hover:shadow-premium-lg ${style.ring}`}
+                >
+                  {badge && (
+                    <span className="absolute top-4 right-4 px-2.5 py-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold">
+                      {badge}
+                    </span>
+                  )}
+                  <div
+                    className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${style.iconBg} flex items-center justify-center mb-5 group-hover:scale-105 transition-transform`}
+                  >
+                    <Icon className={`h-7 w-7 ${style.accent}`} />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2">{m.title}</h3>
+                  {/* flex-1 pins the CTA to the bottom so all three align even
+                      when the body copy wraps to different heights. */}
+                  <p className="flex-1 text-sm text-muted-foreground mb-5 leading-relaxed">{m.body}</p>
+                  <span
+                    className={`inline-flex w-fit items-center gap-2 rounded-xl border-2 px-4 py-2.5 text-sm font-semibold transition-colors ${style.cta}`}
+                  >
+                    <span>{m.cta}</span>
+                    <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* Stats band — ⚠️ MOCK figures, replace with real data (see MOCK_STATS) */}
       <section className="px-4 sm:px-6 py-12 bg-background border-b">
         <div className="max-w-5xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
@@ -460,52 +519,6 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
                   <h3 className="font-bold text-lg mb-2">{s.title}</h3>
                   <p className="text-sm text-muted-foreground leading-relaxed max-w-[15rem]">{s.body}</p>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Mode cards — pick your flow */}
-      <section className="px-4 sm:px-6 py-16 border-t bg-card">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-10">
-            <p className="text-eyebrow uppercase text-muted-foreground mb-3">{dict.modes.eyebrow}</p>
-            <h2 className="text-heading">{dict.modes.heading}</h2>
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {dict.modes.items.map((m, i) => {
-              const style = MODE_STYLES[i];
-              const Icon = style.icon;
-              const badge =
-                style.badge === "popular"
-                  ? dict.modes.badgePopular
-                  : style.badge === "new"
-                    ? dict.modes.badgeNew
-                    : null;
-              return (
-                <Link
-                  key={style.href}
-                  href={tool(style.href)}
-                  className={`group relative overflow-hidden rounded-2xl border-2 border-transparent bg-background p-6 text-left transition-all duration-300 hover:shadow-premium-lg ${style.ring}`}
-                >
-                  {badge && (
-                    <span className="absolute top-4 right-4 px-2.5 py-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold">
-                      {badge}
-                    </span>
-                  )}
-                  <div
-                    className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${style.iconBg} flex items-center justify-center mb-5 group-hover:scale-105 transition-transform`}
-                  >
-                    <Icon className={`h-7 w-7 ${style.accent}`} />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">{m.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-5 leading-relaxed">{m.body}</p>
-                  <div className={`flex items-center gap-2 text-sm font-semibold ${style.accent}`}>
-                    <span>{m.cta}</span>
-                    <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-                  </div>
-                </Link>
               );
             })}
           </div>
