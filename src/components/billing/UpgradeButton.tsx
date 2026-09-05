@@ -1,19 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { ArrowRight, Loader2, Sparkles } from "@/components/ui/icons";
 import { EVENTS, capture } from "@/lib/analytics";
 
-// Client island for the pricing page. Kicks off checkout, then redirects the
-// browser to the Xendit-hosted invoice. When checkout isn't live yet (flag off
-// or keys not configured) it renders a disabled "Coming soon" button so the
-// pricing page can still ship publicly.
 export function UpgradeButton({
-  enabled,
   priceLabel,
+  planId,
 }: {
-  enabled: boolean;
   priceLabel: string;
+  planId?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,18 +18,27 @@ export function UpgradeButton({
   async function handleUpgrade() {
     setLoading(true);
     setError(null);
-    capture(EVENTS.upgradeClicked, { price_label: priceLabel });
+    capture(EVENTS.upgradeClicked, { price_label: priceLabel, plan_id: planId });
     try {
+      // Check auth before hitting the API — avoids a round-trip for guests and
+      // gives us a clean redirect back to pricing after they sign in.
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        const callbackUrl = new URL("/api/auth/callback", window.location.origin);
+        callbackUrl.searchParams.set("next", "/pricing");
+        supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: callbackUrl.toString() },
+        });
+        return;
+      }
+
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify(planId ? { planId } : {}),
       });
-      // Not signed in → send them through Google sign-in, back to pricing.
-      if (res.status === 401) {
-        window.location.href = "/?login=required&redirect=/pricing";
-        return;
-      }
       const data = await res.json().catch(() => null);
       if (res.ok && data?.invoiceUrl) {
         window.location.href = data.invoiceUrl as string;
@@ -43,18 +49,6 @@ export function UpgradeButton({
       setError("Network error. Please try again.");
     }
     setLoading(false);
-  }
-
-  if (!enabled) {
-    return (
-      <button
-        type="button"
-        disabled
-        className="w-full px-6 py-3 rounded-xl bg-muted text-muted-foreground font-semibold cursor-not-allowed"
-      >
-        Coming soon
-      </button>
-    );
   }
 
   return (

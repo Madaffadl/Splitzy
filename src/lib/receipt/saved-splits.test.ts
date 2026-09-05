@@ -12,7 +12,8 @@ import {
     validateSavedSplit,
     savedSplitExpiryFromNow,
     daysUntilExpiry,
-    SAVED_SPLIT_TTL_DAYS,
+    FREE_SPLIT_TTL_DAYS,
+    PRO_SPLIT_TTL_DAYS,
 } from "./saved-splits";
 import { validateSharedReceipts } from "./shared-summary";
 import { ValidationError } from "@/lib/validation";
@@ -80,15 +81,21 @@ function draftSplit(): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 
 describe("saved split expiry", () => {
-    it("expires SAVED_SPLIT_TTL_DAYS after the save", () => {
+    it("expires FREE_SPLIT_TTL_DAYS after the save for free users", () => {
         const now = Date.UTC(2026, 0, 1);
-        const expiry = savedSplitExpiryFromNow(now);
-        expect(expiry.getTime() - now).toBe(SAVED_SPLIT_TTL_DAYS * 24 * 60 * 60 * 1000);
+        const expiry = savedSplitExpiryFromNow(false, now);
+        expect(expiry.getTime() - now).toBe(FREE_SPLIT_TTL_DAYS * 24 * 60 * 60 * 1000);
+    });
+
+    it("expires PRO_SPLIT_TTL_DAYS after the save for pro users", () => {
+        const now = Date.UTC(2026, 0, 1);
+        const expiry = savedSplitExpiryFromNow(true, now);
+        expect(expiry.getTime() - now).toBe(PRO_SPLIT_TTL_DAYS * 24 * 60 * 60 * 1000);
     });
 
     it("counts whole days remaining", () => {
         const now = Date.UTC(2026, 0, 1);
-        expect(daysUntilExpiry(savedSplitExpiryFromNow(now), now)).toBe(SAVED_SPLIT_TTL_DAYS);
+        expect(daysUntilExpiry(savedSplitExpiryFromNow(false, now), now)).toBe(FREE_SPLIT_TTL_DAYS);
     });
 
     it("floors at 0 once lapsed rather than going negative", () => {
@@ -103,8 +110,8 @@ describe("saved split expiry", () => {
 
     it("accepts an ISO string as well as a Date", () => {
         const now = Date.UTC(2026, 0, 1);
-        const iso = savedSplitExpiryFromNow(now).toISOString();
-        expect(daysUntilExpiry(iso, now)).toBe(SAVED_SPLIT_TTL_DAYS);
+        const iso = savedSplitExpiryFromNow(false, now).toISOString();
+        expect(daysUntilExpiry(iso, now)).toBe(FREE_SPLIT_TTL_DAYS);
     });
 });
 

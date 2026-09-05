@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { isProActive } from "@/lib/billing/entitlements";
 
-export const FREE_SCAN_LIMIT = 15;
+export const FREE_SCAN_LIMIT = 5;
 
 export interface ScanQuotaStatus {
   allowed: boolean;

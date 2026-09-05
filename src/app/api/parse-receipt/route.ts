@@ -4,7 +4,7 @@ import { enforceRateLimitAsync } from "@/lib/rate-limit";
 import { assertSameOrigin, getAuthUser } from "@/lib/api-auth";
 import { apiError, isAbortError } from "@/lib/api-response";
 import { parseIndonesianPrice } from "@/lib/receipt/parser";
-import { checkScanQuota, incrementScanCount } from "@/lib/scan-quota";
+import { checkScanQuota, incrementScanCount, FREE_SCAN_LIMIT } from "@/lib/scan-quota";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -96,17 +96,25 @@ export async function POST(request: NextRequest) {
         });
         if (limited) return limited;
 
-        // Monthly AI scan quota — only enforced for authenticated users.
+        // Monthly AI scan quota — enforced per authenticated user.
+        // Unauthenticated guests get a daily IP cap instead.
         const authUser = await getAuthUser(request);
         if (authUser) {
             const quota = await checkScanQuota(authUser.id);
             if (!quota.allowed) {
                 return apiError(
                     "QUOTA_EXCEEDED",
-                    `Monthly scan limit reached (${quota.plan === "free" ? 15 : "∞"} scans/month). Upgrade to Pro for unlimited scans.`,
+                    `Monthly scan limit reached (${quota.plan === "free" ? FREE_SCAN_LIMIT : "∞"} scans/month). Upgrade to Pro for unlimited scans.`,
                     { remaining: 0, resetAt: quota.resetAt?.toISOString() ?? null }
                 );
             }
+        } else {
+            // Guest daily cap: 3 scans per IP per 24 h.
+            const guestLimited = await enforceRateLimitAsync(request, "parse-receipt:guest-daily", {
+                limit: 3,
+                windowMs: 24 * 60 * 60 * 1000,
+            });
+            if (guestLimited) return guestLimited;
         }
 
         const body = await request.json().catch(() => null);

@@ -8,6 +8,9 @@ import {
 } from "@/lib/validation";
 import { apiError } from "@/lib/api-response";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { isProActive } from "@/lib/billing/entitlements";
+
+const FREE_TRIP_LIMIT = 1;
 
 // GET /api/trips - List trips for authenticated user
 export async function GET(request: NextRequest) {
@@ -67,6 +70,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(body, { status });
     }
     return apiError("BAD_REQUEST", "Invalid request body");
+  }
+
+  if (!isProActive(user)) {
+    const activeCount = await prisma.trip.count({
+      where: { ownerId: user.id, deletedAt: null },
+    });
+    if (activeCount >= FREE_TRIP_LIMIT) {
+      return apiError(
+        "FORBIDDEN",
+        `Free accounts can have up to ${FREE_TRIP_LIMIT} active trip. Upgrade to Pro for unlimited trips.`
+      );
+    }
   }
 
   const trip = await prisma.trip.create({

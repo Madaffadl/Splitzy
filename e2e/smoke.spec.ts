@@ -98,7 +98,16 @@ test("pricing page honours its feature flag", async ({ page }) => {
   expect([200, 404]).toContain(status);
 
   if (status === 200) {
-    await expect(page.getByText(/Rp\s?29\.000/)).toBeVisible();
+    // All three purchasable Pro durations render with their own price.
+    await expect(
+      page.getByRole("button", { name: /Trip Pass.*Rp\s?14\.900/ })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /30 Hari.*Rp\s?29\.000/ })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /1 Tahun.*Rp\s?99\.000/ })
+    ).toBeVisible();
     expect(await canonicalPath(page)).toBe("/pricing");
   }
 });

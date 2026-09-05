@@ -844,6 +844,7 @@ export function TravelSpendView() {
   // and lose them on the next reload without a word.
   usePersistErrorToast(travel.persistError);
   const { dbUser, signOut } = useAuth();
+  const isPro = dbUser?.isPro ?? false;
   const t = useDictionary().app;
   const tt = t.travel;
   // Home in the language being read, not always the English root.
@@ -1698,8 +1699,8 @@ export function TravelSpendView() {
         {/* ── Trip workspace: overview ── */}
         {activeTrip && viewMode === "overview" && (
           <div className="space-y-6">
-            {/* Approval workflow: owner review inbox + member proposal status */}
-            {travel.cloudMode && activeRole === "owner" && (
+            {/* Approval workflow: owner review inbox + member proposal status — Pro only */}
+            {travel.cloudMode && isPro && activeRole === "owner" && (
               <ReviewInbox
                 requests={pendingReviews}
                 tripVersion={activeTrip.version}
@@ -1708,7 +1709,7 @@ export function TravelSpendView() {
                 onDecline={handleDecline}
               />
             )}
-            {travel.cloudMode && isMemberOfActive && (
+            {travel.cloudMode && isPro && isMemberOfActive && (
               <ProposalBar
                 proposal={activeProposal}
                 nameOf={participantNameOf}
@@ -1949,13 +1950,33 @@ export function TravelSpendView() {
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               )}
-              {/* Members card — cloud mode only (members are a cloud-only feature) */}
-              {travel.cloudMode && (activeTrip.members?.length ?? 0) > 0 && (
+              {/* Members card — cloud + Pro only */}
+              {travel.cloudMode && isPro && (activeTrip.members?.length ?? 0) > 0 && (
                 <MembersCard
                   tripId={activeTrip.id}
                   members={activeTrip.members!}
                   currentUserId={dbUser?.id ?? null}
                 />
+              )}
+              {travel.cloudMode && !isPro && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Users className="h-4 w-4" />
+                      Trip Collaboration
+                    </CardTitle>
+                    <CardDescription>
+                      Invite friends to view and edit this trip together.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Link href="/pricing" className="block">
+                      <Button variant="default" className="w-full">
+                        Upgrade to Pro
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
               )}
             </div>
 

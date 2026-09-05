@@ -16,19 +16,30 @@ import {
   type ValidatedParticipant,
 } from "@/lib/validation";
 
+/** How long a free user's saved split survives after its last save. */
+export const FREE_SPLIT_TTL_DAYS = 45;
+
+/** How long a Pro user's saved split survives after its last save. */
+export const PRO_SPLIT_TTL_DAYS = 365;
+
+/** @deprecated Use FREE_SPLIT_TTL_DAYS or savedSplitTtlDays(). */
+export const SAVED_SPLIT_TTL_DAYS = FREE_SPLIT_TTL_DAYS;
+
 /**
- * How long a saved split survives after its LAST save.
+ * How long a saved split survives after its LAST save, based on the user's plan.
  *
  * The clock is reset by saving, not by opening — the server has no idea the
  * user is mid-edit, so a resumed split that is never re-saved still lapses on
  * the original schedule. The UI has to make Save prominent after an edit for
  * that reason.
  */
-export const SAVED_SPLIT_TTL_DAYS = 7;
+export function savedSplitTtlDays(isPro: boolean): number {
+  return isPro ? PRO_SPLIT_TTL_DAYS : FREE_SPLIT_TTL_DAYS;
+}
 
 /** Expiry for a split saved right now. */
-export function savedSplitExpiryFromNow(now: number = Date.now()): Date {
-  return new Date(now + SAVED_SPLIT_TTL_DAYS * 24 * 60 * 60 * 1000);
+export function savedSplitExpiryFromNow(isPro = false, now: number = Date.now()): Date {
+  return new Date(now + savedSplitTtlDays(isPro) * 24 * 60 * 60 * 1000);
 }
 
 /** Whole days until expiry, floored at 0. Drives the "3 days left" label. */

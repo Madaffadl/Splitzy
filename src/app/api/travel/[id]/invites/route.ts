@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getAuthUser, unauthorized, notFound, forbidden, assertSameOrigin } from "@/lib/api-auth";
 import { getTripAccess } from "@/lib/travel/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { isProActive } from "@/lib/billing/entitlements";
+import { apiError } from "@/lib/api-response";
 
 export const runtime = "nodejs";
 
@@ -47,6 +49,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();
   if (access.ownerId !== user.id) return forbidden("Only the trip owner can create invites");
+  if (!isProActive(user)) {
+    return apiError("FORBIDDEN", "Trip collaboration requires a Pro plan. Upgrade to invite members.");
+  }
 
   const token = crypto.randomBytes(16).toString("base64url");
   const expiresAt = new Date(Date.now() + INVITE_TTL_MS);

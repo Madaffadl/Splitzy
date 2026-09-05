@@ -16,6 +16,7 @@ export interface DbUser {
   name: string | null;
   avatarUrl: string | null;
   isAdmin: boolean;
+  isPro: boolean;
   createdAt: string;
 }
 

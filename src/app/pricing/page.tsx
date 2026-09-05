@@ -3,42 +3,43 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, ShieldCheck } from "@/components/ui/icons";
 import { Logo } from "@/components/ui/Logo";
-import { isEnabled, isServerEnabled } from "@/lib/flags";
-import { isXenditConfigured } from "@/lib/billing/xendit";
+import { isEnabled } from "@/lib/flags";
 import {
   FREE_FEATURES,
   FREE_PLAN,
-  PRO_FEATURES,
-  PRO_PLAN,
   formatIDR,
 } from "@/lib/billing/plans";
 import { BRAND } from "@/lib/brand";
-import { UpgradeButton } from "@/components/billing/UpgradeButton";
+import { ProCard } from "@/components/billing/ProCard";
 import { SuccessCelebration } from "@/components/billing/SuccessCelebration";
 
 export const metadata: Metadata = {
   // Absolute: the title already contains the brand, so skip the
   // "%s · Splitzy" template rather than shipping "… Splitzy · Splitzy".
-  title: { absolute: "Splitzy Pricing — Free, Pro Rp 29.000 / 30 Days" },
+  title: { absolute: "Splitzy Pricing — Free & Pro from Rp 14.900" },
   description:
-    "Splitzy is free to split bills. Upgrade to Pro at Rp 29.000 per 30 days for unlimited AI receipt scans — a one-time payment, with no automatic subscription.",
+    "Splitzy is free to split bills. Upgrade to Pro from Rp 14.900 for unlimited AI receipt scans and trip collaboration — a one-time payment, no auto-renew.",
   alternates: { canonical: "/pricing" },
 };
 
 // Objection-handling FAQ. All answers are accurate to the billing model in
-// src/lib/billing/plans.ts (one-time Rp 29.000 → 30 days of Pro, no auto-renew).
+// src/lib/billing/plans.ts (one-time purchase, no auto-renew).
 const PRICING_FAQ = [
   {
     q: "Is Splitzy really free?",
-    a: "Yes — splitting single bills, multiple receipts, and whole trips is free forever. Pro only lifts the AI-scan limit; every other feature stays free.",
+    a: "Yes — splitting single bills, multiple receipts, and managing a solo trip is free forever. Pro unlocks unlimited AI scans, trip collaboration, and longer history.",
   },
   {
     q: "What happens when I run out of AI scans?",
-    a: "You get 15 AI receipt scans per month on Free. When they run out you can still add items manually for free, and your scans reset at the start of the next month. Go Pro for unlimited scans.",
+    a: "You get 5 AI receipt scans per month on Free. When they run out you can still add items manually for free, and your scans reset at the start of the next month. Go Pro for unlimited scans.",
+  },
+  {
+    q: "Which Pro plan should I pick?",
+    a: "Trip Pass (10 hari, Rp 14.900) is perfect for a single holiday. Monthly (30 hari, Rp 29.000) suits frequent bill splitters. Annual (1 tahun, Rp 99.000) is the best value if you use Splitzy regularly.",
   },
   {
     q: "Is Pro a subscription?",
-    a: "No. Pro is a one-time payment that grants 30 days of unlimited scans. It never auto-renews — you only pay again if and when you want to. No lock-in, no surprise charges.",
+    a: "No. Pro is a one-time payment for a set period. It never auto-renews — you only pay again if and when you want to. No lock-in, no surprise charges.",
   },
   {
     q: "What payment methods can I use?",
@@ -59,8 +60,6 @@ export default async function PricingPage({
   if (!isEnabled("pricingPage")) notFound();
 
   const { status } = await searchParams;
-  // Checkout is only truly live when the flag is ON and Xendit keys exist.
-  const checkoutLive = isServerEnabled("xenditCheckout") && isXenditConfigured();
 
   return (
     <main className="min-h-screen flex flex-col">
@@ -130,31 +129,8 @@ export default async function PricingPage({
             </Link>
           </div>
 
-          {/* Pro */}
-          <div className="relative rounded-2xl border-2 border-primary bg-card p-7 flex flex-col shadow-premium-lg">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-primary text-primary-foreground text-[11px] font-bold shadow-md">
-              MOST POPULAR
-            </div>
-            <h2 className="text-heading">{PRO_PLAN.name}</h2>
-            <div className="mt-3 mb-1 flex items-end gap-1.5">
-              <span className="text-4xl font-extrabold">{formatIDR(PRO_PLAN.priceIDR)}</span>
-              <span className="text-sm text-muted-foreground mb-1.5">
-                / {PRO_PLAN.periodDays} days
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground mb-6">
-              One-time payment · renew whenever you like
-            </p>
-            <ul className="space-y-3 mb-8 flex-1">
-              {PRO_FEATURES.map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-sm">
-                  <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-            <UpgradeButton enabled={checkoutLive} priceLabel={formatIDR(PRO_PLAN.priceIDR)} />
-          </div>
+          {/* Pro — 3 duration options via client island */}
+          <ProCard />
         </div>
 
         {/* FAQ — native <details>, no client JS */}

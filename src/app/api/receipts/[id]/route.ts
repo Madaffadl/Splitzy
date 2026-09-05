@@ -19,8 +19,9 @@ import {
 import {
   validateSavedSplit,
   savedSplitExpiryFromNow,
-  SAVED_SPLIT_TTL_DAYS,
+  savedSplitTtlDays,
 } from "@/lib/receipt/saved-splits";
+import { isProActive } from "@/lib/billing/entitlements";
 
 // GET /api/receipts/[id] - Get receipt detail
 export async function GET(
@@ -226,7 +227,7 @@ export async function PUT(
     title: input.title,
     participantsJson: input.participants as unknown as Prisma.InputJsonValue,
     payloadJson: input as unknown as Prisma.InputJsonValue,
-    expiresAt: savedSplitExpiryFromNow(),
+    expiresAt: savedSplitExpiryFromNow(isProActive(user)),
   };
 
   // Optimistic concurrency: when the caller declares the version they observed,
@@ -288,7 +289,7 @@ export async function PUT(
     version: after?.version ?? existing.version + 1,
     expiresAt: after?.expiresAt?.toISOString() ?? null,
     shareCode: after?.shareCode ?? null,
-    ttlDays: SAVED_SPLIT_TTL_DAYS,
+    ttlDays: savedSplitTtlDays(isProActive(user)),
   });
 }
 

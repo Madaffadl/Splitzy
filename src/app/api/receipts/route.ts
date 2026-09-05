@@ -11,8 +11,9 @@ import { enforceRateLimit } from "@/lib/rate-limit";
 import {
   validateSavedSplit,
   savedSplitExpiryFromNow,
-  SAVED_SPLIT_TTL_DAYS,
+  savedSplitTtlDays,
 } from "@/lib/receipt/saved-splits";
+import { isProActive } from "@/lib/billing/entitlements";
 
 // Cursor format is `<ISO createdAt>|<id>`. Two columns are needed for stable
 // ordering when multiple rows share the same createdAt (rare, but safe).
@@ -321,17 +322,18 @@ export async function POST(request: NextRequest) {
       createdById: user.id,
       participantsJson: input.participants as unknown as Prisma.InputJsonValue,
       payloadJson: input as unknown as Prisma.InputJsonValue,
-      expiresAt: savedSplitExpiryFromNow(),
+      expiresAt: savedSplitExpiryFromNow(isProActive(user)),
     },
     select: { id: true, expiresAt: true, version: true },
   });
 
+  const isPro = isProActive(user);
   return NextResponse.json(
     {
       id: receipt.id,
       version: receipt.version,
       expiresAt: receipt.expiresAt?.toISOString() ?? null,
-      ttlDays: SAVED_SPLIT_TTL_DAYS,
+      ttlDays: savedSplitTtlDays(isPro),
     },
     { status: 201 }
   );

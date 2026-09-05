@@ -9,6 +9,7 @@ import { getTripAccess } from "@/lib/travel/trip-access";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { broadcastTripChange } from "@/lib/realtime";
 import type { ChangeOp } from "@/lib/travel/change-ops";
+import { isProActive } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 
@@ -91,6 +92,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const access = await getTripAccess(id, user.id);
   if (!access) return notFound();
+  if (!isProActive(user)) {
+    return apiError("FORBIDDEN", "Trip collaboration requires a Pro plan. Upgrade to submit change requests.");
+  }
 
   const trip = await prisma.trip.findUnique({ where: { id }, select: { participantsJson: true } });
   const participants = (trip?.participantsJson as unknown as { id: string }[] | null) ?? [];
