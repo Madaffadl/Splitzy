@@ -39,11 +39,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // Default locale first, and weighted above the prefixed tree — it is the
     // version we want treated as the primary. Derived from DEFAULT_LOCALE so
     // flipping the default cannot leave this pointing at the wrong language.
+    // Rounded to 2dp: 0.7 * 0.8 is 0.5599999999999999 in binary floating point,
+    // and that full expansion is what ends up in the emitted XML.
     return [DEFAULT_LOCALE, PREFIXED_LOCALE].map((locale) => ({
       url: `${base}${localePath(locale, route)}`,
       lastModified: now,
       changeFrequency,
-      priority: locale === DEFAULT_LOCALE ? priority : priority * 0.8,
+      priority:
+        locale === DEFAULT_LOCALE
+          ? priority
+          : Math.round(priority * 0.8 * 100) / 100,
       alternates: { languages },
     }));
   });
