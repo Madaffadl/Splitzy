@@ -19,7 +19,7 @@ import {
   PREFIXED_LOCALE,
 } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { siteGraph } from "@/lib/seo/structured-data";
+import { siteGraph, fetchAggregateRating } from "@/lib/seo/structured-data";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -141,7 +141,7 @@ const supabaseOrigin = (() => {
   }
 })();
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -161,7 +161,7 @@ export default function RootLayout({
         {/* Site-wide entity graph (Organization + WebSite + SoftwareApplication).
             Emitted from the layout so every route — including the tool pages —
             carries the same claim on the contested "Splitzy" name. */}
-        <JsonLd data={siteGraph(DEFAULT_DICT)} />
+        <JsonLd data={siteGraph(DEFAULT_DICT, await fetchAggregateRating())} />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

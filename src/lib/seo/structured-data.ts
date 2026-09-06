@@ -8,12 +8,13 @@
 // SoftwareApplication graph, with stable @ids that every page references, is
 // how we stake a claim to the name rather than hoping Google infers it.
 //
-// Integrity constraint: we deliberately emit NO `aggregateRating` or `review`
-// markup. The star ratings and usage counts on the landing page are still
-// placeholder figures, and marking up fabricated reviews violates Google's
-// structured-data spam policies and risks a manual action. Rating markup gets
-// added only once the numbers come from real data.
+// Integrity constraint: aggregateRating is only emitted when the live `reviews`
+// table has ≥5 approved rows — see fetchAggregateRating(). The landing page
+// stats and testimonials are still placeholder figures and must never be marked
+// up as structured data (that would violate Google's spam policy).
 
+import { unstable_cache } from "next/cache";
+import { prisma } from "@/lib/prisma";
 import { BRAND, BRAND_PROFILES } from "@/lib/brand";
 import {
   DEFAULT_LOCALE,
@@ -51,6 +52,8 @@ function organizationNode(): JsonLdNode {
     email: BRAND.supportEmail,
     description:
       "Splitzy builds a free web app for splitting shared bills and trip expenses fairly, with itemised receipt scanning and minimal-transfer settlement.",
+    foundingDate: "2024",
+    knowsLanguage: [HTML_LANG[DEFAULT_LOCALE], HTML_LANG[PREFIXED_LOCALE]],
     logo: {
       "@type": "ImageObject",
       "@id": NODE.logo,
@@ -77,10 +80,27 @@ function webSiteNode(): JsonLdNode {
     // The site is served in both languages; the default locale is x-default.
     inLanguage: [HTML_LANG[DEFAULT_LOCALE], HTML_LANG[PREFIXED_LOCALE]],
     publisher: { "@id": NODE.organization },
+    // potentialAction enables the Google Sitelinks Searchbox for branded queries.
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${SITE}/?q={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
   };
 }
 
-function softwareApplicationNode(dict: Dictionary): JsonLdNode {
+export type AggregateRating = {
+  ratingValue: number;
+  reviewCount: number;
+};
+
+function softwareApplicationNode(
+  dict: Dictionary,
+  rating?: AggregateRating
+): JsonLdNode {
   return {
     "@type": ["SoftwareApplication", "WebApplication"],
     "@id": NODE.app,
@@ -91,6 +111,7 @@ function softwareApplicationNode(dict: Dictionary): JsonLdNode {
     operatingSystem: "Web browser (Android, iOS, Windows, macOS)",
     browserRequirements: "Requires JavaScript.",
     inLanguage: [HTML_LANG[DEFAULT_LOCALE], HTML_LANG[PREFIXED_LOCALE]],
+    availableOnDevice: ["Desktop", "Mobile"],
     description: dict.meta.home.description,
     publisher: { "@id": NODE.organization },
     isPartOf: { "@id": NODE.website },
@@ -121,6 +142,20 @@ function softwareApplicationNode(dict: Dictionary): JsonLdNode {
         description: `One-time payment granting ${PRO_PLAN.periodDays} days of Splitzy Pro. No auto-renewal.`,
       },
     ],
+    // Only emitted once there are ≥5 approved reviews — Google ignores (and may
+    // penalise) aggregateRating with too few samples. See also the comment at
+    // the top of this file about not marking up placeholder stats.
+    ...(rating && rating.reviewCount >= 5
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: rating.ratingValue.toFixed(1),
+            reviewCount: rating.reviewCount,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
   };
 }
 
@@ -128,14 +163,20 @@ function softwareApplicationNode(dict: Dictionary): JsonLdNode {
  * The site-wide entity graph: Organization + WebSite + the app itself. Rendered
  * once from the root layout so every page — including the tool routes — carries
  * a consistent claim on the "Splitzy" name.
+ *
+ * Pass `rating` to include aggregateRating in the SoftwareApplication node;
+ * the node omits it if there are fewer than 5 approved reviews.
  */
-export function siteGraph(dict: Dictionary): JsonLdNode {
+export function siteGraph(
+  dict: Dictionary,
+  rating?: AggregateRating
+): JsonLdNode {
   return {
     "@context": "https://schema.org",
     "@graph": [
       organizationNode(),
       webSiteNode(),
-      softwareApplicationNode(dict),
+      softwareApplicationNode(dict, rating),
     ],
   };
 }
@@ -224,3 +265,28 @@ export function faqGraph(
     })),
   };
 }
+
+/**
+ * Fetches the live aggregate rating from approved reviews. Cached for 1 hour
+ * so every page load doesn't hit the DB. Returns undefined when there are
+ * fewer than 5 approved reviews — the schema.org minimum for aggregateRating.
+ */
+export const fetchAggregateRating = unstable_cache(
+  async (): Promise<AggregateRating | undefined> => {
+    try {
+      const result = await prisma.review.aggregate({
+        where: { status: "approved" },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+      const count = result._count.rating;
+      const avg = result._avg.rating;
+      if (count < 5 || avg === null) return undefined;
+      return { ratingValue: avg, reviewCount: count };
+    } catch {
+      return undefined;
+    }
+  },
+  ["aggregate-rating"],
+  { revalidate: 3600 }
+);

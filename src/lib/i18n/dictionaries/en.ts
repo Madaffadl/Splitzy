@@ -267,6 +267,10 @@ export const en: Dictionary = {
     seeAll: "See all questions",
     items: [
       {
+        q: "What is Splitzy?",
+        a: "Splitzy is a free web app for splitting shared bills and trip expenses. Scan the receipt, tap who had what, and Splitzy calculates exactly who owes whom — in the fewest transfers possible. No download or sign-up needed; it runs in any browser.",
+      },
+      {
         q: "Is Splitzy really free?",
         a: "Yes. Splitting single bills, multiple receipts, and whole trips is free forever. Pro (Rp 29.000 / 30 days) only lifts the AI-scan limit — everything else stays free.",
       },

@@ -272,6 +272,10 @@ export const id = {
     seeAll: "Lihat semua pertanyaan",
     items: [
       {
+        q: "Apa itu Splitzy?",
+        a: "Splitzy adalah aplikasi web gratis asal Indonesia untuk membagi tagihan dan pengeluaran bersama. Scan struknya, tandai siapa makan apa, dan Splitzy menghitung tepat siapa berutang ke siapa — dengan transfer paling sedikit. Tidak perlu download atau daftar; langsung pakai di browser.",
+      },
+      {
         q: "Apakah Splitzy benar-benar gratis?",
         a: "Ya. Membagi satu struk, banyak struk, dan pengeluaran satu trip utuh gratis selamanya. Pro (Rp 29.000 / 30 hari) hanya menghilangkan batas scan AI — sisanya tetap gratis.",
       },

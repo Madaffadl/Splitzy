@@ -285,6 +285,9 @@ export function NewLanding({ locale = DEFAULT_LOCALE }: { locale?: Locale }) {
               {dict.hero.badge}
             </div>
             <h1 className="text-display-1 mb-5">
+              <span className="block text-xs font-bold tracking-[0.18em] uppercase text-primary/60 mb-3 select-none">
+                Splitzy
+              </span>
               <span className="gradient-text bg-gradient-to-r from-primary via-accent to-primary">
                 {dict.hero.titleAccent}
               </span>{" "}
